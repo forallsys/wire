@@ -8,6 +8,8 @@
       commonArgs,
       system,
       cargo-testing-vms,
+      cargo-testing-exports,
+      self',
       ...
     }:
     let
@@ -30,12 +32,14 @@
         }
         // commonArgs
       );
+
+      snakeOil = import "${pkgs.path}/nixos/tests/ssh-keys.nix" pkgs;
     in
     {
       packages.cargo-tests = pkgs.writeShellScriptBin "run-tests" ''
         set -e
 
-        export WIRE_TEST_VM="${cargo-testing-vms}"
+        ${cargo-testing-exports}
 
         for item in "${tests}"/*; do
             echo "running $item"
@@ -44,6 +48,12 @@
       '';
 
       _module.args = {
+        cargo-testing-exports = ''
+          export WIRE_TEST_VM="${cargo-testing-vms}"
+          export WIRE_PUSHABLE_PATH="${self'.packages.agent}"
+          export WIRE_SSH_KEY="${snakeOil.snakeOilEd25519PrivateKey}"
+        '';
+
         cargo-testing-vms =
           let
             mkVM =
@@ -82,6 +92,11 @@
                     diskSize = 5024;
                     diskImage = null;
 
+                    # testing for pushing is hard without this
+                    # useBootLoader = true;
+                    useNixStoreImage = true;
+                    writableStore = true;
+
                     forwardPorts = [
                       {
                         from = "host";
@@ -91,9 +106,7 @@
                     ];
                   };
 
-                  users.users.root.openssh.authorizedKeys.keys = [
-                    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPSvOZoSGVEpR6eTDK9OJ31MWQPF2s8oLc8J7MBh6nez marsh@maple"
-                  ];
+                  users.users.root.openssh.authorizedKeys.keys = [ snakeOil.snakeOilEd25519PublicKey ];
 
                   users.users.root.initialPassword = "root";
 
@@ -105,6 +118,7 @@
             builtins.map (index: {
               path = (mkVM index).config.system.build.vm;
               name = builtins.toString index;
+              # Updated with every new test that uses a VM
             }) (lib.range 0 1)
           );
       };

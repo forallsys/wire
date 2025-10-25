@@ -35,7 +35,7 @@ pub struct Name(pub Arc<str>);
 pub struct Target {
     pub hosts: Vec<Arc<str>>,
     pub user: Arc<str>,
-    pub port: u32,
+    pub port: u16,
 
     #[serde(skip)]
     current_host: usize,
@@ -65,6 +65,12 @@ impl Target {
             "-p".to_string(),
             self.port.to_string(),
         ];
+
+        if cfg!(test) {
+            let snake_oil_path = env::var("WIRE_SSH_KEY").unwrap();
+            vector.extend(["-i".to_string(), snake_oil_path]);
+        }
+
         let mut options = vec![
             format!(
                 "StrictHostKeyChecking={}",
@@ -84,8 +90,36 @@ impl Target {
 
         Ok(vector)
     }
-}
 
+    pub fn get_preferred_host(&self) -> Result<&Arc<str>, HiveLibError> {
+        self.hosts
+            .get(self.current_host)
+            .ok_or(HiveLibError::NetworkError(NetworkError::HostsExhausted))
+    }
+
+    pub fn host_failed(&mut self) {
+        self.current_host += 1;
+    }
+
+    #[cfg(test)]
+    pub fn new(host: Arc<str>, user: Arc<str>, port: u16) -> Target {
+        Target {
+            hosts: vec![host],
+            user,
+            port,
+            current_host: 0,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn from_host(host: &str) -> Self {
+        Target {
+            hosts: vec![host.into()],
+            ..Default::default()
+        }
+    }
+}
+ 
 #[cfg(test)]
 impl Default for Target {
     fn default() -> Self {
@@ -100,7 +134,7 @@ impl Default for Target {
 
 #[cfg(test)]
 impl<'a> Context<'a> {
-    fn create_test_context(
+    pub(crate) fn create_test_context(
         hive_location: HiveLocation,
         name: &'a Name,
         node: &'a mut Node,
@@ -117,27 +151,6 @@ impl<'a> Context<'a> {
             should_apply_locally: false,
             handle_unreachable: HandleUnreachable::default(),
             should_shutdown: Arc::new(AtomicBool::new(false)),
-        }
-    }
-}
-
-impl Target {
-    pub fn get_preferred_host(&self) -> Result<&Arc<str>, HiveLibError> {
-        self.hosts
-            .get(self.current_host)
-            .ok_or(HiveLibError::NetworkError(NetworkError::HostsExhausted))
-    }
-
-    pub const fn host_failed(&mut self) {
-        self.current_host += 1;
-    }
-
-    #[cfg(test)]
-    #[must_use]
-    pub fn from_host(host: &str) -> Self {
-        Target {
-            hosts: vec![host.into()],
-            ..Default::default()
         }
     }
 }
@@ -209,6 +222,14 @@ impl Node {
     }
 
     /// Tests the connection to a node
+    #[cfg(test)]
+    pub fn from_target(target: Target) -> Self {
+        Node {
+            target,
+            ..Default::default()
+        }
+    }
+
     pub async fn ping(&self, modifiers: SubCommandModifiers) -> Result<(), HiveLibError> {
         let host = self.target.get_preferred_host()?;
 
@@ -488,9 +509,11 @@ mod tests {
 
     use super::*;
     use crate::{
+        errors::CommandError,
         function_name, get_test_path,
         hive::{Hive, get_hive_location},
         location,
+        test_support::test_with_vm,
     };
     use std::{assert_matches::assert_matches, path::PathBuf};
     use std::{collections::HashMap, env};
@@ -729,6 +752,7 @@ mod tests {
             "/tmp/{}",
             rand::distr::SampleString::sample_string(&Alphabetic, &mut rand::rng(), 10)
         );
+        let snake_oil_path = env::var("WIRE_SSH_KEY").unwrap();
 
         std::fs::create_dir(&tmp).unwrap();
 
@@ -739,6 +763,8 @@ mod tests {
             target.user.to_string(),
             "-p".to_string(),
             target.port.to_string(),
+            "-i".to_string(),
+            snake_oil_path.clone(),
             "-o".to_string(),
             "StrictHostKeyChecking=accept-new".to_string(),
             "-o".to_string(),
@@ -767,6 +793,8 @@ mod tests {
                 target.user.to_string(),
                 "-p".to_string(),
                 target.port.to_string(),
+                "-i".to_string(),
+                snake_oil_path.clone(),
                 "-o".to_string(),
                 "StrictHostKeyChecking=accept-new".to_string(),
                 "-o".to_string(),
@@ -785,6 +813,8 @@ mod tests {
                 target.user.to_string(),
                 "-p".to_string(),
                 target.port.to_string(),
+                "-i".to_string(),
+                snake_oil_path.clone(),
                 "-o".to_string(),
                 "StrictHostKeyChecking=accept-new".to_string(),
                 "-o".to_string(),
@@ -826,5 +856,40 @@ mod tests {
         let status = executor.execute().await;
 
         assert_matches!(status, Err(HiveLibError::Sigint));
+    }
+
+    /// unfortunately, there is no way to verify that a ping actually occured
+    /// besides the function returning OK.
+    #[tokio::test]
+    async fn ping_vm() {
+        let vm = test_with_vm();
+        let node = Node::from_target(vm.target.clone());
+        let modifiers = SubCommandModifiers {
+            ssh_accept_host: true,
+            ..Default::default()
+        };
+
+        let ping = node.ping(modifiers).await;
+
+        assert_matches!(ping, Ok(()));
+    }
+
+    #[tokio::test]
+    async fn ping_non_existent_node() {
+        let node = Node::from_host("non-existent-node");
+        let hostname = node.target.get_preferred_host().unwrap().to_string();
+
+        let ping = node.ping(SubCommandModifiers::default()).await;
+
+        assert_matches!(
+            ping,
+            Err(HiveLibError::NetworkError(NetworkError::HostUnreachable { host, source })) if host == hostname &&
+            matches!(
+                &source,
+                CommandError::CommandFailed { command_ran, logs, code, reason }
+                if command_ran.contains("store ping --store ssh://root@non-existent-node") &&
+                logs.contains("cannot connect to 'root@non-existent-node'")
+            )
+        );
     }
 }
