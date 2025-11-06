@@ -57,10 +57,6 @@ pub async fn apply(
     let header_span = Span::current();
     let location = Arc::new(location);
 
-    // Respect user's --always-build-local arg
-    // TODO
-    // hive.force_always_local(args.always_build_local)?;
-
     let header_span_enter = header_span.enter();
 
     let (tags, names) = args.on.iter().fold(
@@ -95,7 +91,19 @@ pub async fn apply(
         })
         .map(|(name, _)| (name, Hive::node_from_path(name, &location, modifiers)))
         .map(|(name, node)| {
-            node.and_then(async |mut node| {
+            node.map_ok(|mut node| {
+                // Respect user's --always-build-local arg
+
+                let name = &name.0.to_string();
+                if args.always_build_local.contains(name) {
+                    info!("Forcing a local build for {name}");
+
+                    node.build_remotely = false;
+                }
+
+                node
+            })
+            .and_then(async |mut node| {
                 let name = name.clone();
                 info!("Resolved {:?} to include {}", args.on, name);
 

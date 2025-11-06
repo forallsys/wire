@@ -14,7 +14,6 @@ use std::fmt::Display;
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::Arc;
 use tracing::{info, instrument};
 
 use crate::commands::common::evaluate_hive_attribute;
@@ -100,24 +99,6 @@ impl Hive {
         })?;
 
         Ok(names)
-    }
-
-    /// # Errors
-    ///
-    /// Returns an error if a node in nodes does not exist in the hive.
-    pub fn force_always_local(&mut self, nodes: Vec<String>) -> Result<(), HiveLibError> {
-        for node in nodes {
-            info!("Forcing a local build for {node}");
-
-            self.nodes
-                .get_mut(&Name(Arc::from(node.clone())))
-                .ok_or(HiveLibError::HiveInitializationError(
-                    HiveInitializationError::NodeDoesNotExist(node.clone()),
-                ))?
-                .build_remotely = false;
-        }
-
-        Ok(())
     }
 }
 
@@ -393,38 +374,6 @@ mod tests {
                 ..
             })
             if logs.contains("The option `deployment._keys' is read-only, but it's set multiple times.")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_force_always_local() {
-        let mut location: PathBuf = env::var("WIRE_TEST_DIR").unwrap().into();
-        location.push("non_trivial_hive");
-        let location = location!(location);
-
-        let mut hive = Hive::new_from_path(&location, SubCommandModifiers::default())
-            .await
-            .unwrap();
-
-        assert_matches!(
-            hive.force_always_local(vec!["non-existant".to_string()]),
-            Err(HiveLibError::HiveInitializationError(
-                HiveInitializationError::NodeDoesNotExist(node)
-            )) if node == "non-existant"
-        );
-
-        for node in hive.nodes.values() {
-            assert!(node.build_remotely);
-        }
-
-        assert_matches!(hive.force_always_local(vec!["node-a".to_string()]), Ok(()));
-
-        assert!(
-            !hive
-                .nodes
-                .get(&Name("node-a".into()))
-                .unwrap()
-                .build_remotely
         );
     }
 }
