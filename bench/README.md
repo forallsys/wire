@@ -4,6 +4,8 @@ This directory contains a little tool to run hyperfine against wire and colmena,
 
 The hive can be found in `default.nix`.
 
+Run the test with `nix run .#bench-runner --impure`
+
 The hive has around 20 nodes and 200 keys each. 80% of the keys are pre-activation, 20% post-activation.
 
 | Command          |         Mean [s] | Min [s] | Max [s] |    Relative |

@@ -5,46 +5,69 @@
       pkgs,
       lib,
       self',
+      system,
       ...
     }:
     {
-      packages = {
-        bench-runner = pkgs.writeShellScriptBin "bench-runner" ''
-          set -e
+      packages =
+        let
+          evalConfig = import (pkgs.path + "/nixos/lib/eval-config.nix");
+          mkVM =
+            index:
+            evalConfig {
+              inherit system;
+              modules = [
+                ./vm.nix
+                {
+                  _module.args = {
+                    index = toString index;
+                  };
+                }
+              ];
+            };
 
-          export NIX_PATH="nixpkgs=${inputs.nixpkgs}"
+          forest = pkgs.linkFarm "vm-forest" (
+            builtins.map (index: {
+              path = (mkVM index).config.system.build.vm;
+              name = builtins.toString index;
+            }) (lib.range 0 20)
+          );
+        in
+        {
+          bench-runner = pkgs.writeShellScriptBin "bench-runner" ''
+            set -e
 
-          setup_vm() {
-            local i="$1"
+            ${lib.toShellVars {
+              inherit forest;
+              bench_dir = ./.;
+            }}
 
-            echo "building $i"
+            export NIX_PATH="nixpkgs=${inputs.nixpkgs}"
 
-            out=$(INDEX="$i" nix-build '<nixpkgs/nixos>' -A vm -I nixos-config=./vm.nix --no-link)
+            echo "setting up vms..."
 
-            echo "$out/bin/run-bench-vm-$i-vm"
-          }
+            for i in {0..20}
+            do
+              "$forest/$i/bin/run-bench-vm" &
+            done
 
-          export -f setup_vm
+            echo "sleeping"
+            sleep 10
+            echo "awake"
 
-          echo "setting up vms..."
-          ${lib.getExe pkgs.parallel-full} --verbose --tagstring {//} setup_vm {} ::: {0..20} | xargs -I {} bash -c '{} &'
+            wire_args="apply test --path $bench_dir/wire -vv --ssh-accept-host -p 10"
+            colmena_args="apply test --config $bench_dir/colmena/hive.nix -v -p 10"
 
-          echo "sleeping"
-          sleep 30
-          echo "awake"
-
-          wire_trunk=$(nix build --print-out-paths github:mrshmllow/wire#wire-small --no-link)
-          wire_args="apply test --path ./wire -vv --ssh-accept-host -p 10"
-          colmena_args="apply test --config ./colmena/hive.nix -v -p 10"
-
-          ${lib.getExe pkgs.hyperfine} --warmup 1 --show-output --runs 1 \
-            --export-markdown stats.md \
-            --export-json run.json \
-            "${lib.getExe self'.packages.wire-small} $wire_args" -n "wire@HEAD" \
-            "$wire_trunk/bin/wire $wire_args" -n "wire@trunk" \
-            "${lib.getExe' inputs.colmena_benchmarking.packages.x86_64-linux.colmena "colmena"} $colmena_args" \
-                -n "colmena@pinned"
-        '';
-      };
+            ${lib.getExe pkgs.hyperfine} --warmup 1 --show-output --runs 1 \
+              --export-markdown stats.md \
+              --export-json run.json \
+              "${lib.getExe self'.packages.wire-small} $wire_args" -n "wire@HEAD" \
+              "${
+                lib.getExe (builtins.getFlake "github:mrshmllow/wire/trunk").packages.${system}.wire-small
+              } $wire_args" -n "wire@trunk" \
+              "${lib.getExe' inputs.colmena_benchmarking.packages.x86_64-linux.colmena "colmena"} $colmena_args" \
+                  -n "colmena@pinned"
+          '';
+        };
     };
 }

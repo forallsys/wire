@@ -9,7 +9,7 @@ in
 
   imports = [ "${flake.inputs.nixpkgs}/nixos/modules/virtualisation/qemu-vm.nix" ];
 
-  networking.hostName = "bench-vm-${index}";
+  networking.hostName = "bench";
 
   boot = {
     loader = {
