@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - yyyy-mm-dd
 
+### Added
+
+- `meta.nodeNixpkgs` was implemented.
+
 ## [v1.0.0-alpha.1] - 2025-11-24
 
 ### Added

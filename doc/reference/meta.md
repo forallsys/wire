@@ -14,7 +14,7 @@ Tells wire how to get `nixpkgs`.
 
 _Type:_ A path or an instance of `nixpkgs`.
 
-_Default:_ `inputs.nixpkgs.outPath`
+_Default:_ `null`
 
 _Examples:_
 
@@ -58,5 +58,41 @@ _Example:_
     # pass flake inputs as specialArgs
     inherit inputs;
   };
+}
+```
+
+## meta.nodeNixpkgs
+
+Per-node nixpkgs to override `meta.nixpkgs`.
+
+See `meta.nixpkgs` examples for possible values.
+
+_Type:_ attribute set of path or an instance of `nixpkgs`
+
+_Default:_ `{ }`
+
+_Example:_
+
+```nix
+{
+  meta = {
+    nixpkgs = import <nixpkgs> { };
+
+    nodeNixpkgs = {
+      node-b = import <special-nixpkgs> { };
+    };
+  };
+
+  node-a =
+    { pkgs, ... }:
+    {
+      # uses <nixpkgs> (meta.nixpkgs)
+    };
+
+  node-b =
+    { pkgs, ... }:
+    {
+      # uses <special-nixpkgs> (meta.nodeNixpkgs.node-b)
+    };
 }
 ```

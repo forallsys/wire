@@ -31,28 +31,43 @@ let
     ]
   ) (builtins.filter (name: builtins.hasAttr name hive) (builtins.attrNames mergedHive));
 
-  resolvedNixpkgs =
+  resolveNixpkgs =
+    value: help:
+    # support `<nixpkgs>`
+    if builtins.isPath value then
+      import value { }
+    # support npins sources passed directly
+    else if value ? "outPath" then
+      import value { }
+    # support `import <nixpkgs> { }`
+    else if builtins.isAttrs value then
+      value
+    else
+      builtins.abort "${help} was not a path, { outPath, .. }, or attrset. Was type: ${builtins.typeOf value}";
+
+  hiveGlobalNixpkgs =
     if mergedHive.meta ? "nixpkgs" then
-      # support `<nixpkgs>`
-      if builtins.isPath mergedHive.meta.nixpkgs then
-        import mergedHive.meta.nixpkgs { }
-      # support npins sources passed directly
-      else if mergedHive.meta.nixpkgs ? "outPath" then
-        import mergedHive.meta.nixpkgs { }
-      # support `import <nixpkgs> { }`
-      else if builtins.isAttrs mergedHive.meta.nixpkgs then
-        mergedHive.meta.nixpkgs
-      else
-        builtins.abort "meta.nixpkgs was not a path, { outPath, .. }, or attrset. Was type: ${builtins.typeOf mergedHive.meta.nixpkgs}"
+      (resolveNixpkgs mergedHive.meta.nixpkgs "meta.nixpkgs")
     else
       builtins.abort "makeHive called without meta.nixpkgs specified.";
 
-  isFlake = resolvedNixpkgs.lib.hasSuffix "-source" resolvedNixpkgs.path;
+  getNodeNixpkgs =
+    name:
+    if mergedHive.meta ? "nodeNixpkgs" then
+      if mergedHive.meta.nodeNixpkgs ? "${name}" then
+        (resolveNixpkgs mergedHive.meta.nodeNixpkgs.${name} "meta.nodeNixpkgs.${name}")
+      else
+        hiveGlobalNixpkgs
+    else
+      hiveGlobalNixpkgs;
+
+  nixpkgsIsFlake = nixpkgs: nixpkgs.lib.hasSuffix "-source" nixpkgs.path;
 
   evaluateNode =
     name:
     let
-      evalConfig = import (resolvedNixpkgs.path + "/nixos/lib/eval-config.nix");
+      nixpkgs = getNodeNixpkgs name;
+      evalConfig = import (nixpkgs.path + "/nixos/lib/eval-config.nix");
     in
     evalConfig {
       modules = [
@@ -61,8 +76,8 @@ let
         mergedHive.defaults
         mergedHive.${name}
       ]
-      ++ (resolvedNixpkgs.lib.optional isFlake {
-        config.nixpkgs.flake.source = resolvedNixpkgs.lib.mkDefault resolvedNixpkgs.path;
+      ++ (nixpkgs.lib.optional (nixpkgsIsFlake nixpkgs) {
+        config.nixpkgs.flake.source = nixpkgs.lib.mkDefault nixpkgs.path;
       });
       system = null;
       specialArgs = {
@@ -70,6 +85,7 @@ let
       }
       // mergedHive.meta.specialArgs or { };
     };
+
   nodes = builtins.listToAttrs (
     map (name: {
       inherit name;
