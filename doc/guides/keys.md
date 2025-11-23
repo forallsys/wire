@@ -38,7 +38,7 @@ user must be trusted or you must add garnix as a trusted public key:
 Otherwise, you may see errors such as:
 
 ```
-error: cannot add path '/nix/store/...-wire-tool-key_agent-x86_64-linux-...' because it lacks a signature by a trusted key
+error: cannot add path '/nix/store/...-wire-tool-agent-x86_64-linux-...' because it lacks a signature by a trusted key
 ```
 
 This is a requirement because `nix copy` is used to copy the binary.

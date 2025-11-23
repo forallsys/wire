@@ -1,5 +1,5 @@
 [workspace]
-members = ["wire/key_agent", "wire/lib", "wire/cli"]
+members = ["wire/agent", "wire/lib", "wire/cli"]
 resolver = "2"
 package.edition = "2024"
 package.version = "1.0.0-beta.0"

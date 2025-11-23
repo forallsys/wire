@@ -20,7 +20,7 @@
 
           installPhaseCommand = ''
             mkdir -p $out
-            cp $(ls target/debug/deps/{wire,lib,key_agent}-* | grep -v "\.d") $out
+            cp $(ls target/debug/deps/{wire,lib,agent}-* | grep -v "\.d") $out
           '';
         }
         // commonArgs

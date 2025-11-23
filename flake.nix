@@ -38,7 +38,7 @@
         ./nix/shells.nix
         ./nix/tests.nix
         ./wire/cli
-        ./wire/key_agent
+        ./wire/agent
         ./doc
         ./tests/nix
         ./runtime

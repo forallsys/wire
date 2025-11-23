@@ -5,7 +5,7 @@
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use futures_util::stream::StreamExt;
-use key_agent::keys::KeySpec;
+use agent::keys::KeySpec;
 use nix::unistd::{Group, User};
 use prost::Message;
 use prost::bytes::Bytes;

@@ -291,7 +291,7 @@ pub struct StepState {
     pub evaluation: Option<Derivation>,
     pub evaluation_rx: Option<oneshot::Receiver<Result<Derivation, HiveLibError>>>,
     pub build: Option<String>,
-    pub key_agent_directory: Option<String>,
+    pub agent_directory: Option<String>,
 }
 
 pub struct Context<'a> {

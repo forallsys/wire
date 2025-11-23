@@ -125,7 +125,7 @@ async fn create_reader(key: &'_ Key) -> Result<Pin<Box<dyn AsyncRead + Send + '_
     }
 }
 
-async fn process_key(key: &Key) -> Result<(key_agent::keys::KeySpec, Vec<u8>), KeyError> {
+async fn process_key(key: &Key) -> Result<(agent::keys::KeySpec, Vec<u8>), KeyError> {
     let mut reader = create_reader(key).await?;
 
     let mut buf = Vec::new();
@@ -140,7 +140,7 @@ async fn process_key(key: &Key) -> Result<(key_agent::keys::KeySpec, Vec<u8>), K
     debug!("Staging push to {}", destination.clone().display());
 
     Ok((
-        key_agent::keys::KeySpec {
+        agent::keys::KeySpec {
             length: buf
                 .len()
                 .try_into()
@@ -221,7 +221,7 @@ impl ExecuteStep for Keys {
 
     #[instrument(skip_all, name = "keys")]
     async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
-        let agent_directory = ctx.state.key_agent_directory.as_ref().unwrap();
+        let agent_directory = ctx.state.agent_directory.as_ref().unwrap();
 
         let futures = ctx
             .node
@@ -249,7 +249,7 @@ impl ExecuteStep for Keys {
             return Ok(());
         }
 
-        let command_string = format!("{agent_directory}/bin/key_agent");
+        let command_string = format!("{agent_directory}/bin/agent");
 
         let mut child = run_command(
             &CommandArguments::new(command_string, ctx.modifiers)
@@ -305,7 +305,7 @@ impl ExecuteStep for PushKeyAgent {
     #[instrument(skip_all, name = "push_agent")]
     async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
         let arg_name = format!(
-            "WIRE_KEY_AGENT_{platform}",
+            "WIRE_AGENT_{platform}",
             platform = ctx.node.host_platform.replace('-', "_")
         );
 
@@ -322,7 +322,7 @@ impl ExecuteStep for PushKeyAgent {
             push(ctx, Push::Path(&agent_directory)).await?;
         }
 
-        ctx.state.key_agent_directory = Some(agent_directory);
+        ctx.state.agent_directory = Some(agent_directory);
 
         Ok(())
     }

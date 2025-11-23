@@ -1,5 +1,5 @@
 [package]
-name = "key_agent"
+name = "agent"
 edition.workspace = true
 version.workspace = true
 

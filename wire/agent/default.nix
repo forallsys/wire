@@ -8,9 +8,9 @@
     {
       packages = {
         agent = buildRustProgram {
-          name = "key_agent";
-          pname = "wire-tool-key_agent-${system}";
-          cargoExtraArgs = "-p key_agent";
+          name = "agent";
+          pname = "wire-tool-agent-${system}";
+          cargoExtraArgs = "-p agent";
         };
       };
     };

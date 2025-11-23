@@ -12,7 +12,7 @@
     let
       cleanSystem = system: lib.replaceStrings [ "-" ] [ "_" ] system;
       agents = lib.strings.concatMapStrings (
-        system: "--set WIRE_KEY_AGENT_${cleanSystem system} ${(getSystem system).packages.agent} "
+        system: "--set WIRE_AGENT_${cleanSystem system} ${(getSystem system).packages.agent} "
       ) (import inputs.linux-systems);
     in
     {
@@ -70,7 +70,7 @@
             pkgs.makeWrapper
           ];
           postBuild = ''
-            wrapProgram $out/bin/wire --set WIRE_KEY_AGENT_${cleanSystem system} ${self'.packages.agent}
+            wrapProgram $out/bin/wire --set WIRE_AGENT_${cleanSystem system} ${self'.packages.agent}
           '';
           meta.mainProgram = "wire";
         };
