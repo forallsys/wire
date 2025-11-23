@@ -154,10 +154,18 @@ impl Display for Target {
     }
 }
 
+const fn rollback_default() -> bool {
+    true
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Node {
     #[serde(rename = "target")]
     pub target: Target,
+
+    /// default value as this is a new attribute
+    #[serde(rename = "rollback", default = "rollback_default")]
+    pub rollback: bool,
 
     #[serde(rename = "buildOnTarget")]
     pub build_remotely: bool,
@@ -192,6 +200,7 @@ impl Default for Node {
             allow_local_deployment: true,
             build_remotely: false,
             host_platform: "x86_64-linux".into(),
+            rollback: rollback_default(),
         }
     }
 }
@@ -294,6 +303,7 @@ pub struct StepState {
     pub agent_directory: Option<String>,
 }
 
+#[allow(clippy::struct_excessive_bools)]
 pub struct Context<'a> {
     pub name: &'a Name,
     pub node: &'a mut Node,

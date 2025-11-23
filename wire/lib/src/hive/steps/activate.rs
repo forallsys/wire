@@ -116,7 +116,34 @@ async fn reboot(ctx: &Context<'_>) -> Result<(), HiveLibError> {
     ));
 }
 
-async fn reconnect(
+async fn rollback(ctx: &Context<'_>, goal: &SwitchToConfigurationGoal, original_error: CommandError) -> Result<(), HiveLibError> {
+    let command_string = "touch /var/lib/wire-rollback/heartbeat".to_string();
+
+    let child = run_command(
+        &CommandArguments::new(command_string, ctx.modifiers)
+            .on_target(Some(&ctx.node.target))
+            .elevated(ctx.node)
+            .log_stdout(),
+    )
+    .await?;
+
+    let result = child.wait_till_success().await;
+
+    match result {
+        Ok(_) => Err(HiveLibError::ActivationError(
+            ActivationError::SwitchToConfigurationError(*goal, ctx.name.clone(), original_error),
+        )),
+        Err(err) => Err(HiveLibError::ActivationError(
+            ActivationError::FailedHeartbeatError {
+                name: ctx.name.clone(), 
+                activation_failure: original_error,
+                related_errors: vec![err]
+            },
+        )),
+    }
+}
+
+async fn reconnect_or_rollback(
     ctx: &Context<'_>,
     goal: &SwitchToConfigurationGoal,
     error: CommandError,
@@ -135,6 +162,10 @@ async fn reconnect(
     }
 
     if wait_for_ping(ctx).await.is_ok() {
+        if ctx.node.rollback {
+            return rollback(ctx, goal, error).await;
+        }
+
         return Err(HiveLibError::ActivationError(
             ActivationError::SwitchToConfigurationError(*goal, ctx.name.clone(), error),
         ));
@@ -175,13 +206,19 @@ impl ExecuteStep for SwitchToConfiguration {
 
         info!("Running switch-to-configuration {goal}");
 
+        let goal_str = match goal {
+            SwitchToConfigurationGoal::Switch => "switch",
+            SwitchToConfigurationGoal::Boot => "boot",
+            SwitchToConfigurationGoal::Test => "test",
+            SwitchToConfigurationGoal::DryActivate => "dry-activate",
+        };
+
         let command_string = format!(
-            "{built_path}/bin/switch-to-configuration {}",
-            match goal {
-                SwitchToConfigurationGoal::Switch => "switch",
-                SwitchToConfigurationGoal::Boot => "boot",
-                SwitchToConfigurationGoal::Test => "test",
-                SwitchToConfigurationGoal::DryActivate => "dry-activate",
+            "{rollback}{built_path}/bin/switch-to-configuration {goal_str}",
+            rollback = if ctx.node.rollback {
+                format!("echo \"{goal_str}\" > /var/lib/wire-rollback/goal && ")
+            } else {
+                String::new()
             }
         );
 
@@ -201,7 +238,7 @@ impl ExecuteStep for SwitchToConfiguration {
 
         match result {
             Ok(_) => reboot(ctx).await,
-            Err(error) => reconnect(ctx, goal, error).await,
+            Err(error) => reconnect_or_rollback(ctx, goal, error).await,
         }
     }
 }

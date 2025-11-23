@@ -87,6 +87,20 @@ pub enum ActivationError {
     )]
     #[error("failed to run switch-to-configuration {0} on node {1}")]
     SwitchToConfigurationError(SwitchToConfigurationGoal, Name, #[source] CommandError),
+
+    #[diagnostic(
+        code(wire::activation::Heartbeat),
+        url("{DOCS_URL}#{}", self.code().unwrap())
+    )]
+    #[error("failed to touch /var/lib/wire-rollback/heartbeat on node {name}")]
+    FailedHeartbeatError {
+        name: Name, 
+        #[source]
+        activation_failure: CommandError,
+
+        #[related]
+        related_errors: Vec<CommandError>,
+    },
 }
 
 #[derive(Debug, Diagnostic, Error)]

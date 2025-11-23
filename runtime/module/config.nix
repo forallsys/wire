@@ -22,7 +22,74 @@
         }
       ) config.deployment.keys;
 
-      services = lib.mapAttrs' (
+      system.activationScripts.setup-wire-rollback.text = ''
+        mkdir -p /var/lib/wire-rollback
+        chmod 700 /var/lib/wire-rollback
+      '';
+
+      services = {
+        wire-rollback = {
+          enable = config.deployment.rollback;
+          description = "Rolls back the NixOS profile if `/var/lib/wire-rollback/heartbeat` is not created in 30
+          seconds after this service starts.";
+          documentation = [
+            "https://wire.althaea.zone/guides/rollback"
+          ];
+          path = [
+            pkgs.coreutils
+          ];
+          wantedBy = [ "multi-user.target" ];
+          script = ''
+            set -euo pipefail
+
+            goal=$(<"/var/lib/wire-rollback/goal")
+
+            case $goal in
+                "check" | "switch" | "boot" | "test" | "dry-activate")
+                    echo "<5>using goal $goal"
+                    ;;
+                *)
+                    echo "<3>'$goal' is not a valid goal."
+                    exit 1
+                    ;;
+            esac
+
+            sleep 30
+
+            if [ -f "/var/lib/wire-rollback/heartbeat" ]; then
+                exit 0
+            fi
+
+            echo "<1>/var/lib/wire-rollback/heartbeat does not exist, rolling back system"
+
+            # set current system
+            nix-env --rollback --profile /nix/var/nix/profiles/system
+            # get the path to the system we are now rolling back to
+            system=$(readlink -f /nix/var/nix/profiles/system)
+
+            echo "<5>rolling back to $system"
+
+            # switch to the system using goal
+            "$system/bin/switch-to-configuration $goal"
+          '';
+          unitConfig = {
+            ConditionPathExists = [
+              "/var/lib/wire-rollback/goal"
+              "!/var/lib/wire-rollback/heartbeat"
+            ];
+          };
+          serviceConfig = {
+            Type = "oneshot";
+            Restart = "no";
+            StateDirectory = "wire-rollback";
+            NotifyAccess = "all";
+            RemainAfterExit = "yes";
+
+            ExecStopPost = "${pkgs.coreutils}/bin/rm -f /var/lib/wire-rollback/goal";
+          };
+        };
+      }
+      // (lib.mapAttrs' (
         _name: value:
         lib.nameValuePair "${value.name}-key" {
           description = "Service that requires ${value.path}";
@@ -55,7 +122,7 @@
             RemainAfterExit = "yes";
           };
         }
-      ) config.deployment.keys;
+      ) config.deployment.keys);
     };
 
     deployment = {
