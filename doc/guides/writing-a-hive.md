@@ -21,6 +21,10 @@ meta = {
     # `meta.specialArgs` are specialArgs to pass to each node & default
     # type: attrset
     specialArgs = { };
+
+    # `meta.nodeNixpkgs` lets you override nixpkgs per-node.
+    # type: attrset of "A path or an instance of nixpkgs."
+    nodeNixpkgs: = { };
 };
 
 # `defaults` is a module applied to every node
