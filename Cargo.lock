@@ -914,7 +914,7 @@ checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
 
 [[package]]
 name = "key_agent"
-version = "1.0.0-alpha.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "anyhow",
  "base64",
@@ -935,7 +935,7 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "lib"
-version = "1.0.0-alpha.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -2452,7 +2452,7 @@ dependencies = [
 
 [[package]]
 name = "wire"
-version = "1.0.0-alpha.0"
+version = "1.0.0-alpha.1"
 dependencies = [
  "clap",
  "clap-markdown",

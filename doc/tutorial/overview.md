@@ -11,7 +11,7 @@ wire is a tool to deploy NixOS systems. Its usage is inspired by [colmena](https
 [^1]: A lot of your colmena module options will continue to work with wire, but wire has additional ergonomic changes you can take advantage of.
 
 ::: warning
-wire is alpha software, please use at your own risk. Many features listed in this documentation overall may not be complete / implemented, however features covered in this this tutorial are considered complete.
+wire is alpha software, please use at your own risk.
 :::
 
 ---

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - yyyy-mm-dd
 
+## [v1.0.0-alpha.1] - 2025-11-24
+
 ### Added
 
 - `--handle-unreachable` arg was added. You can use `--handle-unreachable ignore` to
