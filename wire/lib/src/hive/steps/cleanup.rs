@@ -3,7 +3,6 @@
 
 use std::fmt::Display;
 
-
 use crate::{
     errors::HiveLibError,
     hive::node::{Context, ExecuteStep},
