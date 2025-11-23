@@ -19,8 +19,6 @@ If you're familiar with colmena, wire will hopefully come quickly to you! (or,
 atleast that was the intention when writing it!). There are a few changes you
 should know:
 
-- Wire pushes a real binary file to apply keys. You'll need to _atleast_ add garnix's
-  public key for your remote server otherwise it will refuse the binary.
 - [You don't have to use a root user](/guides/non-root-user.html)
 - `apply-local` does not exist, `apply` will apply locally when appropriate
 - [Many options have been aliased to nicer names](/reference/module.html)

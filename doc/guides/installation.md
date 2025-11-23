@@ -19,9 +19,7 @@ It is recommended you stick to either using a tagged version of wire, or the `st
 
 ## Binary Cache
 
-You must enable the [garnix binary cache](https://garnix.io/docs/caching) on all
-nodes in your wire hive, otherwise they will not accept the wire key agent and
-you will be compiling everything from source.
+You should enable the [garnix binary cache](https://garnix.io/docs/caching).
 
 ## Installation through flakes
 

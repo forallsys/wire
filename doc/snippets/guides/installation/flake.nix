@@ -18,7 +18,7 @@
     forAllSystems = nixpkgs.lib.genAttrs (import systems);
   in {
     wire = wire.makeHive {
-      nixpkgs = import nixpkgs {localSystem = "x86_64-linux";};
+      meta.nixpkgs = import nixpkgs {localSystem = "x86_64-linux";};
 
       # Continue to next How-To guide to fill this section
     };
