@@ -4,10 +4,11 @@
 use std::{
     collections::VecDeque,
     io::{self, Stderr, Write, stderr},
+    time::Duration,
 };
 
 use clap_verbosity_flag::{LogLevel, Verbosity};
-use lib::STDIN_CLOBBER_LOCK;
+use lib::{STDIN_CLOBBER_LOCK, status::STATUS};
 use owo_colors::{OwoColorize, Stream, Style};
 use tracing::{Level, Subscriber};
 use tracing_log::AsTrace;
@@ -42,12 +43,13 @@ impl NonClobberingWriter {
         }
     }
 
+    /// expects the caller to write the status line
     fn dump_previous(&mut self) -> Result<(), io::Error> {
+        STATUS.lock().clear(&mut self.stderr);
+
         for buf in self.queue.iter().rev() {
             self.stderr.write(buf).map(|_| ())?;
         }
-
-        self.stderr.flush()?;
 
         Ok(())
     }
@@ -58,7 +60,7 @@ impl Write for NonClobberingWriter {
         if let 1.. = STDIN_CLOBBER_LOCK.available_permits() {
             self.dump_previous().map(|()| 0)?;
 
-            self.stderr.write(buf)
+            STATUS.lock().write_above_status(buf, &mut self.stderr)
         } else {
             self.queue.push_front(buf.to_vec());
 
@@ -229,11 +231,36 @@ where
     }
 }
 
+async fn status_tick_worker() {
+    let mut interval = tokio::time::interval(Duration::from_secs(1));
+    let mut stderr = stderr();
+
+    loop {
+        interval.tick().await;
+
+        if STDIN_CLOBBER_LOCK.available_permits() < 1 {
+            continue;
+        }
+
+        let mut status = STATUS.lock();
+
+        status.clear(&mut stderr);
+        status.write_status(&mut stderr);
+    }
+}
+
 /// Set up logging for the application
 /// Uses `WireFieldFormat` if -v was never passed
-pub fn setup_logging<L: LogLevel>(verbosity: &Verbosity<L>) {
+pub fn setup_logging<L: LogLevel>(verbosity: &Verbosity<L>, show_progress: bool) {
     let filter = verbosity.log_level_filter().as_trace();
     let registry = tracing_subscriber::registry();
+
+    STATUS.lock().show_progress(show_progress);
+
+    // spawn worker to tick the status bar
+    if show_progress {
+        tokio::spawn(status_tick_worker());
+    }
 
     if verbosity.is_present() {
         let layer = tracing_subscriber::fmt::layer()

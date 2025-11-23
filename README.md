@@ -1,5 +1,3 @@
-# wire
-
 ![Rust Tests Status](https://img.shields.io/github/actions/workflow/status/mrshmllow/wire/test.yml?branch=trunk&style=flat-square&label=Rust%20Tests)
 ![BuildBot Build & VM Test Status](https://img.shields.io/github/checks-status/mrshmllow/wire/trunk?style=flat-square&label=BuildBot%20Build%20%26%20VM%20Tests)
 ![Documentation Status](https://img.shields.io/github/actions/workflow/status/mrshmllow/wire/pages.yml?branch=trunk&style=flat-square&label=Documentation)

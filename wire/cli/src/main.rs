@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright 2024-2025 wire Contributors
 
+#![feature(sync_nonpoison)]
+#![feature(nonpoison_mutex)]
+
 use std::process::Command;
 
 use crate::cli::Cli;
@@ -35,7 +38,7 @@ async fn main() -> Result<()> {
     let args = Cli::parse();
 
     let modifiers = args.to_subcommand_modifiers();
-    setup_logging(&args.verbose);
+    setup_logging(&args.verbose, !&args.no_progress);
 
     #[cfg(debug_assertions)]
     if args.markdown_help {

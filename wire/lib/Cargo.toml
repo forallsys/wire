@@ -37,6 +37,7 @@ aho-corasick = "1.1.4"
 num_enum = "0.7.5"
 gjson = "0.8.1"
 owo-colors = { workspace = true }
+termion = "4.0.6"
 
 [dev-dependencies]
 tempdir = "0.3"

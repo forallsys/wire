@@ -3,15 +3,21 @@
 
 #![feature(assert_matches)]
 #![feature(iter_intersperse)]
+#![feature(sync_nonpoison)]
+#![feature(nonpoison_mutex)]
 
-use std::{io::IsTerminal, sync::LazyLock};
+use std::{
+    io::{IsTerminal, stderr},
+    sync::LazyLock,
+};
 
-use tokio::sync::Semaphore;
+use tokio::sync::{AcquireError, Semaphore, SemaphorePermit};
 
-use crate::{errors::HiveLibError, hive::node::Name};
+use crate::{errors::HiveLibError, hive::node::Name, status::STATUS};
 
 pub mod commands;
 pub mod hive;
+pub mod status;
 
 #[cfg(test)]
 mod test_macros;
@@ -54,3 +60,10 @@ pub enum EvalGoal<'a> {
 }
 
 pub static STDIN_CLOBBER_LOCK: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(1));
+
+pub async fn aquire_stdin_lock<'a>() -> Result<SemaphorePermit<'a>, AcquireError> {
+    let result = STDIN_CLOBBER_LOCK.acquire().await?;
+    STATUS.lock().wipe_out(&mut stderr());
+
+    Ok(result)
+}

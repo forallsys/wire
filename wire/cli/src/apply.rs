@@ -5,10 +5,11 @@ use futures::{FutureExt, StreamExt};
 use itertools::{Either, Itertools};
 use lib::hive::node::{Context, GoalExecutor, Name, StepState, should_apply_locally};
 use lib::hive::{Hive, HiveLocation};
+use lib::status::STATUS;
 use lib::{SubCommandModifiers, errors::HiveLibError};
 use miette::{Diagnostic, IntoDiagnostic, Result};
 use std::collections::HashSet;
-use std::io::Read;
+use std::io::{Read, stderr};
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::{Span, error, info};
@@ -85,7 +86,7 @@ pub async fn apply(
         },
     );
 
-    let mut set = hive
+    let selected_nodes: Vec<_> = hive
         .nodes
         .iter_mut()
         .filter(|(name, node)| {
@@ -93,6 +94,17 @@ pub async fn apply(
                 || names.contains(name)
                 || node.tags.iter().any(|tag| tags.contains(tag))
         })
+        .collect();
+
+    STATUS.lock().add_many(
+        &selected_nodes
+            .iter()
+            .map(|(name, _)| *name)
+            .collect::<Vec<_>>(),
+    );
+
+    let mut set = selected_nodes
+        .into_iter()
         .map(|(name, node)| {
             info!("Resolved {:?} to include {}", args.on, name);
 
@@ -143,6 +155,9 @@ pub async fn apply(
     std::mem::drop(header_span);
 
     if !errors.is_empty() {
+        // clear the status bar if we are about to print error messages
+        STATUS.lock().clear(&mut stderr());
+
         return Err(NodeErrors(
             errors
                 .into_iter()

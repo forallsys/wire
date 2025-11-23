@@ -2,6 +2,7 @@
 // Copyright 2024-2025 wire Contributors
 
 use crate::commands::pty::output::{WatchStdoutArguments, handle_pty_stdout};
+use crate::status::STATUS;
 use aho_corasick::PatternID;
 use itertools::Itertools;
 use nix::sys::termios::{LocalFlags, SetArg, Termios, tcgetattr, tcsetattr};
@@ -10,6 +11,7 @@ use nix::unistd::write as posix_write;
 use portable_pty::{CommandBuilder, NativePtySystem, PtyPair, PtySize};
 use rand::distr::Alphabetic;
 use std::collections::VecDeque;
+use std::io::stderr;
 use std::sync::{LazyLock, Mutex};
 use std::{
     io::{Read, Write},
@@ -23,7 +25,7 @@ use tracing::{Span, debug, trace};
 use crate::commands::CommandArguments;
 use crate::commands::pty::input::watch_stdin_from_user;
 use crate::errors::CommandError;
-use crate::{STDIN_CLOBBER_LOCK, SubCommandModifiers};
+use crate::{SubCommandModifiers, aquire_stdin_lock};
 use crate::{
     commands::{ChildOutputMode, WireCommandChip},
     errors::HiveLibError,
@@ -153,7 +155,7 @@ pub(crate) async fn interactive_command_with_env<S: AsRef<str>>(
         command.env(key, value);
     }
 
-    let clobber_guard = STDIN_CLOBBER_LOCK.acquire().await.unwrap();
+    let clobber_guard = aquire_stdin_lock().await;
     let _guard = StdinTermiosAttrGuard::new().map_err(HiveLibError::CommandError)?;
     let child = pty_pair
         .slave
@@ -247,17 +249,21 @@ fn print_authenticate_warning<S: AsRef<str>>(
         return Ok(());
     }
 
-    eprintln!(
-        "{} | Authenticate for \"sudo {}\":",
-        arguments
-            .target
-            .map_or(Ok("localhost (!)".to_string()), |target| Ok(format!(
-                "{}@{}:{}",
-                target.user,
-                target.get_preferred_host()?,
-                target.port
-            )))?,
-        arguments.command_string.as_ref()
+    let _ = STATUS.lock().write_above_status(
+        &format!(
+            "{} | Authenticate for \"sudo {}\":\n",
+            arguments
+                .target
+                .map_or(Ok("localhost (!)".to_string()), |target| Ok(format!(
+                    "{}@{}:{}",
+                    target.user,
+                    target.get_preferred_host()?,
+                    target.port
+                )))?,
+            arguments.command_string.as_ref()
+        )
+        .into_bytes(),
+        &mut stderr(),
     );
 
     Ok(())

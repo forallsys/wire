@@ -21,6 +21,7 @@ use crate::hive::steps::evaluate::Evaluate;
 use crate::hive::steps::keys::{Key, Keys, PushKeyAgent, UploadKeyAt};
 use crate::hive::steps::ping::Ping;
 use crate::hive::steps::push::{PushBuildOutput, PushEvaluatedOutput};
+use crate::status::STATUS;
 use crate::{EvalGoal, StrictHostKeyChecking, SubCommandModifiers};
 
 use super::HiveLibError;
@@ -434,6 +435,10 @@ impl<'a> GoalExecutor<'a> {
                 progress = format!("{}/{length}", position + 1)
             );
 
+            STATUS
+                .lock()
+                .set_node_step(self.context.name, step.to_string());
+
             if let Err(err) = step.execute(&mut self.context).await.inspect_err(|_| {
                 error!("Failed to execute `{step}`");
             }) {
@@ -446,9 +451,13 @@ impl<'a> GoalExecutor<'a> {
                     return Ok(());
                 }
 
+                STATUS.lock().mark_node_failed(self.context.name);
+
                 return Err(err);
             }
         }
+
+        STATUS.lock().mark_node_succeeded(self.context.name);
 
         Ok(())
     }
