@@ -28,9 +28,9 @@
           ];
           postInstall = ''
             installShellCompletion --cmd wire \
-                --bash <($out/bin/wire completions bash) \
-                --fish <($out/bin/wire completions fish) \
-                --zsh <($out/bin/wire completions zsh)
+                --bash <(COMPLETE=bash $out/bin/wire) \
+                --fish <(COMPLETE=fish $out/bin/wire) \
+                --zsh <(COMPLETE=zsh $out/bin/wire)
           '';
         };
 

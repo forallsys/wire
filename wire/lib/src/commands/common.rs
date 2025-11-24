@@ -8,7 +8,7 @@ use tracing::instrument;
 use crate::{
     EvalGoal, SubCommandModifiers,
     commands::{CommandArguments, Either, WireCommandChip, run_command, run_command_with_env},
-    errors::{CommandError, HiveLibError},
+    errors::{CommandError, HiveInitialisationError, HiveLibError},
     hive::{
         HiveLocation,
         node::{Context, Push},
@@ -83,6 +83,16 @@ fn get_common_command_help(error: &CommandError) -> Option<String> {
     }
 }
 
+pub async fn get_hive_node_names(
+    location: &HiveLocation,
+    modifiers: SubCommandModifiers,
+) -> Result<Vec<String>, HiveLibError> {
+    let output = evaluate_hive_attribute(location, &EvalGoal::Names, modifiers).await?;
+    serde_json::from_str(&output).map_err(|err| {
+        HiveLibError::HiveInitialisationError(HiveInitialisationError::ParseEvaluateError(err))
+    })
+}
+
 /// Evaluates the hive in flakeref with regards to the given goal,
 /// and returns stdout.
 #[instrument(ret(level = tracing::Level::TRACE), skip_all)]
@@ -97,6 +107,7 @@ pub async fn evaluate_hive_attribute(
                 "{uri}#wire --apply \"hive: {}\"",
                 match goal {
                     EvalGoal::Inspect => "hive.inspect".to_string(),
+                    EvalGoal::Names => "hive.names".to_string(),
                     EvalGoal::GetTopLevel(node) => format!("hive.topLevels.{node}"),
                 }
             )
@@ -107,6 +118,7 @@ pub async fn evaluate_hive_attribute(
                 &path.to_string_lossy(),
                 match goal {
                     EvalGoal::Inspect => "inspect".to_string(),
+                    EvalGoal::Names => "names".to_string(),
                     EvalGoal::GetTopLevel(node) => format!("topLevels.{node}"),
                 }
             )

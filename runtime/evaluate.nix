@@ -104,4 +104,6 @@ rec {
 
     nodes = builtins.mapAttrs (_: v: v.config.deployment) nodes;
   };
+
+  names = nodeNames;
 }

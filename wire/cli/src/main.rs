@@ -11,7 +11,7 @@ use crate::cli::ToSubCommandModifiers;
 use crate::tracing_setup::setup_logging;
 use clap::CommandFactory;
 use clap::Parser;
-use clap_complete::generate;
+use clap_complete::CompleteEnv;
 use lib::hive::Hive;
 use lib::hive::get_hive_location;
 use miette::IntoDiagnostic;
@@ -34,6 +34,7 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 async fn main() -> Result<()> {
     #[cfg(feature = "dhat-heap")]
     let _profiler = dhat::Profiler::new_heap();
+    CompleteEnv::with_factory(Cli::command).complete();
 
     let args = Cli::parse();
 
@@ -46,7 +47,7 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    if !matches!(args.command, cli::Commands::Completions { .. }) && !check_nix_available() {
+    if !check_nix_available() {
         miette::bail!("Nix is not available on this system.");
     }
 
@@ -66,11 +67,6 @@ async fn main() -> Result<()> {
                 format!("{hive}")
             }
         }),
-        cli::Commands::Completions { shell } => {
-            let mut cmd = Cli::command();
-            let name = cmd.clone();
-            generate(shell, &mut cmd, name.get_name(), &mut std::io::stdout());
-        }
     }
 
     Ok(())

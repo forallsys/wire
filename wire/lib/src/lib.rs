@@ -56,6 +56,7 @@ impl Default for SubCommandModifiers {
 
 pub enum EvalGoal<'a> {
     Inspect,
+    Names,
     GetTopLevel(&'a Name),
 }
 
