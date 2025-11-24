@@ -12,6 +12,8 @@ use crate::tracing_setup::setup_logging;
 use clap::CommandFactory;
 use clap::Parser;
 use clap_complete::CompleteEnv;
+use lib::SubCommandModifiers;
+use lib::commands::common::get_hive_node_names;
 use lib::hive::Hive;
 use lib::hive::get_hive_location;
 use miette::IntoDiagnostic;
@@ -39,7 +41,8 @@ async fn main() -> Result<()> {
     let args = Cli::parse();
 
     let modifiers = args.to_subcommand_modifiers();
-    setup_logging(&args.verbose, !&args.no_progress);
+    // disable progress when running inspect mode.
+    setup_logging(&args.verbose, !matches!(args.command, cli::Commands::Inspect {..}) && !&args.no_progress);
 
     #[cfg(debug_assertions)]
     if args.markdown_help {
@@ -58,13 +61,21 @@ async fn main() -> Result<()> {
             let mut hive = Hive::new_from_path(&location, modifiers).await?;
             apply::apply(&mut hive, location, apply_args, modifiers).await?;
         }
-        cli::Commands::Inspect { json } => println!("{}", {
-            let hive = Hive::new_from_path(&location, modifiers).await?;
-            if json {
-                serde_json::to_string(&hive).into_diagnostic()?
-            } else {
-                warn!("use --json to output something scripting suitable");
-                format!("{hive}")
+        cli::Commands::Inspect { json, selection } => println!("{}", {
+            match selection {
+                cli::Inspection::Full => {
+                    let hive = Hive::new_from_path(&location, modifiers).await?;
+                    if json {
+                        serde_json::to_string(&hive).into_diagnostic()?
+                    } else {
+                        warn!("use --json to output something scripting suitable");
+                        format!("{hive}")
+                    }
+                }
+                cli::Inspection::Names => serde_json::to_string(
+                    &get_hive_node_names(&location, modifiers).await?,
+                )
+                .into_diagnostic()?,
             }
         }),
     }

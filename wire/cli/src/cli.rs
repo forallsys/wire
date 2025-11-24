@@ -4,12 +4,12 @@
 use clap::builder::PossibleValue;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use clap::{ValueHint, crate_version};
+use clap_complete::CompletionCandidate;
 use clap_complete::engine::ArgValueCompleter;
-use clap_complete::{CompletionCandidate};
 use clap_num::number_range;
 use clap_verbosity_flag::InfoLevel;
 use lib::SubCommandModifiers;
-use lib::commands::common::{get_hive_node_names};
+use lib::commands::common::get_hive_node_names;
 use lib::hive::node::{Goal as HiveGoal, HandleUnreachable, Name, SwitchToConfigurationGoal};
 use lib::hive::{Hive, get_hive_location};
 use tokio::runtime::Handle;
@@ -39,7 +39,6 @@ pub struct Cli {
     #[arg(long, global = true, default_value = std::env::current_dir().unwrap().into_os_string(), visible_alias("flake"))]
     pub path: String,
 
-    // Unused until a solution to tracing-indicatif log deadlocking is found...
     /// Hide progress bars.
     ///
     /// Defaults to true if stdin does not refer to a tty (unix pipelines, in CI).
@@ -182,10 +181,22 @@ pub enum Commands {
     /// Inspect hive
     #[clap(visible_alias = "show")]
     Inspect {
+        #[arg(value_enum, default_value_t)]
+        selection: Inspection,
+
         /// Return in JSON format
         #[arg(short, long, default_value_t = false)]
         json: bool,
     },
+}
+
+#[derive(Clone, Debug, Default, ValueEnum, Display)]
+pub enum Inspection {
+    /// Output all data wire has on the entire hive
+    #[default]
+    Full,
+    /// Only output a list of node names
+    Names,
 }
 
 #[derive(Clone, Debug, Default, ValueEnum, Display)]
