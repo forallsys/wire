@@ -21,6 +21,8 @@
           pkgs.just
           pkgs.pnpm
           pkgs.nodejs
+          pkgs.sqlx-cli
+          pkgs.sqlite
         ];
 
         PROTOC = lib.getExe pkgs.protobuf;

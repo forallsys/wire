@@ -262,18 +262,23 @@ impl ToSubCommandModifiers for Cli {
 fn node_names_completer(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
     tokio::task::block_in_place(|| {
         let handle = Handle::current();
-        let mut completions =
-            vec![];
+        let modifiers = SubCommandModifiers::default();
+        let mut completions = vec![];
 
         if current.is_empty() || current == "-" {
-            completions.push(CompletionCandidate::new("-").help(Some("Read stdin as --on arguments".into())));
+            completions.push(
+                CompletionCandidate::new("-").help(Some("Read stdin as --on arguments".into())),
+            );
         }
 
         let Ok(current_dir) = std::env::current_dir() else {
             return completions;
         };
 
-        let Ok(hive_location) = get_hive_location(current_dir.display().to_string()) else {
+        let Ok(hive_location) = handle.block_on(get_hive_location(
+            current_dir.display().to_string(),
+            modifiers,
+        )) else {
             return completions;
         };
 
@@ -285,9 +290,9 @@ fn node_names_completer(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
             return vec![];
         }
 
-        if let Ok(names) = handle.block_on(async {
-            get_hive_node_names(&hive_location, SubCommandModifiers::default()).await
-        }) {
+        if let Ok(names) =
+            handle.block_on(async { get_hive_node_names(&hive_location, modifiers).await })
+        {
             for name in names {
                 if name.starts_with(current) {
                     completions.push(CompletionCandidate::new(name));

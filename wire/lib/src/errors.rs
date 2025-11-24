@@ -141,6 +141,14 @@ pub enum HiveInitialisationError {
     ParseEvaluateError(#[source] serde_json::Error),
 
     #[diagnostic(
+        code(wire::hive_init::ParsePrefetch),
+        help("please create an issue."),
+        url("{DOCS_URL}#{}", self.code().unwrap())
+    )]
+    #[error("Failed to parse `nix flake prefetch --json`.")]
+    ParsePrefetchError(#[source] serde_json::Error),
+
+    #[diagnostic(
         code(wire::hive_init::NodeDoesNotExist),
         help("Please create an issue!"),
         url("{DOCS_URL}#{}", self.code().unwrap())

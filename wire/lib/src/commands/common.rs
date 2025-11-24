@@ -102,7 +102,7 @@ pub async fn evaluate_hive_attribute(
     modifiers: SubCommandModifiers,
 ) -> Result<String, HiveLibError> {
     let attribute = match location {
-        HiveLocation::Flake(uri) => {
+        HiveLocation::Flake { uri, .. } => {
             format!(
                 "{uri}#wire --apply \"hive: {}\"",
                 match goal {

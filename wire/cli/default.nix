@@ -25,7 +25,13 @@
           doCheck = true;
           nativeBuildInputs = [
             pkgs.installShellFiles
+            pkgs.sqlx-cli
           ];
+          preBuild = ''
+            export DATABASE_URL=sqlite:./db.sqlite3
+            sqlx database create
+            sqlx migrate run --source ./wire/lib/src/cache/migrations/
+          '';
           postInstall = ''
             installShellCompletion --cmd wire \
                 --bash <(COMPLETE=bash $out/bin/wire) \
