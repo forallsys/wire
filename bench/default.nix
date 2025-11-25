@@ -6,14 +6,10 @@ let
 
   vmNode =
     index:
-    nixpkgs.lib.nameValuePair "bench-vm-${builtins.toString index}" {
-      deployment = {
-        targetPort = 2000 + index;
-        targetHost = "localhost";
-      };
-
+    nixpkgs.lib.nameValuePair "node_${builtins.toString index}" {
       imports = [
         ./vm.nix
+        flake.checks."x86_64-linux"."bench".nodes."node_${builtins.toString index}".system.build.networkConfig
       ];
 
       _module.args = {
@@ -37,4 +33,4 @@ in
 {
   meta.nixpkgs = nixpkgs;
 }
-// builtins.listToAttrs (builtins.map vmNode (nixpkgs.lib.range 0 20))
+// builtins.listToAttrs (builtins.map vmNode (nixpkgs.lib.range 0 (import ./num-nodes.nix)))

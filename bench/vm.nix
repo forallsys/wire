@@ -1,21 +1,31 @@
-{ lib, index, ... }:
+{
+  lib,
+  index,
+  modulesPath,
+  pkgs,
+  ...
+}:
 let
   flake = import ../default.nix;
+  snakeOil = import "${pkgs.path}/nixos/tests/ssh-keys.nix" pkgs;
 in
 {
-  imports = [ "${flake.inputs.nixpkgs}/nixos/modules/virtualisation/qemu-vm.nix" ];
+  imports = [
+    "${flake.inputs.nixpkgs}/nixos/modules/virtualisation/qemu-vm.nix"
+    "${modulesPath}/virtualisation/qemu-vm.nix"
+    "${modulesPath}/testing/test-instrumentation.nix"
+  ];
 
-  networking.hostName = "bench";
+  networking.hostName = "node_${index}";
 
   boot = {
     loader = {
       systemd-boot.enable = true;
       efi.canTouchEfiVariables = true;
-      timeout = 0;
     };
-
-    kernelParams = [ "console=ttyS0" ];
   };
+
+  environment.variables.XDG_RUNTIME_DIR = "/tmp";
 
   services = {
     openssh = {
@@ -33,22 +43,25 @@ in
     # useBootLoader = true;
 
     diskSize = 5024;
-    diskImage = null;
-
-    forwardPorts = [
-      {
-        from = "host";
-        host.port = 2000 + lib.toIntBase10 index;
-        guest.port = 22;
-      }
-    ];
+    memorySize = 4096;
   };
 
-  users.users.root.openssh.authorizedKeys.keys = [
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPSvOZoSGVEpR6eTDK9OJ31MWQPF2s8oLc8J7MBh6nez marsh@maple"
+  # It's important to note that you should never ever use this configuration
+  # for production. You are risking a MITM attack with this!
+  programs.ssh.extraConfig = ''
+    Host *
+      StrictHostKeyChecking no
+      UserKnownHostsFile /dev/null
+  '';
+
+  users.users.root.openssh.authorizedKeys.keys = [ snakeOil.snakeOilEd25519PublicKey ];
+  systemd.tmpfiles.rules = [
+    "C+ /root/.ssh/id_ed25519 600 - - - ${snakeOil.snakeOilEd25519PrivateKey}"
   ];
 
-  users.users.root.initialPassword = "root";
-
-  system.stateVersion = "23.11";
+  nix = {
+    nixPath = [ "nixpkgs=${pkgs.path}" ];
+    settings.substituters = lib.mkForce [ ];
+    package = pkgs.lix;
+  };
 }

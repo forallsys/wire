@@ -41,8 +41,8 @@
         ./wire/key_agent
         ./doc
         ./tests/nix
-        ./bench/run.nix
         ./runtime
+        ./bench/runner.nix
       ];
       systems = import systems;
 

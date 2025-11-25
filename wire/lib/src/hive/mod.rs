@@ -207,7 +207,7 @@ impl HiveLocation {
         modifiers: SubCommandModifiers,
     ) -> Result<HiveLocation, HiveLibError> {
         let command = run_command(
-            &CommandArguments::new(format!("nix flake prefetch --json {uri}"), modifiers)
+            &CommandArguments::new(format!("nix flake prefetch --extra-experimental-features nix-command --extra-experimental-features flakes --json {uri}"), modifiers)
                 .mode(crate::commands::ChildOutputMode::Generic),
         )
         .await?;

@@ -6,3 +6,5 @@ result
 *.qcow2
 mutants*/
 *.db
+run.json
+stats.md
