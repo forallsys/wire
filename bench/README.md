@@ -6,6 +6,9 @@ The hive can be found in `default.nix`.
 
 Run the test with `nix run .#bench-runner --impure`
 
+The script is quite jank and you will probably have to edit it for it to work on
+your system.
+
 The hive has around 20 nodes and 200 keys each. 80% of the keys are pre-activation, 20% post-activation.
 
 | Command          |         Mean [s] | Min [s] | Max [s] |    Relative |

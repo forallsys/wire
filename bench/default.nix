@@ -1,6 +1,8 @@
 { flake }:
 let
-  nixpkgs = import flake.inputs.nixpkgs { };
+  nixpkgs = import flake.inputs.nixpkgs {
+    system = "x86_64-linux";
+  };
 
   vmNode =
     index:

@@ -39,8 +39,12 @@
 
             ${lib.toShellVars {
               inherit forest;
-              bench_dir = ./.;
             }}
+
+            bench_dir=$(mktemp -d)
+            cp -r ${../.}/* $bench_dir
+            chmod 777 -R $bench_dir/
+            bench_dir=$bench_dir/bench
 
             export NIX_PATH="nixpkgs=${inputs.nixpkgs}"
 
@@ -56,15 +60,24 @@
             echo "awake"
 
             wire_args="apply test --path $bench_dir/wire -vv --ssh-accept-host -p 10"
-            colmena_args="apply test --config $bench_dir/colmena/hive.nix -v -p 10"
+            wire_args_no_prog="apply test --path $bench_dir/wire -vv --ssh-accept-host --no-progress -p 10"
+            wire_args_flake="apply test --path $bench_dir/wire-flake -vv --ssh-accept-host -p 10"
 
-            ${lib.getExe pkgs.hyperfine} --warmup 1 --show-output --runs 1 \
+            colmena_args="apply test --config $bench_dir/colmena/hive.nix -v -p 10"
+            colmena_args_flake="apply test --config $bench_dir/colmena-flake/flake.nix -v -p 10"
+
+            ${lib.getExe pkgs.hyperfine} --warmup 1 --show-output --runs 5 \
               --export-markdown stats.md \
               --export-json run.json \
+              "${lib.getExe self'.packages.wire-small} $wire_args_flake" -n "wire@HEAD - flake" \
+              "${
+                lib.getExe (builtins.getFlake "github:mrshmllow/wire/stable").packages.${system}.wire-small
+              } $wire_args_flake" -n "wire@stable - flake" \
+              "${lib.getExe self'.packages.wire-small} $wire_args_no_prog" -n "wire@HEAD - no_prog" \
               "${lib.getExe self'.packages.wire-small} $wire_args" -n "wire@HEAD" \
               "${
-                lib.getExe (builtins.getFlake "github:mrshmllow/wire/trunk").packages.${system}.wire-small
-              } $wire_args" -n "wire@trunk" \
+                lib.getExe (builtins.getFlake "github:mrshmllow/wire/stable").packages.${system}.wire-small
+              } $wire_args" -n "wire@stable" \
               "${lib.getExe' inputs.colmena_benchmarking.packages.x86_64-linux.colmena "colmena"} $colmena_args" \
                   -n "colmena@pinned"
           '';

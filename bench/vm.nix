@@ -3,10 +3,6 @@ let
   flake = import ../default.nix;
 in
 {
-  _module.args = {
-    index = lib.mkDefault (builtins.getEnv "INDEX");
-  };
-
   imports = [ "${flake.inputs.nixpkgs}/nixos/modules/virtualisation/qemu-vm.nix" ];
 
   networking.hostName = "bench";

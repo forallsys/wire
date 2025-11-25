@@ -47,7 +47,7 @@ binary.
     { nixpkgs, colmena, ... }:
     {
       colmenaHive = colmena.lib.makeHive { # [!code --]
-      wire = colmena.lib.makeHive { # [!code ++]
+      wire = wire.lib.makeHive { # [!code ++]
         # ..
       };
     };
