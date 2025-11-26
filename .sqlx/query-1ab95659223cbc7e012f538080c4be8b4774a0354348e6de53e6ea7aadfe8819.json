@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "delete from inspection_cache\nwhere\n  blob_id in (\n    select\n      id\n    from\n      inspection_blobs\n    where\n      schema_version != $1\n  )\n  or ROWID in (\n    select\n      ROWID\n    from\n      inspection_cache\n    order by\n      ROWID desc\n    limit\n      -1\n    offset\n      30\n  )",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "1ab95659223cbc7e012f538080c4be8b4774a0354348e6de53e6ea7aadfe8819"
+}

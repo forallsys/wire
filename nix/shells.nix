@@ -23,6 +23,8 @@
           pkgs.nodejs
           pkgs.sqlx-cli
           pkgs.sqlite
+          pkgs.limbo
+          pkgs.zstd
         ];
 
         PROTOC = lib.getExe pkgs.protobuf;
