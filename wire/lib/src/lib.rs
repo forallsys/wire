@@ -15,6 +15,7 @@ use tokio::sync::{AcquireError, Semaphore, SemaphorePermit};
 
 use crate::{errors::HiveLibError, hive::node::Name, status::STATUS};
 
+pub mod cache;
 pub mod commands;
 pub mod hive;
 pub mod status;
@@ -56,6 +57,7 @@ impl Default for SubCommandModifiers {
 
 pub enum EvalGoal<'a> {
     Inspect,
+    Names,
     GetTopLevel(&'a Name),
 }
 

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "delete from inspection_blobs\nwhere\n  not exists (\n    select\n      1\n    from\n      inspection_cache\n    where\n      inspection_cache.blob_id = inspection_blobs.id\n  )",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "a5459b4c5f879509d29c3b6dcf85d1da89e4bd9380b8763edc5d16cbaa302d3f"
+}

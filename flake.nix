@@ -41,8 +41,8 @@
         ./wire/key_agent
         ./doc
         ./tests/nix
-        ./bench/run.nix
         ./runtime
+        ./bench/runner.nix
       ];
       systems = import systems;
 
@@ -93,6 +93,7 @@
             };
             settings.formatter = {
               nixfmt.excludes = [ "doc/snippets/*.nix" ];
+              prettier.excludes = [ ".sqlx/*" ];
               alejandra = {
                 includes = lib.mkForce [ "doc/snippets/*.nix" ];
               };

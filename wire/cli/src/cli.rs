@@ -2,14 +2,17 @@
 // Copyright 2024-2025 wire Contributors
 
 use clap::builder::PossibleValue;
-use clap::crate_version;
 use clap::{Args, Parser, Subcommand, ValueEnum};
-use clap_complete::Shell;
+use clap::{ValueHint, crate_version};
+use clap_complete::CompletionCandidate;
+use clap_complete::engine::ArgValueCompleter;
 use clap_num::number_range;
 use clap_verbosity_flag::InfoLevel;
 use lib::SubCommandModifiers;
-use lib::hive::Hive;
+use lib::commands::common::get_hive_node_names;
 use lib::hive::node::{Goal as HiveGoal, HandleUnreachable, Name, SwitchToConfigurationGoal};
+use lib::hive::{Hive, get_hive_location};
+use tokio::runtime::Handle;
 
 use std::io::IsTerminal;
 use std::{
@@ -36,7 +39,6 @@ pub struct Cli {
     #[arg(long, global = true, default_value = std::env::current_dir().unwrap().into_os_string(), visible_alias("flake"))]
     pub path: String,
 
-    // Unused until a solution to tracing-indicatif log deadlocking is found...
     /// Hide progress bars.
     ///
     /// Defaults to true if stdin does not refer to a tty (unix pipelines, in CI).
@@ -139,7 +141,7 @@ pub struct ApplyArgs {
     ///
     /// `-` will read additional values from stdin, separated by whitespace.
     /// Any `-` implies `--non-interactive`.
-    #[arg(short, long, value_name = "NODE | @TAG | `-`", num_args = 1..)]
+    #[arg(short, long, value_name = "NODE | @TAG | `-`", num_args = 1.., add = ArgValueCompleter::new(node_names_completer), value_hint = ValueHint::Unknown)]
     pub on: Vec<ApplyTarget>,
 
     #[arg(short, long, default_value_t = 10, value_parser=more_than_zero)]
@@ -179,17 +181,22 @@ pub enum Commands {
     /// Inspect hive
     #[clap(visible_alias = "show")]
     Inspect {
+        #[arg(value_enum, default_value_t)]
+        selection: Inspection,
+
         /// Return in JSON format
         #[arg(short, long, default_value_t = false)]
         json: bool,
     },
-    /// Generates shell completions
-    #[clap(hide = true)]
-    Completions {
-        #[arg()]
-        // Shell to generate completions for
-        shell: Shell,
-    },
+}
+
+#[derive(Clone, Debug, Default, ValueEnum, Display)]
+pub enum Inspection {
+    /// Output all data wire has on the entire hive
+    #[default]
+    Full,
+    /// Only output a list of node names
+    Names,
 }
 
 #[derive(Clone, Debug, Default, ValueEnum, Display)]
@@ -250,4 +257,49 @@ impl ToSubCommandModifiers for Cli {
             },
         }
     }
+}
+
+fn node_names_completer(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
+    tokio::task::block_in_place(|| {
+        let handle = Handle::current();
+        let modifiers = SubCommandModifiers::default();
+        let mut completions = vec![];
+
+        if current.is_empty() || current == "-" {
+            completions.push(
+                CompletionCandidate::new("-").help(Some("Read stdin as --on arguments".into())),
+            );
+        }
+
+        let Ok(current_dir) = std::env::current_dir() else {
+            return completions;
+        };
+
+        let Ok(hive_location) = handle.block_on(get_hive_location(
+            current_dir.display().to_string(),
+            modifiers,
+        )) else {
+            return completions;
+        };
+
+        let Some(current) = current.to_str() else {
+            return completions;
+        };
+
+        if current.starts_with('@') {
+            return vec![];
+        }
+
+        if let Ok(names) =
+            handle.block_on(async { get_hive_node_names(&hive_location, modifiers).await })
+        {
+            for name in names {
+                if name.starts_with(current) {
+                    completions.push(CompletionCandidate::new(name));
+                }
+            }
+        }
+
+        completions
+    })
 }

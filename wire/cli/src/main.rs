@@ -11,7 +11,9 @@ use crate::cli::ToSubCommandModifiers;
 use crate::tracing_setup::setup_logging;
 use clap::CommandFactory;
 use clap::Parser;
-use clap_complete::generate;
+use clap_complete::CompleteEnv;
+use lib::cache::InspectionCache;
+use lib::commands::common::get_hive_node_names;
 use lib::hive::Hive;
 use lib::hive::get_hive_location;
 use miette::IntoDiagnostic;
@@ -34,11 +36,16 @@ static ALLOC: dhat::Alloc = dhat::Alloc;
 async fn main() -> Result<()> {
     #[cfg(feature = "dhat-heap")]
     let _profiler = dhat::Profiler::new_heap();
+    CompleteEnv::with_factory(Cli::command).complete();
 
     let args = Cli::parse();
 
     let modifiers = args.to_subcommand_modifiers();
-    setup_logging(&args.verbose, !&args.no_progress);
+    // disable progress when running inspect mode.
+    setup_logging(
+        &args.verbose,
+        !matches!(args.command, cli::Commands::Inspect { .. }) && !&args.no_progress,
+    );
 
     #[cfg(debug_assertions)]
     if args.markdown_help {
@@ -46,31 +53,39 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    if !matches!(args.command, cli::Commands::Completions { .. }) && !check_nix_available() {
+    if !check_nix_available() {
         miette::bail!("Nix is not available on this system.");
     }
 
-    let location = get_hive_location(args.path)?;
+    let location = get_hive_location(args.path, modifiers).await?;
+    let cache = InspectionCache::new().await;
 
     match args.command {
         cli::Commands::Apply(apply_args) => {
-            let mut hive = Hive::new_from_path(&location, modifiers).await?;
+            let mut hive = Hive::new_from_path(&location, cache.clone(), modifiers).await?;
             apply::apply(&mut hive, location, apply_args, modifiers).await?;
         }
-        cli::Commands::Inspect { json } => println!("{}", {
-            let hive = Hive::new_from_path(&location, modifiers).await?;
-            if json {
-                serde_json::to_string(&hive).into_diagnostic()?
-            } else {
-                warn!("use --json to output something scripting suitable");
-                format!("{hive}")
+        cli::Commands::Inspect { json, selection } => println!("{}", {
+            match selection {
+                cli::Inspection::Full => {
+                    let hive = Hive::new_from_path(&location, cache.clone(), modifiers).await?;
+                    if json {
+                        serde_json::to_string(&hive).into_diagnostic()?
+                    } else {
+                        warn!("use --json to output something scripting suitable");
+                        format!("{hive}")
+                    }
+                }
+                cli::Inspection::Names => {
+                    serde_json::to_string(&get_hive_node_names(&location, modifiers).await?)
+                        .into_diagnostic()?
+                }
             }
         }),
-        cli::Commands::Completions { shell } => {
-            let mut cmd = Cli::command();
-            let name = cmd.clone();
-            generate(shell, &mut cmd, name.get_name(), &mut std::io::stdout());
-        }
+    }
+
+    if let Some(cache) = cache {
+        cache.gc().await.into_diagnostic()?;
     }
 
     Ok(())

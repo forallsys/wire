@@ -19,6 +19,7 @@
               root = ../.;
               fileset = unions [
                 ../.cargo
+                ../.sqlx
                 ../wire
                 ../Cargo.toml
                 ../Cargo.lock

@@ -18,7 +18,7 @@ use crate::{
     hive::node::{Node, Target},
 };
 
-pub(crate) mod common;
+pub mod common;
 pub(crate) mod noninteractive;
 pub(crate) mod pty;
 

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            insert into inspection_blobs (json_value, schema_version)\n            values ($1, $2)\n            on conflict(json_value)\n            do update set json_value = excluded.json_value\n            returning inspection_blobs.id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "cdea7b20c482f4127bacb5c58755d4fdd4dca2066b9c06950be60bc790569335"
+}

@@ -15,9 +15,11 @@ use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
-use tracing::{info, instrument};
+use tracing::{debug, info, instrument};
 
+use crate::cache::InspectionCache;
 use crate::commands::common::evaluate_hive_attribute;
+use crate::commands::{CommandArguments, Either, WireCommandChip, run_command};
 use crate::errors::{HiveInitialisationError, HiveLocationError};
 use crate::{EvalGoal, HiveLibError, SubCommandModifiers};
 pub mod node;
@@ -53,15 +55,29 @@ impl Hive {
     #[instrument(skip_all, name = "eval_hive")]
     pub async fn new_from_path(
         location: &HiveLocation,
+        cache: Option<InspectionCache>,
         modifiers: SubCommandModifiers,
     ) -> Result<Hive, HiveLibError> {
         info!("evaluating hive {location:?}");
+
+        if let Some(ref cache) = cache
+            && let HiveLocation::Flake { prefetch, .. } = location
+            && let Some(hive) = cache.get_hive(prefetch).await
+        {
+            return Ok(hive);
+        }
 
         let output = evaluate_hive_attribute(location, &EvalGoal::Inspect, modifiers).await?;
 
         let hive: Hive = serde_json::from_str(&output).map_err(|err| {
             HiveLibError::HiveInitialisationError(HiveInitialisationError::ParseEvaluateError(err))
         })?;
+
+        if let Some(cache) = cache
+            && let HiveLocation::Flake { prefetch, .. } = location
+        {
+            cache.store_hive(prefetch, &output).await;
+        }
 
         Ok(hive)
     }
@@ -169,35 +185,83 @@ impl Display for Hive {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Deserialize)]
+pub struct FlakePrefetch {
+    pub(crate) hash: String,
+    #[serde(rename = "storePath")]
+    pub(crate) store_path: String,
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum HiveLocation {
     HiveNix(PathBuf),
-    Flake(String),
+    Flake {
+        uri: String,
+        prefetch: FlakePrefetch,
+    },
 }
 
-pub fn get_hive_location(path: String) -> Result<HiveLocation, HiveLocationError> {
+impl HiveLocation {
+    async fn get_flake(
+        uri: String,
+        modifiers: SubCommandModifiers,
+    ) -> Result<HiveLocation, HiveLibError> {
+        let command = run_command(
+            &CommandArguments::new(format!("nix flake prefetch --extra-experimental-features nix-command --extra-experimental-features flakes --json {uri}"), modifiers)
+                .mode(crate::commands::ChildOutputMode::Generic),
+        )
+        .await?;
+
+        let result = command
+            .wait_till_success()
+            .await
+            .map_err(HiveLibError::CommandError)?;
+
+        debug!(hash_json = ?result);
+
+        let prefetch = serde_json::from_str(&match result {
+            Either::Left((.., output)) | Either::Right((.., output)) => output,
+        })
+        .map_err(|x| {
+            HiveLibError::HiveInitialisationError(HiveInitialisationError::ParsePrefetchError(x))
+        })?;
+
+        debug!(prefetch = ?prefetch);
+
+        Ok(HiveLocation::Flake { uri, prefetch })
+    }
+}
+
+pub async fn get_hive_location(
+    path: String,
+    modifiers: SubCommandModifiers,
+) -> Result<HiveLocation, HiveLibError> {
     let flakeref = FlakeRef::from_str(&path);
 
-    let path_to_location = |path: PathBuf| {
+    let path_to_location = async |path: PathBuf| {
         Ok(match path.file_name().and_then(OsStr::to_str) {
             Some("hive.nix") => HiveLocation::HiveNix(path.clone()),
             Some(_) => {
                 if fs::metadata(path.join("flake.nix")).is_ok() {
-                    HiveLocation::Flake(path.display().to_string())
+                    HiveLocation::get_flake(path.display().to_string(), modifiers).await?
                 } else {
                     HiveLocation::HiveNix(path.join("hive.nix"))
                 }
             }
-            None => return Err(HiveLocationError::MalformedPath(path.clone())),
+            None => {
+                return Err(HiveLibError::HiveLocationError(
+                    HiveLocationError::MalformedPath(path.clone()),
+                ));
+            }
         })
     };
 
     match flakeref {
         Err(nix_compat::flakeref::FlakeRefError::UrlParseError(_err)) => {
             let path = PathBuf::from(path);
-            Ok(path_to_location(path)?)
+            Ok(path_to_location(path).await?)
         }
-        Ok(FlakeRef::Path { path, .. }) => Ok(path_to_location(path)?),
+        Ok(FlakeRef::Path { path, .. }) => Ok(path_to_location(path).await?),
         Ok(
             FlakeRef::Git { .. }
             | FlakeRef::GitHub { .. }
@@ -205,9 +269,13 @@ pub fn get_hive_location(path: String) -> Result<HiveLocation, HiveLocationError
             | FlakeRef::Tarball { .. }
             | FlakeRef::Mercurial { .. }
             | FlakeRef::SourceHut { .. },
-        ) => Ok(HiveLocation::Flake(path)),
-        Err(err) => Err(HiveLocationError::Malformed(err)),
-        Ok(flakeref) => Err(HiveLocationError::TypeUnsupported(Box::new(flakeref))),
+        ) => Ok(HiveLocation::get_flake(path, modifiers).await?),
+        Err(err) => Err(HiveLibError::HiveLocationError(
+            HiveLocationError::Malformed(err),
+        )),
+        Ok(flakeref) => Err(HiveLibError::HiveLocationError(
+            HiveLocationError::TypeUnsupported(Box::new(flakeref)),
+        )),
     }
 }
 
@@ -227,11 +295,11 @@ mod tests {
     use std::{assert_matches::assert_matches, env};
 
     // flake should always come before hive.nix
-    #[test]
-    fn test_hive_dot_nix_priority() {
+    #[tokio::test]
+    async fn test_hive_dot_nix_priority() {
         let location = location!(get_test_path!());
 
-        assert_matches!(location, HiveLocation::Flake(..));
+        assert_matches!(location, HiveLocation::Flake { .. });
     }
 
     #[tokio::test]
@@ -239,7 +307,7 @@ mod tests {
     async fn test_hive_file() {
         let location = location!(get_test_path!());
 
-        let hive = Hive::new_from_path(&location, SubCommandModifiers::default())
+        let hive = Hive::new_from_path(&location, None, SubCommandModifiers::default())
             .await
             .unwrap();
 
@@ -265,7 +333,7 @@ mod tests {
     async fn non_trivial_hive() {
         let location = location!(get_test_path!());
 
-        let hive = Hive::new_from_path(&location, SubCommandModifiers::default())
+        let hive = Hive::new_from_path(&location, None, SubCommandModifiers::default())
             .await
             .unwrap();
 
@@ -303,8 +371,13 @@ mod tests {
     async fn flake_hive() {
         let tmp_dir = make_flake_sandbox(&get_test_path!()).unwrap();
 
-        let location = get_hive_location(tmp_dir.path().display().to_string()).unwrap();
-        let hive = Hive::new_from_path(&location, SubCommandModifiers::default())
+        let location = get_hive_location(
+            tmp_dir.path().display().to_string(),
+            SubCommandModifiers::default(),
+        )
+        .await
+        .unwrap();
+        let hive = Hive::new_from_path(&location, None, SubCommandModifiers::default())
             .await
             .unwrap();
 
@@ -331,7 +404,7 @@ mod tests {
         let location = location!(get_test_path!());
 
         assert_matches!(
-            Hive::new_from_path(&location, SubCommandModifiers::default()).await,
+            Hive::new_from_path(&location, None, SubCommandModifiers::default()).await,
             Err(HiveLibError::NixEvalError {
                 source: CommandError::CommandFailed {
                     logs,
@@ -348,7 +421,7 @@ mod tests {
         let location = location!(get_test_path!());
 
         assert_matches!(
-            Hive::new_from_path(&location, SubCommandModifiers::default()).await,
+            Hive::new_from_path(&location, None, SubCommandModifiers::default()).await,
             Err(HiveLibError::NixEvalError {
                 source: CommandError::CommandFailed {
                     logs,
@@ -366,7 +439,7 @@ mod tests {
         location.push("non_trivial_hive");
         let location = location!(location);
 
-        let mut hive = Hive::new_from_path(&location, SubCommandModifiers::default())
+        let mut hive = Hive::new_from_path(&location, None, SubCommandModifiers::default())
             .await
             .unwrap();
 

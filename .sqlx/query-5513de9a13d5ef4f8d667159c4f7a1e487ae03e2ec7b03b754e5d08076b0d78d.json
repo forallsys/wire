@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            select inspection_blobs.json_value from inspection_blobs\n            join inspection_cache\n            on inspection_cache.blob_id = inspection_blobs.id\n            where inspection_cache.store_path = $1\n            and inspection_cache.hash = $2\n            and inspection_blobs.schema_version = $3\n            limit 1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "json_value",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "5513de9a13d5ef4f8d667159c4f7a1e487ae03e2ec7b03b754e5d08076b0d78d"
+}

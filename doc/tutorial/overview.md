@@ -56,7 +56,7 @@ Ready? Skip to [Nix Setup](./part-one/nix-setup).
 wire is about >2x faster than colmena deploying [identical large
 hives](https://github.com/mrshmllow/wire/blob/trunk/bench/run.nix).
 
-| Command          |         Mean [s] | Min [s] | Max [s] |    Relative |
-| :--------------- | ---------------: | ------: | ------: | ----------: |
-| `colmena@pinned` | 301.977 ± 17.026 | 288.432 | 321.090 | 2.51 ± 0.35 |
-| `wire@HEAD`      | 120.123 ± 15.044 | 110.539 | 137.462 |        1.00 |
+| Command          | Mean [s] | Min [s] | Max [s] | Relative |
+| :--------------- | -------: | ------: | ------: | -------: |
+| `wire@HEAD`      |  185.075 | 185.075 | 185.075 |     1.00 |
+| `colmena@pinned` |  343.075 | 343.075 | 343.075 |     1.85 |
