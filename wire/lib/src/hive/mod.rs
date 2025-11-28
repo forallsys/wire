@@ -307,7 +307,7 @@ mod tests {
     async fn test_hive_file() {
         let location = location!(get_test_path!());
 
-        let hive = Hive::new_from_path(&location, SubCommandModifiers::default())
+        let hive = Hive::new_from_path(&location, None, SubCommandModifiers::default())
             .await
             .unwrap();
 
@@ -333,7 +333,7 @@ mod tests {
     async fn non_trivial_hive() {
         let location = location!(get_test_path!());
 
-        let hive = Hive::new_from_path(&location, SubCommandModifiers::default())
+        let hive = Hive::new_from_path(&location, None, SubCommandModifiers::default())
             .await
             .unwrap();
 
@@ -377,7 +377,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let hive = Hive::new_from_path(&location, SubCommandModifiers::default())
+        let hive = Hive::new_from_path(&location, None, SubCommandModifiers::default())
             .await
             .unwrap();
 
@@ -404,7 +404,7 @@ mod tests {
         let location = location!(get_test_path!());
 
         assert_matches!(
-            Hive::new_from_path(&location, SubCommandModifiers::default()).await,
+            Hive::new_from_path(&location, None, SubCommandModifiers::default()).await,
             Err(HiveLibError::NixEvalError {
                 source: CommandError::CommandFailed {
                     logs,
@@ -421,7 +421,7 @@ mod tests {
         let location = location!(get_test_path!());
 
         assert_matches!(
-            Hive::new_from_path(&location, SubCommandModifiers::default()).await,
+            Hive::new_from_path(&location, None, SubCommandModifiers::default()).await,
             Err(HiveLibError::NixEvalError {
                 source: CommandError::CommandFailed {
                     logs,
@@ -439,7 +439,7 @@ mod tests {
         location.push("non_trivial_hive");
         let location = location!(location);
 
-        let mut hive = Hive::new_from_path(&location, SubCommandModifiers::default())
+        let mut hive = Hive::new_from_path(&location, None, SubCommandModifiers::default())
             .await
             .unwrap();
 

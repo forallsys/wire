@@ -489,8 +489,11 @@ mod tests {
     async fn default_values_match() {
         let mut path = get_test_path!();
 
-        let location = get_hive_location(path.display().to_string()).unwrap();
-        let hive = Hive::new_from_path(&location, SubCommandModifiers::default())
+        let location =
+            get_hive_location(path.display().to_string(), SubCommandModifiers::default())
+                .await
+                .unwrap();
+        let hive = Hive::new_from_path(&location, None, SubCommandModifiers::default())
             .await
             .unwrap();
 
