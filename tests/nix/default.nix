@@ -30,6 +30,7 @@ in
     ./suite/test_local_deploy
     ./suite/test_keys
     ./suite/test_stdin
+    ./suite/test_rollback
   ];
   options.wire.testing = mkOption {
     type = attrsOf (
