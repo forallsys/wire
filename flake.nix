@@ -93,6 +93,7 @@
             };
             settings.formatter = {
               nixfmt.excludes = [ "doc/snippets/*.nix" ];
+              prettier.excludes = [ ".sqlx/*" ];
               alejandra = {
                 includes = lib.mkForce [ "doc/snippets/*.nix" ];
               };

@@ -36,10 +36,12 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - name: setup sqlx
+        run: nix develop -L -v -c sqlx database setup --source ./wire/lib/src/cache/migrations/
       - name: clippy --fix
-        run: nix develop --print-build-logs -v --command cargo clippy --fix
+        run: nix develop -L -v -c cargo clippy --fix
       - name: pre-commit run
-        run: nix develop --print-build-logs -v --command pre-commit run --all-files
+        run: nix develop -L -v -c pre-commit run --all-files
         continue-on-error: true
       - name: Upgrade Hash
         if: ${{ needs.check-changes.outputs.docs-pnpm == 'true' }}
