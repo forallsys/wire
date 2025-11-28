@@ -8,3 +8,4 @@ mutants*/
 *.db
 run.json
 stats.md
+.nixos-test-history
