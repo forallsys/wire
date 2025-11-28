@@ -17,7 +17,6 @@ in
     {
       pkgs,
       self',
-      inputs',
       system,
       ...
     }:
@@ -111,7 +110,6 @@ in
 
         defaults =
           {
-            pkgs,
             ...
           }:
           let
