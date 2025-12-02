@@ -9,6 +9,11 @@
 }:
 {
   config = {
+    system.activationScripts.setup-wire-rollback.text = ''
+      mkdir -p /var/lib/wire-rollback
+      chmod 700 /var/lib/wire-rollback
+    '';
+
     systemd = {
       paths = lib.mapAttrs' (
         _name: value:
@@ -22,21 +27,16 @@
         }
       ) config.deployment.keys;
 
-      system.activationScripts.setup-wire-rollback.text = ''
-        mkdir -p /var/lib/wire-rollback
-        chmod 700 /var/lib/wire-rollback
-      '';
-
       services = {
         wire-rollback = {
-          enable = config.deployment.rollback;
-          description = "Rolls back the NixOS profile if `/var/lib/wire-rollback/heartbeat` is not created in 30
-          seconds after this service starts.";
+          enable = false;
+          description = "Rolls back if `/var/lib/wire-rollback/heartbeat` is not created in 30 seconds after this service starts.";
           documentation = [
             "https://wire.althaea.zone/guides/rollback"
           ];
           path = [
             pkgs.coreutils
+            config.nix.package
           ];
           wantedBy = [ "multi-user.target" ];
           script = ''
@@ -61,6 +61,8 @@
             fi
 
             echo "<1>/var/lib/wire-rollback/heartbeat does not exist, rolling back system"
+
+            ls -la /nix/var/nix/profiles
 
             # set current system
             nix-env --rollback --profile /nix/var/nix/profiles/system

@@ -121,7 +121,7 @@ async fn rollback(
     goal: &SwitchToConfigurationGoal,
     original_error: CommandError,
 ) -> Result<(), HiveLibError> {
-    let command_string = "touch /var/lib/wire-rollback/heartbeat".to_string();
+    let command_string = "mkdir -p /var/lib/wire-rollback && touch /var/lib/wire-rollback/heartbeat".to_string();
 
     let child = run_command(
         &CommandArguments::new(command_string, ctx.modifiers)
@@ -220,7 +220,7 @@ impl ExecuteStep for SwitchToConfiguration {
         let command_string = format!(
             "{rollback}{built_path}/bin/switch-to-configuration {goal_str}",
             rollback = if ctx.node.rollback {
-                format!("echo \"{goal_str}\" > /var/lib/wire-rollback/goal && ")
+                format!("mkdir -p /var/lib/wire-rollback && echo \"{goal_str}\" > /var/lib/wire-rollback/goal && ")
             } else {
                 String::new()
             }

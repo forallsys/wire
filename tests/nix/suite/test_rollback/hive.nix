@@ -7,9 +7,20 @@ in
 makeHive {
   meta.nixpkgs = import <nixpkgs> { localSystem = "x86_64-linux"; };
 
-  receiver = mkHiveNode { hostname = "receiver"; } {
-    environment.etc."identity".text = "first";
+  receiver = mkHiveNode { hostname = "receiver"; } (
+    { lib, ... }:
+    {
+      environment.etc."identity".text = "first";
+    }
+  );
 
-    services.openssh.enable = false;
-  };
+  receiver-broken = mkHiveNode { hostname = "receiver"; } (
+    { lib, ... }:
+    {
+      environment.etc."identity".text = "second";
+      deployment.target.hosts = [ "receiver" ];
+
+      services.openssh.enable = lib.mkForce false;
+    }
+  );
 }
