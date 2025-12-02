@@ -14,7 +14,7 @@
     linux-systems.url = "github:nix-systems/default-linux";
 
     # testing inputs
-    nixpkgs_current_stable.url = "github:NixOS/nixpkgs/nixos-25.05";
+    nixpkgs_current_stable.url = "github:NixOS/nixpkgs/nixos-25.11";
 
     # benchmarking
     colmena_benchmarking.url = "github:zhaofengli/colmena/v0.4.0";

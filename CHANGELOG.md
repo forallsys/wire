@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `meta.nodeNixpkgs` was implemented.
 - Caching of hive evaluation for flakes.
 
+### Changed
+
+- Tests are now ran on 25.11.
+
 ## [v1.0.0-alpha.1] - 2025-11-24
 
 ### Added
