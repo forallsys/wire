@@ -45,7 +45,7 @@ $ npins add github mrshmllow wire --branch stable
 Alternatively, you can use a tag instead:
 
 ```sh
-$ npins add github mrshmllow wire --at v1.0.0-alpha.1
+$ npins add github mrshmllow wire --at v1.0.0-beta.0
 ```
 
 Then, use this pinned version of wire for both your `hive.nix` and `shell.nix`:
