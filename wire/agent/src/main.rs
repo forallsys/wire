@@ -2,10 +2,10 @@
 // Copyright 2024-2025 wire Contributors
 
 #![deny(clippy::pedantic)]
+use agent::keys::KeySpec;
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use futures_util::stream::StreamExt;
-use agent::keys::KeySpec;
 use nix::unistd::{Group, User};
 use prost::Message;
 use prost::bytes::Bytes;

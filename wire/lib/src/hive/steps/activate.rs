@@ -116,7 +116,11 @@ async fn reboot(ctx: &Context<'_>) -> Result<(), HiveLibError> {
     ));
 }
 
-async fn rollback(ctx: &Context<'_>, goal: &SwitchToConfigurationGoal, original_error: CommandError) -> Result<(), HiveLibError> {
+async fn rollback(
+    ctx: &Context<'_>,
+    goal: &SwitchToConfigurationGoal,
+    original_error: CommandError,
+) -> Result<(), HiveLibError> {
     let command_string = "touch /var/lib/wire-rollback/heartbeat".to_string();
 
     let child = run_command(
@@ -135,9 +139,9 @@ async fn rollback(ctx: &Context<'_>, goal: &SwitchToConfigurationGoal, original_
         )),
         Err(err) => Err(HiveLibError::ActivationError(
             ActivationError::FailedHeartbeatError {
-                name: ctx.name.clone(), 
+                name: ctx.name.clone(),
                 activation_failure: original_error,
-                related_errors: vec![err]
+                related_errors: vec![err],
             },
         )),
     }

@@ -94,7 +94,7 @@ pub enum ActivationError {
     )]
     #[error("failed to touch /var/lib/wire-rollback/heartbeat on node {name}")]
     FailedHeartbeatError {
-        name: Name, 
+        name: Name,
         #[source]
         activation_failure: CommandError,
 
