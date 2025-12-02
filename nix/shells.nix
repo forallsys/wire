@@ -23,7 +23,7 @@
           pkgs.nodejs
           pkgs.sqlx-cli
           pkgs.sqlite
-          pkgs.limbo
+          pkgs.turso
           pkgs.zstd
         ];
 
