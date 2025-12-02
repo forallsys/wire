@@ -1110,7 +1110,7 @@ dependencies = [
 
 [[package]]
 name = "key_agent"
-version = "1.0.0-alpha.1"
+version = "1.0.0-beta.0"
 dependencies = [
  "anyhow",
  "base64",
@@ -1134,7 +1134,7 @@ dependencies = [
 
 [[package]]
 name = "lib"
-version = "1.0.0-alpha.1"
+version = "1.0.0-beta.0"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -3172,7 +3172,7 @@ dependencies = [
 
 [[package]]
 name = "wire"
-version = "1.0.0-alpha.1"
+version = "1.0.0-beta.0"
 dependencies = [
  "clap",
  "clap-markdown",
