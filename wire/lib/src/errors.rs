@@ -372,5 +372,5 @@ pub enum HiveLibError {
         url("{DOCS_URL}#{}", self.code().unwrap())
     )]
     #[error("SIGINT recieved, shut down")]
-    Sigint
+    Sigint,
 }

@@ -123,7 +123,7 @@ pub async fn apply(
                 reboot: args.reboot,
                 should_apply_locally,
                 handle_unreachable: args.handle_unreachable.clone().into(),
-                should_shutdown: should_shutdown.clone()
+                should_shutdown: should_shutdown.clone(),
             };
 
             GoalExecutor::new(context)

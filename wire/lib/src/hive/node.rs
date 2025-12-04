@@ -116,7 +116,7 @@ impl<'a> Context<'a> {
             reboot: false,
             should_apply_locally: false,
             handle_unreachable: HandleUnreachable::default(),
-            should_shutdown: Arc::new(AtomicBool::new(false))
+            should_shutdown: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -307,7 +307,7 @@ pub struct Context<'a> {
     pub reboot: bool,
     pub should_apply_locally: bool,
     pub handle_unreachable: HandleUnreachable,
-    pub should_shutdown: Arc<AtomicBool>
+    pub should_shutdown: Arc<AtomicBool>,
 }
 
 #[enum_dispatch(ExecuteStep)]
@@ -347,8 +347,11 @@ pub struct GoalExecutor<'a> {
 
 /// returns Err if the application should shut down.
 fn app_shutdown_guard(context: &Context) -> Result<(), HiveLibError> {
-    if context.should_shutdown.load(std::sync::atomic::Ordering::Relaxed) {
-        return Err(HiveLibError::Sigint)
+    if context
+        .should_shutdown
+        .load(std::sync::atomic::Ordering::Relaxed)
+    {
+        return Err(HiveLibError::Sigint);
     }
 
     Ok(())
@@ -816,7 +819,9 @@ mod tests {
 
         let name = &Name(function_name!().into());
         let context = Context::create_test_context(location, name, &mut node);
-        context.should_shutdown.store(true, std::sync::atomic::Ordering::Relaxed);
+        context
+            .should_shutdown
+            .store(true, std::sync::atomic::Ordering::Relaxed);
         let executor = GoalExecutor::new(context);
         let status = executor.execute().await;
 
