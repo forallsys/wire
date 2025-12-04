@@ -11,6 +11,7 @@ use miette::{Diagnostic, IntoDiagnostic, Result};
 use std::collections::HashSet;
 use std::io::{Read, stderr};
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use thiserror::Error;
 use tracing::{Span, error, info};
 
@@ -51,6 +52,7 @@ fn read_apply_targets_from_stdin() -> Result<(Vec<String>, Vec<Name>)> {
 // #[instrument(skip_all, fields(goal = %args.goal, on = %args.on.iter().join(", ")))]
 pub async fn apply(
     hive: &mut Hive,
+    should_shutdown: Arc<AtomicBool>,
     location: HiveLocation,
     args: ApplyArgs,
     mut modifiers: SubCommandModifiers,
@@ -121,6 +123,7 @@ pub async fn apply(
                 reboot: args.reboot,
                 should_apply_locally,
                 handle_unreachable: args.handle_unreachable.clone().into(),
+                should_shutdown: should_shutdown.clone()
             };
 
             GoalExecutor::new(context)

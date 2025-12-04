@@ -5,9 +5,12 @@
 #![feature(nonpoison_mutex)]
 
 use std::process::Command;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use crate::cli::Cli;
 use crate::cli::ToSubCommandModifiers;
+use crate::sigint::handle_signals;
 use crate::tracing_setup::setup_logging;
 use clap::CommandFactory;
 use clap::Parser;
@@ -18,6 +21,8 @@ use lib::hive::Hive;
 use lib::hive::get_hive_location;
 use miette::IntoDiagnostic;
 use miette::Result;
+use signal_hook::consts::SIGINT;
+use signal_hook_tokio::Signals;
 use tracing::error;
 use tracing::warn;
 
@@ -27,6 +32,7 @@ extern crate enum_display_derive;
 mod apply;
 mod cli;
 mod tracing_setup;
+mod sigint;
 
 #[cfg(feature = "dhat-heap")]
 #[global_allocator]
@@ -57,13 +63,20 @@ async fn main() -> Result<()> {
         miette::bail!("Nix is not available on this system.");
     }
 
+    let signals = Signals::new([
+        SIGINT,
+    ]).into_diagnostic()?;
+    let signals_handle = signals.handle();
+    let should_shutdown = Arc::new(AtomicBool::new(false));
+    let signals_task = tokio::spawn(handle_signals(signals, should_shutdown.clone()));
+
     let location = get_hive_location(args.path, modifiers).await?;
     let cache = InspectionCache::new().await;
 
     match args.command {
         cli::Commands::Apply(apply_args) => {
             let mut hive = Hive::new_from_path(&location, cache.clone(), modifiers).await?;
-            apply::apply(&mut hive, location, apply_args, modifiers).await?;
+            apply::apply(&mut hive, should_shutdown, location, apply_args, modifiers).await?;
         }
         cli::Commands::Inspect { json, selection } => println!("{}", {
             match selection {
@@ -87,6 +100,9 @@ async fn main() -> Result<()> {
     if let Some(cache) = cache {
         cache.gc().await.into_diagnostic()?;
     }
+
+    signals_handle.close();
+    signals_task.await.into_diagnostic()?;
 
     Ok(())
 }
