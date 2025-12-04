@@ -31,8 +31,8 @@ extern crate enum_display_derive;
 
 mod apply;
 mod cli;
-mod tracing_setup;
 mod sigint;
+mod tracing_setup;
 
 #[cfg(feature = "dhat-heap")]
 #[global_allocator]
@@ -63,9 +63,7 @@ async fn main() -> Result<()> {
         miette::bail!("Nix is not available on this system.");
     }
 
-    let signals = Signals::new([
-        SIGINT,
-    ]).into_diagnostic()?;
+    let signals = Signals::new([SIGINT]).into_diagnostic()?;
     let signals_handle = signals.handle();
     let should_shutdown = Arc::new(AtomicBool::new(false));
     let signals_task = tokio::spawn(handle_signals(signals, should_shutdown.clone()));
