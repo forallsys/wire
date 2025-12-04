@@ -74,6 +74,8 @@ pub(super) fn handle_pty_stdout(arguments: WatchStdoutArguments) -> Result<(), C
         match reader.read(&mut buffer) {
             Ok(0) => break 'outer,
             Ok(n) => {
+                // this block is responsible for outputting the "raw" data,
+                // mostly sudo prompts.
                 if !began {
                     let findings = handle_rawmode_data(
                         &mut stderr,
@@ -99,7 +101,7 @@ pub(super) fn handle_pty_stdout(arguments: WatchStdoutArguments) -> Result<(), C
                     }
 
                     stderr
-                        .write(b"\x07")
+                        .write(b"\x07") // bell
                         .map_err(CommandError::WritingClientStderr)?;
                     stderr.flush().map_err(CommandError::WritingClientStderr)?;
 
