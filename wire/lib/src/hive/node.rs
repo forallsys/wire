@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::assert_matches::debug_assert_matches;
 use std::fmt::Display;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use tokio::sync::oneshot;
 use tracing::{Instrument, Level, Span, debug, error, event, instrument, trace};
 
@@ -115,6 +116,7 @@ impl<'a> Context<'a> {
             reboot: false,
             should_apply_locally: false,
             handle_unreachable: HandleUnreachable::default(),
+            should_shutdown: Arc::new(AtomicBool::new(false))
         }
     }
 }
@@ -305,6 +307,7 @@ pub struct Context<'a> {
     pub reboot: bool,
     pub should_apply_locally: bool,
     pub handle_unreachable: HandleUnreachable,
+    pub should_shutdown: Arc<AtomicBool>
 }
 
 #[enum_dispatch(ExecuteStep)]
@@ -340,6 +343,15 @@ impl Display for Step {
 pub struct GoalExecutor<'a> {
     steps: Vec<Step>,
     context: Context<'a>,
+}
+
+/// returns Err if the application should shut down.
+fn app_shutdown_guard(context: &Context) -> Result<(), HiveLibError> {
+    if context.should_shutdown.load(std::sync::atomic::Ordering::Relaxed) {
+        return Err(HiveLibError::Sigint)
+    }
+
+    Ok(())
 }
 
 impl<'a> GoalExecutor<'a> {
@@ -390,6 +402,8 @@ impl<'a> GoalExecutor<'a> {
 
     #[instrument(skip_all, fields(node = %self.context.name))]
     pub async fn execute(mut self) -> Result<(), HiveLibError> {
+        app_shutdown_guard(&self.context)?;
+
         let (tx, rx) = oneshot::channel();
         self.context.state.evaluation_rx = Some(rx);
 
@@ -429,6 +443,8 @@ impl<'a> GoalExecutor<'a> {
         let length = steps.len();
 
         for (position, step) in steps.iter().enumerate() {
+            app_shutdown_guard(&self.context)?;
+
             event!(
                 Level::INFO,
                 step = step.to_string(),
@@ -791,5 +807,19 @@ mod tests {
                 )
                 .unwrap()
         );
+    }
+
+    #[tokio::test]
+    async fn context_quits_sigint() {
+        let location = location!(get_test_path!());
+        let mut node = Node::default();
+
+        let name = &Name(function_name!().into());
+        let context = Context::create_test_context(location, name, &mut node);
+        context.should_shutdown.store(true, std::sync::atomic::Ordering::Relaxed);
+        let executor = GoalExecutor::new(context);
+        let status = executor.execute().await;
+
+        assert_matches!(status, Err(HiveLibError::Sigint));
     }
 }

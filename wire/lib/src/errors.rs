@@ -366,4 +366,11 @@ pub enum HiveLibError {
     )]
     #[error("error encoding length delimited data")]
     Encoding(#[source] std::io::Error),
+
+    #[diagnostic(
+        code(wire::SIGINT),
+        url("{DOCS_URL}#{}", self.code().unwrap())
+    )]
+    #[error("SIGINT recieved, shut down")]
+    Sigint
 }
