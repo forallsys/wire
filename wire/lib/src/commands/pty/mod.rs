@@ -25,7 +25,7 @@ use tracing::{Span, debug, trace};
 use crate::commands::CommandArguments;
 use crate::commands::pty::input::watch_stdin_from_user;
 use crate::errors::CommandError;
-use crate::{SubCommandModifiers, aquire_stdin_lock};
+use crate::{SubCommandModifiers, acquire_stdin_lock};
 use crate::{
     commands::{ChildOutputMode, WireCommandChip},
     errors::HiveLibError,
@@ -155,7 +155,7 @@ pub(crate) async fn interactive_command_with_env<S: AsRef<str>>(
         command.env(key, value);
     }
 
-    let clobber_guard = aquire_stdin_lock().await;
+    let clobber_guard = acquire_stdin_lock().await;
     let _guard = StdinTermiosAttrGuard::new().map_err(HiveLibError::CommandError)?;
     let child = pty_pair
         .slave

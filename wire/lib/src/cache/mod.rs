@@ -155,7 +155,7 @@ impl InspectionCache {
 
     pub async fn gc(&self) -> Result<(), sqlx::Error> {
         // keep newest 30 AND
-        // delete caches that refer to a blob w/ wrong schmea
+        // delete caches that refer to a blob w/ wrong schema
         sqlx::query!(
             "delete from inspection_cache
 where
