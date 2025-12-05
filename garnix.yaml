@@ -1,8 +1,8 @@
 builds:
   exclude: []
   include:
-  - 'packages.*.docs'
-  - 'packages.*.docs-unstable'
-  - 'packages.*.wire'
-  - 'packages.*.wire-small'
+    - packages.*.docs
+    - packages.*.docs-unstable
+    - packages.*.wire
+    - packages.*.wire-small
   branch: trunk
