@@ -371,6 +371,6 @@ pub enum HiveLibError {
         code(wire::SIGINT),
         url("{DOCS_URL}#{}", self.code().unwrap())
     )]
-    #[error("SIGINT recieved, shut down")]
+    #[error("SIGINT received, shut down")]
     Sigint,
 }
