@@ -4,6 +4,7 @@
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use futures::future::join_all;
+use im::Vector;
 use itertools::{Itertools, Position};
 use owo_colors::OwoColorize;
 use prost::Message;
@@ -13,10 +14,12 @@ use sha2::{Digest, Sha256};
 use std::env;
 use std::fmt::Display;
 use std::io::Cursor;
+use std::iter::Peekable;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::process::Stdio;
 use std::str::from_utf8;
+use std::vec::IntoIter;
 use tokio::io::AsyncReadExt as _;
 use tokio::process::Command;
 use tokio::{fs::File, io::AsyncRead};
@@ -82,6 +85,25 @@ impl Display for Key {
             self.group,
             self.permissions,
         )
+    }
+}
+
+#[cfg(test)]
+impl Default for Key {
+    fn default() -> Self {
+        use im::HashMap;
+
+        Self {
+            name: "key".into(),
+            dest_dir: "/somewhere/".into(),
+            path: "key".into(),
+            group: "root".into(),
+            user: "root".into(),
+            permissions: "0600".into(),
+            source: Source::String("test key".into()),
+            upload_at: UploadKeyAt::PreActivation,
+            environment: HashMap::new(),
+        }
     }
 }
 
@@ -223,26 +245,7 @@ impl ExecuteStep for Keys {
     async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
         let agent_directory = ctx.state.key_agent_directory.as_ref().unwrap();
 
-        let futures = ctx
-            .node
-            .keys
-            .iter()
-            .filter(|key| {
-                self.filter == UploadKeyAt::NoFilter
-                    || (self.filter != UploadKeyAt::NoFilter && key.upload_at != self.filter)
-            })
-            .map(|key| async move {
-                process_key(key)
-                    .await
-                    .map_err(|err| HiveLibError::KeyError(key.name.clone(), err))
-            });
-
-        let mut keys = join_all(futures)
-            .await
-            .into_iter()
-            .collect::<Result<Vec<_>, HiveLibError>>()?
-            .into_iter()
-            .peekable();
+        let mut keys = self.select_keys(&ctx.node.keys).await?;
 
         if keys.peek().is_none() {
             debug!("Had no keys to push, ending KeyStep early.");
@@ -290,6 +293,30 @@ impl ExecuteStep for Keys {
     }
 }
 
+impl Keys {
+    async fn select_keys(
+        &self,
+        keys: &Vector<Key>,
+    ) -> Result<Peekable<IntoIter<(key_agent::keys::KeySpec, std::vec::Vec<u8>)>>, HiveLibError>
+    {
+        let futures = keys
+            .iter()
+            .filter(|key| self.filter == UploadKeyAt::NoFilter || (key.upload_at == self.filter))
+            .map(|key| async move {
+                process_key(key)
+                    .await
+                    .map_err(|err| HiveLibError::KeyError(key.name.clone(), err))
+            });
+
+        Ok(join_all(futures)
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, HiveLibError>>()?
+            .into_iter()
+            .peekable())
+    }
+}
+
 impl ExecuteStep for PushKeyAgent {
     fn should_execute(&self, ctx: &Context) -> bool {
         if ctx.no_keys {
@@ -325,5 +352,72 @@ impl ExecuteStep for PushKeyAgent {
         ctx.state.key_agent_directory = Some(agent_directory);
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use im::Vector;
+
+    use crate::hive::steps::keys::{Key, Keys, UploadKeyAt, process_key};
+
+    fn new_key(upload_at: &UploadKeyAt) -> Key {
+        Key {
+            upload_at: upload_at.clone(),
+            source: super::Source::String(match upload_at {
+                UploadKeyAt::PreActivation => "pre".into(),
+                UploadKeyAt::PostActivation => "post".into(),
+                UploadKeyAt::NoFilter => "none".into(),
+            }),
+            ..Default::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn key_filtering() {
+        let keys = Vector::from(vec![
+            new_key(&UploadKeyAt::PreActivation),
+            new_key(&UploadKeyAt::PostActivation),
+            new_key(&UploadKeyAt::PreActivation),
+            new_key(&UploadKeyAt::PostActivation),
+        ]);
+
+        for (_, buf) in (Keys {
+            filter: crate::hive::steps::keys::UploadKeyAt::PreActivation,
+        })
+        .select_keys(&keys)
+        .await
+        .unwrap()
+        {
+            assert_eq!(String::from_utf8_lossy(&buf), "pre");
+        }
+
+        for (_, buf) in (Keys {
+            filter: crate::hive::steps::keys::UploadKeyAt::PostActivation,
+        })
+        .select_keys(&keys)
+        .await
+        .unwrap()
+        {
+            assert_eq!(String::from_utf8_lossy(&buf), "post");
+        }
+
+        // test that NoFilter processes all keys.
+        let processed_all =
+            futures::future::join_all(keys.iter().map(async |x| process_key(x).await))
+                .await
+                .iter()
+                .flatten()
+                .cloned()
+                .collect::<Vec<_>>();
+        let no_filter = (Keys {
+            filter: crate::hive::steps::keys::UploadKeyAt::NoFilter,
+        })
+        .select_keys(&keys)
+        .await
+        .unwrap()
+        .collect::<Vec<_>>();
+
+        assert_eq!(processed_all, no_filter);
     }
 }
