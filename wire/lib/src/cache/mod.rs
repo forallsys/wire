@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright 2024-2025 wire Contributors
 
-use std::{env, path::PathBuf};
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 
 use sqlx::{
     Pool, Sqlite,
@@ -69,16 +72,34 @@ impl InspectionCache {
         Some(Self { pool })
     }
 
+    fn cache_invalid(store_path: &String) -> bool {
+        let path = Path::new(store_path);
+
+        // possible TOCTOU
+        !path.exists()
+    }
+
     pub async fn get_hive(&self, prefetch: &FlakePrefetch) -> Option<Hive> {
-        let cached_blob: Vec<u8> = sqlx::query_scalar!(
+        struct Query {
+            json_value: Vec<u8>,
+            store_path: String,
+        }
+
+        let cached_blob = sqlx::query_as!(
+            Query,
             "
-            select inspection_blobs.json_value from inspection_blobs
-            join inspection_cache
-            on inspection_cache.blob_id = inspection_blobs.id
-            where inspection_cache.store_path = $1
-            and inspection_cache.hash = $2
-            and inspection_blobs.schema_version = $3
-            limit 1
+            select
+              inspection_blobs.json_value,
+              inspection_cache.store_path
+            from
+              inspection_blobs
+              join inspection_cache on inspection_cache.blob_id = inspection_blobs.id
+            where
+              inspection_cache.store_path = $1
+              and inspection_cache.hash = $2
+              and inspection_blobs.schema_version = $3
+            limit
+              1
             ",
             prefetch.store_path,
             prefetch.hash,
@@ -89,15 +110,25 @@ impl InspectionCache {
         .inspect_err(|x| error!("failed to fetch cached hive: {x}"))
         .ok()??;
 
-        trace!("read {} bytes of zstd data from cache", cached_blob.len());
+        // the cached path may of been garbage collected, discard it
+        // it is quite hard to replicate this bug but its occurred to me
+        // atleast once
+        if Self::cache_invalid(&cached_blob.store_path) {
+            trace!("discarding cache that does not exist in the nix store");
+        }
 
-        let json_string = zstd::decode_all(cached_blob.as_slice())
+        trace!(
+            "read {} bytes of zstd data from cache",
+            cached_blob.json_value.len()
+        );
+
+        let json_string = zstd::decode_all(cached_blob.json_value.as_slice())
             .inspect_err(|err| error!("failed to decode cached zstd data: {err}"))
             .ok()?;
 
         trace!(
             "inflated {} > {} in decoding",
-            cached_blob.len(),
+            cached_blob.json_value.len(),
             json_string.len()
         );
 

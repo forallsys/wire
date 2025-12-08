@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Fix a bug related to key filtering
+- Invalidate caches that reference garbage collected paths
 
 ## [v1.0.0-beta.0] - 2025-12-02
 
