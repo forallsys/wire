@@ -3,7 +3,7 @@
 
 syntax = "proto3";
 
-package key_agent.keys;
+package agent.keys;
 
 message KeySpec {
   string destination = 1;

@@ -15,7 +15,7 @@ wire
 │  │  └── Rust library containing business logic, consumed by `wire`
 │  ├── cli
 │  │  └── Rust binary, using `lib`
-│  └── key_agent
+│  └── agent
 │     └── Rust binary ran on a target node. receives key file bytes and metadata w/ protobuf over SSH stdin
 ├── doc
 │  └── a [vitepress](https://vitepress.dev/) site

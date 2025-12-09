@@ -50,6 +50,12 @@ in
       default = { };
     };
 
+    rollback = lib.mkOption {
+      type = types.bool;
+      default = true;
+      description = "Attempt to rollback this node if it cannot be contacted after activation.";
+    };
+
     buildOnTarget = lib.mkOption {
       type = types.bool;
       default = false;
