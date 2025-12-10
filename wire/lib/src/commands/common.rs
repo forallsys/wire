@@ -182,12 +182,12 @@ mod tests {
         let mut node = Node::from_target(vm.target.clone());
         let name = Name("test".into());
         let mut context = Context::create_test_context(
-            crate::hive::HiveLocation::Flake("in-test".to_string()),
+            crate::hive::HiveLocation::Flake { uri: "in-test".to_string(), prefetch: crate::hive::FlakePrefetch { hash: "AAAAA".into(), store_path: "unknown".into() } },
             &name,
             &mut node,
         );
         context.modifiers = SubCommandModifiers {
-            ssh_accept_host: true,
+            ssh_accept_host: crate::StrictHostKeyChecking::No,
             ..Default::default()
         };
 

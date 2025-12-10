@@ -2,6 +2,7 @@
 // Copyright 2024-2025 wire Contributors
 
 #![allow(clippy::missing_errors_doc)]
+use std::env;
 use enum_dispatch::enum_dispatch;
 use gethostname::gethostname;
 use serde::{Deserialize, Serialize};
@@ -97,11 +98,12 @@ impl Target {
             .ok_or(HiveLibError::NetworkError(NetworkError::HostsExhausted))
     }
 
-    pub fn host_failed(&mut self) {
+    pub const fn host_failed(&mut self) {
         self.current_host += 1;
     }
 
     #[cfg(test)]
+    #[must_use] 
     pub fn new(host: Arc<str>, user: Arc<str>, port: u16) -> Target {
         Target {
             hosts: vec![host],
@@ -112,6 +114,7 @@ impl Target {
     }
 
     #[cfg(test)]
+    #[must_use] 
     pub fn from_host(host: &str) -> Self {
         Target {
             hosts: vec![host.into()],
@@ -223,6 +226,7 @@ impl Node {
 
     /// Tests the connection to a node
     #[cfg(test)]
+    #[must_use] 
     pub fn from_target(target: Target) -> Self {
         Node {
             target,
@@ -865,7 +869,7 @@ mod tests {
         let vm = test_with_vm();
         let node = Node::from_target(vm.target.clone());
         let modifiers = SubCommandModifiers {
-            ssh_accept_host: true,
+            ssh_accept_host: StrictHostKeyChecking::No,
             ..Default::default()
         };
 
