@@ -14,7 +14,7 @@ pub(crate) async fn handle_signals(mut signals: Signals, should_shutdown: Arc<At
         if let SIGINT = signal
             && !should_shutdown.load(std::sync::atomic::Ordering::Relaxed)
         {
-            info!("Received SIGINT, attempting to shut down executor threads.");
+            info!("Received SIGINT, attempting to shut down executor tasks.");
             should_shutdown.store(true, std::sync::atomic::Ordering::Relaxed);
         }
     }
