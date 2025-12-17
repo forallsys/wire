@@ -36,13 +36,13 @@
         ./nix/hooks.nix # pre-commit hooks
         ./nix/utils.nix # utility functions
         ./nix/shells.nix
-        ./nix/tests.nix
         ./wire/cli
         ./wire/key_agent
         ./doc
         ./tests/nix
         ./runtime
         ./bench/runner.nix
+        ./tests/tests.nix
       ];
       systems = import systems;
 

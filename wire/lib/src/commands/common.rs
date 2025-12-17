@@ -160,3 +160,61 @@ pub async fn evaluate_hive_attribute(
             Either::Left((_, stdout)) | Either::Right((_, stdout)) => stdout,
         })
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{assert_matches::assert_matches, collections::HashMap, env};
+
+    use crate::{
+        SubCommandModifiers,
+        commands::{
+            CommandArguments, WireCommandChip, common::push,
+            noninteractive::non_interactive_command_with_env,
+        },
+        errors::CommandError,
+        hive::node::{Context, Name, Node, Push},
+        test_support::test_with_vm,
+    };
+
+    #[tokio::test]
+    async fn push_to_vm() {
+        let vm = test_with_vm();
+        let mut node = Node::from_target(vm.target.clone());
+        let name = Name("test".into());
+        let mut context = Context::create_test_context(
+            crate::hive::HiveLocation::Flake { uri: "in-test".to_string(), prefetch: crate::hive::FlakePrefetch { hash: "AAAAA".into(), store_path: "unknown".into() } },
+            &name,
+            &mut node,
+        );
+        context.modifiers = SubCommandModifiers {
+            ssh_accept_host: crate::StrictHostKeyChecking::No,
+            ..Default::default()
+        };
+
+        let push_path = env::var("WIRE_PUSHABLE_PATH").unwrap();
+        let to_push = Push::Path(&push_path);
+
+        let child = non_interactive_command_with_env(
+            &CommandArguments::new(format!("stat {push_path}"), context.modifiers)
+                .on_target(Some(&context.node.target)),
+            HashMap::new(),
+        )
+        .unwrap();
+
+        assert_matches!(
+            child.wait_till_success().await,
+            Err(CommandError::CommandFailed { command_ran, logs, code, reason }) if logs.contains("No such file or directory")
+        );
+
+        push(&context, to_push).await.unwrap();
+
+        let child = non_interactive_command_with_env(
+            &CommandArguments::new(format!("stat {push_path}"), context.modifiers)
+                .on_target(Some(&node.target)),
+            HashMap::new(),
+        )
+        .unwrap();
+
+        child.wait_till_success().await.unwrap();
+    }
+}

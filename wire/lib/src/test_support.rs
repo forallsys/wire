@@ -2,13 +2,20 @@
 // Copyright 2024-2025 wire Contributors
 
 use std::{
+    env,
     fs::{self, create_dir},
     io,
-    path::Path,
-    process::Command,
+    net::TcpStream,
+    path::{Path, PathBuf},
+    process::{Child, Command, Stdio},
+    sync::{LazyLock, atomic::AtomicU16},
+    thread,
+    time::{Duration, Instant},
 };
 
 use tempdir::TempDir;
+
+use crate::hive::node::Target;
 
 pub fn make_flake_sandbox(path: &Path) -> Result<TempDir, io::Error> {
     let tmp_dir = TempDir::new("wire-test")?;
@@ -64,4 +71,55 @@ pub fn make_flake_sandbox(path: &Path) -> Result<TempDir, io::Error> {
         .status()?;
 
     Ok(tmp_dir)
+}
+
+pub(crate) struct CargoTestVirtualMachine {
+    pub(crate) target: Target,
+    child: Child,
+}
+
+// corresponds to `tests/tests.nix`, that file needs to be updated
+// to support new tests being added
+static TEST_COUNTER: LazyLock<AtomicU16> = LazyLock::new(|| AtomicU16::new(0));
+const VM_START_WAIT: std::time::Duration = Duration::from_secs(10);
+const VM_PORT_BASE: u16 = 2000;
+
+fn wait_for_port(port: u16) {
+    let start = Instant::now();
+
+    while start.elapsed() < VM_START_WAIT {
+        match TcpStream::connect(("localhost", port)) {
+            Ok(_) => return,
+            Err(_) => {
+                thread::sleep(Duration::from_millis(100));
+            }
+        }
+    }
+
+    panic!("Test vm failed to open port {port}");
+}
+
+// corresponds to `tests/tests.nix`, do not change values without updating that :)
+pub fn test_with_vm() -> CargoTestVirtualMachine {
+    let mut vms_path = PathBuf::from(env::var("WIRE_TEST_VM").unwrap());
+    let index = TEST_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    vms_path.push(format!("{index}/bin/run-cargo-vm-{index}-vm"));
+
+    let child = Command::new(vms_path.clone())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+
+    wait_for_port(VM_PORT_BASE + index);
+
+    let target = Target::new("localhost".into(), "root".into(), VM_PORT_BASE + index);
+
+    CargoTestVirtualMachine { target, child }
+}
+
+impl Drop for CargoTestVirtualMachine {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+    }
 }
