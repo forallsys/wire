@@ -4,7 +4,7 @@ title: Apply your Config
 description: How to apply a node with wire.
 ---
 
-# {{ $frontmatter.title }}
+# Apply your Config
 
 {{ $frontmatter.description }}
 
@@ -28,39 +28,6 @@ $ wire apply switch
 
 Which will `switch` to each node's NixOS system in your hive and push
 secrets (the equivalent to `nixos-rebuild`'s `nixos-rebuild switch`).
-
-::: details Apply Goal Flowchart
-The following is an illustrative flowchart of how each step in the apply execution is ran.
-
-Depending on the specific goal certain steps will not run, for example the
-Switch to Configuration step will never run if the goal is `build`.
-
-```mermaid
-flowchart TD
-    A(Test Connection) --> |IP / Hostname| B(Push Keys)
-
-    C(Evaluate NixOS System)
-
-    B --> C
-    C -->|.drv Path| local
-    C -->|.drv Path| remote
-
-    subgraph remote[Remote Node]
-        D(Push To Node)
-        D --> E(Build NixOS System)
-        E -->|Built System| H(Push To Node)
-    end
-
-    subgraph local[Local Node]
-        direction RL
-        G(Build NixOS System Locally)
-    end
-
-    G --> F(Switch To Configuration)
-    H --> F
-```
-
-:::
 
 ## Apply goals
 

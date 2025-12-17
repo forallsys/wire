@@ -4,7 +4,7 @@ title: Meta Options
 description: wire hive meta options.
 ---
 
-# {{ $frontmatter.title }}
+# Meta Options
 
 {{ $frontmatter.description }}
 

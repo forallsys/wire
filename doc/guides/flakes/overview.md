@@ -4,7 +4,7 @@ title: Use Flakes
 description: How to output a hive from a flake.
 ---
 
-# {{ $frontmatter.title }}
+# Use Flakes
 
 {{ $frontmatter.description }}
 

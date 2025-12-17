@@ -4,7 +4,7 @@ title: Creating a Virtual Machine
 description: Creating a NixOS virtual machine to use as a deployment target.
 ---
 
-# {{ $frontmatter.title }}
+# Creating a Virtual Machine
 
 {{ $frontmatter.description }}
 

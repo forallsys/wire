@@ -4,7 +4,7 @@ title: Basic Hive & Deployment
 description: Creating a basic hive and deploying changes to the virtual machine.
 ---
 
-# {{ $frontmatter.title }}
+# Basic Hive & Deployment
 
 {{ $frontmatter.description }}
 

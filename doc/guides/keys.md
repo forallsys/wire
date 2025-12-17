@@ -4,7 +4,7 @@ title: Manage Secrets
 description: Manage keys, secrets, files, and other out-of-store paths with wire Tool.
 ---
 
-# {{ $frontmatter.title }}
+# Manage Secrets
 
 {{ $frontmatter.description }}
 

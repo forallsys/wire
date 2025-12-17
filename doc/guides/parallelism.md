@@ -4,7 +4,7 @@ title: Use Parallelism
 description: How to use parallelism with wire Tool.
 ---
 
-# {{ $frontmatter.title }}
+# Use Parallelism
 
 {{ $frontmatter.description }}
 

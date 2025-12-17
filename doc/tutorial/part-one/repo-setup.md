@@ -4,7 +4,7 @@ title: Preparing Repo & Shell
 description: Adding npins sources and a nix development shell.
 ---
 
-# {{ $frontmatter.title }}
+# Preparing Repo & Shell
 
 {{ $frontmatter.description }}
 

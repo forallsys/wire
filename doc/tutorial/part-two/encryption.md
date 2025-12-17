@@ -4,7 +4,7 @@ title: Deployment Keys Basics
 description: Deploy a age-encrypted secret with wire tool.
 ---
 
-# {{ $frontmatter.title }}
+# Deployment Keys Basics
 
 {{ $frontmatter.description }}
 

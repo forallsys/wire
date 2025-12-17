@@ -4,7 +4,7 @@ title: wire Tutorial Overview
 description: In this tutorial we will create and deploy a wire Hive.
 ---
 
-# {{ $frontmatter.title }}
+# wire Tutorial Overview
 
 wire is a tool to deploy NixOS systems. Its usage is inspired by [colmena](https://colmena.cli.rs/). In many places it's configuration attempts to remain a superset[^1] of colmena, however it is **not** a fork.
 
@@ -28,9 +28,7 @@ Ready? Skip to [Nix Setup](./part-one/nix-setup).
 
 </div>
 
-## Why wire?
-
-### Features
+## What features does wire have?
 
 | Features                                                      | wire               | Colmena            |
 | ------------------------------------------------------------- | ------------------ | ------------------ |
@@ -50,13 +48,3 @@ Ready? Skip to [Nix Setup](./part-one/nix-setup).
 [^3]: See https://github.com/zhaofengli/colmena/issues/120
 
 [^4]: wire lacks an equivalent to `colmena exec`.
-
-### Speed
-
-wire is about >2x faster than colmena deploying [identical large
-hives](https://github.com/mrshmllow/wire/blob/trunk/bench/run.nix).
-
-| Command          | Mean [s] | Min [s] | Max [s] | Relative |
-| :--------------- | -------: | ------: | ------: | -------: |
-| `wire@HEAD`      |  185.075 | 185.075 | 185.075 |     1.00 |
-| `colmena@pinned` |  343.075 | 343.075 | 343.075 |     1.85 |

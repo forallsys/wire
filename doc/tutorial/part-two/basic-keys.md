@@ -4,7 +4,7 @@ title: Deployment Keys Basics
 description: Deploy some basic secrets with wire tool.
 ---
 
-# {{ $frontmatter.title }}
+# Deployment Keys Basics
 
 {{ $frontmatter.description }}
 

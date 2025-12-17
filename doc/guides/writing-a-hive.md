@@ -3,7 +3,7 @@ comment: true
 title: Write a Hive
 ---
 
-# {{ $frontmatter.title }}
+# Write a Hive
 
 ## Anatomy of a Hive
 
@@ -11,27 +11,30 @@ A "Hive" is the attribute set that you pass to `wire.makeHive`. It has the
 following layout:
 
 ```nix
-# `meta`
-# type: attrset
-meta = {
-    # `meta.nixpkgs` tells wire how to get nixpkgs.
-    # type: "A path or an instance of nixpkgs."
-    nixpkgs = <nixpkgs>;
-
-    # `meta.specialArgs` are specialArgs to pass to each node & default
+wire.makeHive {
+    # `meta`
     # type: attrset
-    specialArgs = { };
+    meta = {
+        # `meta.nixpkgs` tells wire how to get nixpkgs.
+        # type: "A path or an instance of nixpkgs."
+        nixpkgs = <nixpkgs>;
 
-    # `meta.nodeNixpkgs` lets you override nixpkgs per-node.
-    # type: attrset of "A path or an instance of nixpkgs."
-    nodeNixpkgs: = { };
-};
+        # `meta.specialArgs` are specialArgs to pass to each node & default
+        # type: attrset
+        specialArgs = { };
 
-# `defaults` is a module applied to every node
-# type: NixOS Module
-defaults = { ... }: { };
+        # `meta.nodeNixpkgs` lets you override nixpkgs per-node.
+        # type: attrset of "A path or an instance of nixpkgs."
+        nodeNixpkgs: = { };
+    };
 
-# Any other attributes are nodes.
+    # `defaults` is a module applied to every node
+    # type: NixOS Module
+    defaults = { ... }: { };
+
+    # Any other attributes are nodes.
+    <node-name> = { ... }: { };
+}
 ```
 
 ### `<node-name>`
@@ -52,13 +55,6 @@ De-duplicate options with default node configuration.
 
 At the top level of a hive wire reserves the `defaults` attribute. It's applied
 to every node.
-
-::: warning
-
-`defaults` must not rely on modules that a node imports, but a
-node may rely on modules that default imports.
-
-:::
 
 ## Example
 

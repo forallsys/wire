@@ -1,7 +1,6 @@
 import { defineConfig } from "vitepress";
 import pkg from "../package.json";
 import markdownItFootnote from "markdown-it-footnote";
-import { withMermaid } from "vitepress-plugin-mermaid";
 import {
   groupIconMdPlugin,
   groupIconVitePlugin,
@@ -11,8 +10,7 @@ import {
 const MODE = (process.env.MODE ?? "unstable") as "unstable" | "stable";
 
 // https://vitepress.dev/reference/site-config
-export default withMermaid(
-  defineConfig({
+export default defineConfig({
     title: MODE === "stable" ? "wire" : "wire (unstable!)",
     description: "a tool to deploy nixos systems",
     themeConfig: {
@@ -168,10 +166,6 @@ export default withMermaid(
       },
     },
     vite: {
-      // https://github.com/mermaid-js/mermaid/issues/4320#issuecomment-1653050539
-      optimizeDeps: {
-        include: ["mermaid"],
-      },
       plugins: [
         groupIconVitePlugin({
           customIcon: {
@@ -189,5 +183,4 @@ export default withMermaid(
         }),
       ],
     },
-  }),
-);
+  })

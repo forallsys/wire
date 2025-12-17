@@ -4,7 +4,7 @@ title: Target Nodes
 description: Tags, nodes, and how to target them with wire Tool.
 ---
 
-# {{ $frontmatter.title }}
+# Target Nodes
 
 {{ $frontmatter.description }}
 

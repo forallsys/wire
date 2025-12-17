@@ -4,7 +4,7 @@ title: Keep Using nixos-rebuild
 description: How to combine outputs.nixosConfigurations with outputs.wire
 ---
 
-# {{ $frontmatter.title }}
+# Keep Using nixos-rebuild
 
 {{ $frontmatter.description }}
 

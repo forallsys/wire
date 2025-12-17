@@ -4,7 +4,7 @@ title: Install wire
 description: How to install wire tool.
 ---
 
-# {{ $frontmatter.title }}
+# Install wire
 
 {{ $frontmatter.description }}
 
@@ -19,7 +19,13 @@ It is recommended you stick to either using a tagged version of wire, or the `st
 
 ## Binary Cache
 
-You should enable the [garnix binary cache](https://garnix.io/docs/caching).
+You should enable the [garnix binary cache](https://garnix.io/docs/caching)
+*before* continuing otherwise you will be compiling from source:
+
+::: code-group
+<<< @/snippets/tutorial/cache.conf [nix.conf]
+<<< @/snippets/tutorial/cache.nix [configuration.nix]
+:::
 
 ## Installation through flakes
 
@@ -50,7 +56,5 @@ $ npins add github mrshmllow wire --at v1.0.0-beta.0
 
 Then, use this pinned version of wire for both your `hive.nix` and `shell.nix`:
 
-::: code-group
 <<< @/snippets/guides/installation/shell.nix{8} [shell.nix]
 <<< @/snippets/guides/installation/hive.nix [hive.nix]
-:::

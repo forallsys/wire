@@ -4,30 +4,29 @@ title: Use a non-root user
 description: Deploy without root permissions with wire.
 ---
 
-# {{ $frontmatter.title }}
+# Use a non-root user
 
 {{ $frontmatter.description }}
 
 ## Deploying User Requirements
 
-If your selected deployment user does not fit the following requirements, the
-deployment commands will likely fail with an error:
+For deployment commands to succeed, the user defined in `deployment.target.user` must meet the following criteria:
 
-| `deployment.target.user` has/is... | ❌ Will Not Work | 🟧 Deploys w/o Keys | ✅ Deploys w/ Keys |
-| :--------------------------------- | :--------------: | :-----------------: | :----------------: |
-| In `wheel` (Sudo User)             |        No        |         Yes         |        Yes         |
-| Has Non-Interactive SSH Auth       |        -         |         Yes         |        Yes         |
-| A Trusted User                     |        -         |         No          |        Yes         |
+1. Essential Config
 
-When using a non-trusted user, `wire apply` will likely fail if the deploying user is
-not trusted, see [Manage Secrets - Prerequisites](/guides/keys.html#prerequisites).
+- **Sudo Access**: The user must be `wheel` (A sudo user)
+- **SSH Key Authentication**: The user must be authenticated through SSH keys,
+  and password-based SSH auth is not supported.
 
-- "In `wheel`" here meaning a sudoer, whether it be `root` or not.
-- "Non-interactive SSH Auth" here most likely meaning an SSH key, anything that
-  does not require keyboard input in the terminal.
+  **Why?** Wire can prompt you for your `sudo` password, but not your `ssh` password.
 
-To put it simply, wire can currently prompt for your password on `sudo`,
-but not `ssh`.
+2. Deploying with Secrets
+
+- **Trusted User**: The user must be listed in the `trusted-users` nix config.
+
+  If the user is not trusted, wire will fail in the key deployment stage.
+
+For setting up a trusted user, see [Manage Secrets - Prerequisites](/guides/keys.html#prerequisites).
 
 ## Changing the user
 

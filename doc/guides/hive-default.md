@@ -4,7 +4,7 @@ title: Use hive.default
 description: Deduplicate options with default node configuration.
 ---
 
-# `{{ $frontmatter.title }}`
+# `Use hive.default`
 
 {{ $frontmatter.description }}
 

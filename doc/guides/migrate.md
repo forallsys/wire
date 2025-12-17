@@ -4,7 +4,7 @@ title: Migrate to wire
 description: How-to migrate from other tools to wire tool.
 ---
 
-# {{ $frontmatter.title }}
+# Migrate to wire
 
 {{ $frontmatter.description }}
 

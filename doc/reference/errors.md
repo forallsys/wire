@@ -4,6 +4,6 @@ title: Error Codes
 description: Most error codes and their associated documentation.
 ---
 
-# {{ $frontmatter.title }}
+# Error Codes
 
 {{ $frontmatter.description }}

@@ -4,7 +4,7 @@ title: Nix Setup
 description: Installing npins, nix, and enabling the binary cache.
 ---
 
-# {{ $frontmatter.title }}
+# Nix Setup
 
 {{ $frontmatter.description }}
 
@@ -32,4 +32,9 @@ Because wire can be heavy to compile, it is distributed with a [binary
 cache](https://wiki.nixos.org/wiki/Binary_Cache).
 
 You must enable the [garnix binary cache](https://garnix.io/docs/caching) or you
-will be compiling everything from source.
+will be compiling everything from source:
+
+::: code-group
+<<< @/snippets/tutorial/cache.conf [nix.conf]
+<<< @/snippets/tutorial/cache.nix [configuration.nix]
+:::
