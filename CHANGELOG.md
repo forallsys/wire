@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - yyyy-mm-dd
 
+## [v1.0.0] - 2025-12-17
+
 ### Added
 
 - SIGINT signal handling

@@ -20,7 +20,7 @@ It is recommended you stick to either using a tagged version of wire, or the `st
 ## Binary Cache
 
 You should enable the [garnix binary cache](https://garnix.io/docs/caching)
-*before* continuing otherwise you will be compiling from source:
+_before_ continuing otherwise you will be compiling from source:
 
 ::: code-group
 <<< @/snippets/tutorial/cache.conf [nix.conf]
@@ -51,7 +51,7 @@ $ npins add github mrshmllow wire --branch stable
 Alternatively, you can use a tag instead:
 
 ```sh
-$ npins add github mrshmllow wire --at v1.0.0-beta.0
+$ npins add github mrshmllow wire --at v1.0.0
 ```
 
 Then, use this pinned version of wire for both your `hive.nix` and `shell.nix`:

@@ -109,9 +109,7 @@ in
         name = "benchmark";
 
         defaults =
-          {
-            ...
-          }:
+          _:
           let
             # hive = builtins.scopedImport {
             #   __nixPath = _b: null;
