@@ -672,6 +672,52 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn order_nokeys() {
+        let location = location!(get_test_path!());
+        let mut node = Node::default();
+
+        let name = &Name(function_name!().into());
+        let mut context = Context::create_test_context(location, name, &mut node);
+        context.no_keys = true;
+        let executor = GoalExecutor::new(context);
+        let steps = get_steps(executor);
+
+        assert_eq!(
+            steps,
+            vec![
+                Ping.into(),
+                crate::hive::steps::evaluate::Evaluate.into(),
+                crate::hive::steps::build::Build.into(),
+                crate::hive::steps::push::PushBuildOutput.into(),
+                SwitchToConfiguration.into(),
+                CleanUp.into()
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn order_should_apply_locally() {
+        let location = location!(get_test_path!());
+        let mut node = Node::default();
+
+        let name = &Name(function_name!().into());
+        let mut context = Context::create_test_context(location, name, &mut node);
+        context.no_keys = true;
+        context.should_apply_locally = true;
+        let executor = GoalExecutor::new(context);
+        let steps = get_steps(executor);
+
+        assert_eq!(
+            steps,
+            vec![
+                crate::hive::steps::evaluate::Evaluate.into(),
+                crate::hive::steps::build::Build.into(),
+                SwitchToConfiguration.into(),
+            ]
+        );
+    }
+
     #[test]
     fn target_fails_increments() {
         let mut target = Target::from_host("localhost");
