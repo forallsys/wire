@@ -6,6 +6,7 @@ result
 *.qcow2
 mutants*/
 *.db
+*.db*
 run.json
 stats.md
 .nixos-test-history
