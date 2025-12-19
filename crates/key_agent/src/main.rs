@@ -5,7 +5,6 @@
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use futures_util::stream::StreamExt;
-use wire_key_agent::keys::KeySpec;
 use nix::unistd::{Group, User};
 use prost::Message;
 use prost::bytes::Bytes;
@@ -16,6 +15,7 @@ use std::path::{Path, PathBuf};
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
+use wire_key_agent::keys::KeySpec;
 
 fn create_path(key_path: &Path) -> Result<(), anyhow::Error> {
     let prefix = key_path.parent().unwrap();

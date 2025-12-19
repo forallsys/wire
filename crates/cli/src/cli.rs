@@ -8,11 +8,11 @@ use clap_complete::CompletionCandidate;
 use clap_complete::engine::ArgValueCompleter;
 use clap_num::number_range;
 use clap_verbosity_flag::InfoLevel;
+use tokio::runtime::Handle;
 use wire_core::SubCommandModifiers;
 use wire_core::commands::common::get_hive_node_names;
 use wire_core::hive::node::{Goal as HiveGoal, HandleUnreachable, Name, SwitchToConfigurationGoal};
 use wire_core::hive::{Hive, get_hive_location};
-use tokio::runtime::Handle;
 
 use std::io::IsTerminal;
 use std::{
@@ -252,7 +252,9 @@ impl ToSubCommandModifiers for Cli {
             show_trace: self.show_trace,
             non_interactive: self.non_interactive,
             ssh_accept_host: match &self.command {
-                Commands::Apply(args) if args.ssh_accept_host => wire_core::StrictHostKeyChecking::No,
+                Commands::Apply(args) if args.ssh_accept_host => {
+                    wire_core::StrictHostKeyChecking::No
+                }
                 _ => wire_core::StrictHostKeyChecking::default(),
             },
         }
