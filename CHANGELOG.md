@@ -11,78 +11,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- SIGINT signal handling
+- SIGINT signal handling.
 
 ### Changed
 
-- Fix a bug related to key filtering
-- Invalidate caches that reference garbage collected paths
+- Invalidate caches that reference garbage collected paths.
+
+### Fixed
+
+- Fix key filtering logic.
 
 ## [v1.0.0-beta.0] - 2025-12-02
 
 ### Added
 
-- `meta.nodeNixpkgs` was implemented.
-- Caching of hive evaluation for flakes.
+- Implement `meta.nodeNixpkgs`.
+- Add caching of hive evaluation for flakes.
 
 ### Changed
 
-- Tests are now ran on 25.11.
+- Run tests against 25.11.
 
 ## [v1.0.0-alpha.1] - 2025-11-24
 
 ### Added
 
-- `--handle-unreachable` arg was added. You can use `--handle-unreachable ignore` to
+- Add `--handle-unreachable`. You can use `--handle-unreachable ignore` to
   ignore unreachable nodes in the status of the deployment.
-- A basic progress bar
+- Add a basic progress bar.
 
 ### Changed
 
-- Reverted "Wire will now attempt to use SSH ControlMaster by default."
-- `show` subcommand looks nicer now.
-- `build` step will always build remotely when the node is going to be applied
-  locally.
+- Revert "Wire will now attempt to use SSH ControlMaster by default.".
+- Change the `show` subcommand to look nicer now.
+- Change the `build` step to always build remotely when the node is
+  going to be applied locally.
 
 ## [v1.0.0-alpha.0] - 2025-10-22
 
 ### Added
 
-- `--ssh-accept-host` was added.
-- `--on -` will now read additional apply targets from stdin.
-- `{key.name}-key.{path,service}` systemd units where added.
-- `--path` now supports flakerefs (`github:foo/bar`, `git+file:///...`,
-  `https://.../main.tar.gz`, etc).
-- `--flake` is now an alias for `--path`.
-- Wire will now attempt to use SSH ControlMaster by default.
+- Add `--ssh-accept-host` argument.
+- Add `--on -` syntax to the `--on` argument.
+  Passing `-` will now read additional apply targets from stdin.
+- Add `{key.name}-key.{path,service}` systemd units.
+- Added `--flake` argument as an alias for `--path`.
 - A terminal bell will be output if a sudo / ssh prompt is ever printed.
+- Added a real tutorial, and separated many how-to guides.
+  The tutorial leads the user through creating and deploying a wire Hive.
+- Add `config.nixpkgs.flake.source`  by default if `meta.nixpkgs` ends
+  with `-source` at priority 1000 (default).
 
 ### Fixed
 
-- Fix bug where `--non-interactive` was inversed
-- `./result` links where being created. they will not be created anymore
-- Logging from interactive commands (absence of `--non-interactive`) was
-  improved.
-- Passing `sources.nixpkgs` directly from npins to `meta.nixpkgs` has
-  been fixed.
+- Fix bug where `--non-interactive` was inversed.
+- Fix a bug where `./result` links where being created.
+- Fix passing `sources.nixpkgs` directly from npins to `meta.nixpkgs`.
+- Fix nodes that will be applied locally running the `push` and `cleanup`
+  steps.
 
 ### Changed
 
-- Logs with level `tracing_level::TRACE` are compiled out of release builds
-- Data integrity of keys have been greatly improved
+- Improve logging from interactive commands (absence of `--non-interactive`).
+- Changed `--path` argument to support flakerefs (`github:foo/bar`,
+  `git+file:///...`, `https://.../main.tar.gz`, etc).
+- Changed SSH arguments to use ControlMaster by default.
+- Compile-out logs with level `tracing_level::TRACE` in release builds.
+- Improve aata integrity of keys.
 - Unknown SSH keys will be immediately rejected unless `--ssh-accept-host` is passed.
-- Logging was improved.
-- `config.nixpkgs.flake.source` is now set by default if `meta.nixpkgs` ends
-  with `-source` at priority 1000 (default).
-- Evaluation has been sped up by doing it in parallel with other steps until
-  the .drv is required
-- A node which is going to be applied locally will now never `push` or
-  `cleanup`.
-
-### Documented
-
-- Added a real tutorial, and separated many how-to guides.
-  The tutorial leads the user through creating and deploying a wire Hive.
+- Changed evaluation to be ran in parallel with other steps until
+  the .drv is required.
 
 ## [0.5.0] - 2025-09-18
 
