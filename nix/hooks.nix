@@ -15,6 +15,7 @@
               enable = true;
               settings.edit = true;
             };
+            zizmor.enable = true;
             clippy = {
               enable = true;
               settings.extraArgs = "--tests";

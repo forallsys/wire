@@ -8,10 +8,13 @@ jobs:
   pre-job:
     continue-on-error: true
     runs-on: ubuntu-latest
+    permissions: {}
     outputs:
       number: ${{ steps.skip_check.outputs.number }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+        with:
+          persist-credentials: false
       - id: skip_check
         run: |
           echo "number=$(gh pr list --label flake-lock-update --state open --json id | jq 'length')" >> "$GITHUB_OUTPUT"
@@ -19,13 +22,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   update:
     runs-on: ubuntu-latest
+    permissions: {}
     needs: pre-job
     if: needs.pre-job.outputs.number == '0'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
         with:
           ssh-key: ${{ secrets.FOLLOW_NIXPKGS_PRIVATE_KEY }}
           ref: main
+          persist-credentials: false
       - uses: ./.github/actions/setup-nix
       - run: |
           git config user.name 'github-actions[bot]'
@@ -36,13 +41,14 @@ jobs:
         run: echo "date=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
       - name: Create Pull Request
         id: cpr
-        uses: peter-evans/create-pull-request@v8
+        uses: peter-evans/create-pull-request@0979079bc20c05bbbb590a56c21c4e2b1d1f1bbe
         with:
           title: Update flake.lock ${{ steps.date.outputs.date }}
           labels: flake-lock-update
           branch: ci/flake-update
       - name: Enable automerge
         if: steps.cpr.outputs.pull-request-number
-        run: gh pr merge --squash --auto "${{ steps.cpr.outputs.pull-request-number }}"
+        run: gh pr merge --squash --auto "${STEPS_CPR_OUTPUTS_PULL_REQUEST_NUMBER}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STEPS_CPR_OUTPUTS_PULL_REQUEST_NUMBER: ${{ steps.cpr.outputs.pull-request-number }}
