@@ -41,7 +41,7 @@ jobs:
             ~/.cargo/git/db/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: setup sqlx
-        run: nix develop -L -v -c sqlx database setup --source ./wire/lib/src/cache/migrations/
+        run: nix develop -L -v -c sqlx database setup --source ./crate/lib/src/cache/migrations/
       - name: autofix sqlx
         run: nix develop -L -v -c cargo sqlx prepare --workspace
       - name: clippy --fix

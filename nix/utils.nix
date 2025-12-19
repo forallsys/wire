@@ -20,7 +20,7 @@
               fileset = unions [
                 ../.cargo
                 ../.sqlx
-                ../wire
+                ../crates
                 ../Cargo.toml
                 ../Cargo.lock
               ];

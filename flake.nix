@@ -37,8 +37,8 @@
         ./nix/utils.nix # utility functions
         ./nix/shells.nix
         ./nix/tests.nix
-        ./wire/cli
-        ./wire/key_agent
+        ./crates/cli
+        ./crates/key_agent
         ./doc
         ./tests/nix
         ./runtime

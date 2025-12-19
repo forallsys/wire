@@ -8,7 +8,7 @@ use std::{
 };
 
 use clap_verbosity_flag::{LogLevel, Verbosity};
-use lib::{STDIN_CLOBBER_LOCK, status::STATUS};
+use wire_core::{STDIN_CLOBBER_LOCK, status::STATUS};
 use owo_colors::{OwoColorize, Stream, Style};
 use tracing::{Level, Subscriber};
 use tracing_log::AsTrace;

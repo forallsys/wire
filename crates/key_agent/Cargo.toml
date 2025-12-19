@@ -1,5 +1,5 @@
 [package]
-name = "key_agent"
+name = "wire-key-agent"
 edition.workspace = true
 version.workspace = true
 

@@ -3,10 +3,10 @@
 
 use futures::{FutureExt, StreamExt};
 use itertools::{Either, Itertools};
-use lib::hive::node::{Context, GoalExecutor, Name, StepState, should_apply_locally};
-use lib::hive::{Hive, HiveLocation};
-use lib::status::STATUS;
-use lib::{SubCommandModifiers, errors::HiveLibError};
+use wire_core::hive::node::{Context, GoalExecutor, Name, StepState, should_apply_locally};
+use wire_core::hive::{Hive, HiveLocation};
+use wire_core::status::STATUS;
+use wire_core::{SubCommandModifiers, errors::HiveLibError};
 use miette::{Diagnostic, IntoDiagnostic, Result};
 use std::collections::HashSet;
 use std::io::{Read, stderr};
