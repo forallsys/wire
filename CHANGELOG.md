@@ -59,7 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A terminal bell will be output if a sudo / ssh prompt is ever printed.
 - Added a real tutorial, and separated many how-to guides.
   The tutorial leads the user through creating and deploying a wire Hive.
-- Add `config.nixpkgs.flake.source`  by default if `meta.nixpkgs` ends
+- Add `config.nixpkgs.flake.source` by default if `meta.nixpkgs` ends
   with `-source` at priority 1000 (default).
 
 ### Fixed
