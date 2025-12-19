@@ -86,7 +86,6 @@
               # docs only
               alejandra.enable = true;
               rustfmt.enable = true;
-              just.enable = true;
               prettier.enable = true;
               protolint.enable = true;
               taplo.enable = true;

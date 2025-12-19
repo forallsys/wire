@@ -18,7 +18,6 @@
           cfg.settings.enabledPackages
           cfg.settings.package
 
-          pkgs.just
           pkgs.pnpm
           pkgs.nodejs
           pkgs.sqlx-cli

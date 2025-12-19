@@ -32,18 +32,3 @@ wire
 Please use `nix develop` for access to the development environment and to ensure
 your changes are ran against the defined git hooks. For simplicity, you may wish
 to use [direnv](https://github.com/direnv/direnv).
-
-### Testing
-
-#### dhat profiling
-
-```sh
-$ just build-dhat
-```
-
-#### Testing
-
-```sh
-$ cargo test
-$ nix flake check
-```
