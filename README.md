@@ -6,27 +6,6 @@ wire is a tool to deploy nixos systems. its usage is inspired by colmena however
 
 Read the [The Tutorial](https://wire.althaea.zone/tutorial/overview.html), [Guides](https://wire.althaea.zone/guides/installation.html), or continue reading this readme for development information.
 
-## Tree Layout
-
-```
-wire
-├── wire
-│  ├── lib
-│  │  └── Rust library containing business logic, consumed by `wire`
-│  ├── cli
-│  │  └── Rust binary, using `lib`
-│  └── key_agent
-│     └── Rust binary ran on a target node. receives key file bytes and metadata w/ protobuf over SSH stdin
-├── doc
-│  └── a [vitepress](https://vitepress.dev/) site
-├── runtime
-│  └── Nix files used during runtime to evaluate nodes
-├── bench
-│  └── A little tool to benchmark wire against a large hive
-└──tests
-   └── Directories used during cargo & NixOS VM testing
-```
-
 ## Development
 
 Please use `nix develop` for access to the development environment and to ensure
