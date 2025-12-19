@@ -8,7 +8,6 @@ use std::{
 };
 
 use clap_verbosity_flag::{LogLevel, Verbosity};
-use lib::{STDIN_CLOBBER_LOCK, status::STATUS};
 use owo_colors::{OwoColorize, Stream, Style};
 use tracing::{Level, Subscriber};
 use tracing_log::AsTrace;
@@ -23,6 +22,7 @@ use tracing_subscriber::{
     registry::LookupSpan,
     util::SubscriberInitExt,
 };
+use wire_core::{STDIN_CLOBBER_LOCK, status::STATUS};
 
 /// The non-clobbering writer ensures that log lines are held while interactive
 /// prompts are shown to the user. If logs where shown, they would "clobber" the

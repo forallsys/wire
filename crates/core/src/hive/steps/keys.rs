@@ -147,7 +147,7 @@ async fn create_reader(key: &'_ Key) -> Result<Pin<Box<dyn AsyncRead + Send + '_
     }
 }
 
-async fn process_key(key: &Key) -> Result<(key_agent::keys::KeySpec, Vec<u8>), KeyError> {
+async fn process_key(key: &Key) -> Result<(wire_key_agent::keys::KeySpec, Vec<u8>), KeyError> {
     let mut reader = create_reader(key).await?;
 
     let mut buf = Vec::new();
@@ -162,7 +162,7 @@ async fn process_key(key: &Key) -> Result<(key_agent::keys::KeySpec, Vec<u8>), K
     debug!("Staging push to {}", destination.clone().display());
 
     Ok((
-        key_agent::keys::KeySpec {
+        wire_key_agent::keys::KeySpec {
             length: buf
                 .len()
                 .try_into()
@@ -252,7 +252,7 @@ impl ExecuteStep for Keys {
             return Ok(());
         }
 
-        let command_string = format!("{agent_directory}/bin/key_agent");
+        let command_string = format!("{agent_directory}/bin/wire-key-agent");
 
         let mut child = run_command(
             &CommandArguments::new(command_string, ctx.modifiers)
@@ -297,7 +297,7 @@ impl Keys {
     async fn select_keys(
         &self,
         keys: &Vector<Key>,
-    ) -> Result<Peekable<IntoIter<(key_agent::keys::KeySpec, std::vec::Vec<u8>)>>, HiveLibError>
+    ) -> Result<Peekable<IntoIter<(wire_key_agent::keys::KeySpec, std::vec::Vec<u8>)>>, HiveLibError>
     {
         let futures = keys
             .iter()

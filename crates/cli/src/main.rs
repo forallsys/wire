@@ -15,16 +15,16 @@ use crate::tracing_setup::setup_logging;
 use clap::CommandFactory;
 use clap::Parser;
 use clap_complete::CompleteEnv;
-use lib::cache::InspectionCache;
-use lib::commands::common::get_hive_node_names;
-use lib::hive::Hive;
-use lib::hive::get_hive_location;
 use miette::IntoDiagnostic;
 use miette::Result;
 use signal_hook::consts::SIGINT;
 use signal_hook_tokio::Signals;
 use tracing::error;
 use tracing::warn;
+use wire_core::cache::InspectionCache;
+use wire_core::commands::common::get_hive_node_names;
+use wire_core::hive::Hive;
+use wire_core::hive::get_hive_location;
 
 #[macro_use]
 extern crate enum_display_derive;

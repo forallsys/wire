@@ -17,7 +17,7 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-log = { workspace = true }
 tracing-subscriber = { workspace = true }
-lib = { path = "../lib" }
+wire-core = { path = "../core" }
 serde_json = { workspace = true }
 miette = { workspace = true }
 thiserror = { workspace = true }

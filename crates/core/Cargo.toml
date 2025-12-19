@@ -1,5 +1,5 @@
 [package]
-name = "lib"
+name = "wire-core"
 version.workspace = true
 edition.workspace = true
 
@@ -17,7 +17,7 @@ tracing = { workspace = true }
 im = { workspace = true }
 thiserror = "2.0.17"
 derive_more = { version = "2.0.1", features = ["display"] }
-key_agent = { path = "../key_agent" }
+wire-key-agent = { path = "../key_agent" }
 futures = "0.3.31"
 prost = { workspace = true }
 gethostname = "1.1.0"
