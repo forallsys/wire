@@ -7,14 +7,16 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       number: ${{ steps.find-pr.outputs.number }}
+    permissions: {}
     if: ${{ github.actor != 'dependabot[bot]' }}
     steps:
-      - uses: jwalton/gh-find-current-pr@master
+      - uses: jwalton/gh-find-current-pr@89ee5799558265a1e0e31fab792ebb4ee91c016b
         id: find-pr
         with:
           state: all
   base-ref:
     runs-on: ubuntu-latest
+    permissions: {}
     needs: get-pr
     outputs:
       base-ref: ${{ steps.base-ref.outputs.base-ref }}
@@ -24,34 +26,41 @@ jobs:
       - name: Locate Base Ref
         id: base-ref
         run: |
-          echo "base-ref=$(gh api /repos/${{ github.repository }}/pulls/${{ needs.get-pr.outputs.number }} | jq -r '.base.ref')" >> "$GITHUB_OUTPUT"
+          echo "base-ref=$(gh api /repos/${{ github.repository }}/pulls/${NEEDS_GET_PR_OUTPUTS_NUMBER} | jq -r '.base.ref')" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEEDS_GET_PR_OUTPUTS_NUMBER: ${{ needs.get-pr.outputs.number }}
   eval-base:
     runs-on: ubuntu-latest
+    permissions: {}
     needs: base-ref
     outputs:
       drv: ${{ steps.drv.outputs.drv }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
         with:
           ref: ${{ needs.base-ref.outputs.base-ref }}
+          persist-credentials: false
       - uses: ./.github/actions/setup-nix
       - id: drv
         run: echo "drv=$(nix eval .#docs --json)" >> "$GITHUB_OUTPUT"
   eval-head:
     runs-on: ubuntu-latest
+    permissions: {}
     needs: get-pr
     outputs:
       drv: ${{ steps.drv.outputs.drv }}
     if: ${{ needs.get-pr.outputs.number != '' }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-nix
       - id: drv
         run: echo "drv=$(nix eval .#docs --json)" >> "$GITHUB_OUTPUT"
   deploy:
     runs-on: ubuntu-latest
+    permissions: {}
     needs:
       - eval-head
       - eval-base
@@ -62,12 +71,14 @@ jobs:
     # skip if nothing changed in the docs package
     if: needs.eval-head.outputs.drv != needs.eval-base.outputs.drv
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-nix
       - run: nix build .#docs
       - name: Deploy to Cloudflare Pages
         id: deployment
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@707f63750981584eb6abc365a50d441516fb04b8
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
