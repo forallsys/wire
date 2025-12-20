@@ -115,6 +115,7 @@ impl<'a> Context<'a> {
             goal: Goal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch),
             reboot: false,
             should_apply_locally: false,
+            substitute_on_destination: false,
             handle_unreachable: HandleUnreachable::default(),
             should_shutdown: Arc::new(AtomicBool::new(false)),
         }
@@ -296,6 +297,8 @@ pub struct StepState {
     pub key_agent_directory: Option<String>,
 }
 
+// TODO: Get rid of this allow and resolve it
+#[allow(clippy::struct_excessive_bools)]
 pub struct Context<'a> {
     pub name: &'a Name,
     pub node: &'a mut Node,
@@ -306,6 +309,7 @@ pub struct Context<'a> {
     pub goal: Goal,
     pub reboot: bool,
     pub should_apply_locally: bool,
+    pub substitute_on_destination: bool,
     pub handle_unreachable: HandleUnreachable,
     pub should_shutdown: Arc<AtomicBool>,
 }

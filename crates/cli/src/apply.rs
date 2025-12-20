@@ -121,6 +121,7 @@ pub async fn apply(
                 hive_location: location.clone(),
                 modifiers,
                 reboot: args.reboot,
+                substitute_on_destination: args.substitute_on_destination,
                 should_apply_locally,
                 handle_unreachable: args.handle_unreachable.clone().into(),
                 should_shutdown: should_shutdown.clone(),

@@ -28,12 +28,17 @@ fn get_common_copy_path_help(error: &CommandError) -> Option<String> {
 pub async fn push(context: &Context<'_>, push: Push<'_>) -> Result<(), HiveLibError> {
     let command_string = format!(
         "nix --extra-experimental-features nix-command \
-        copy --substitute-on-destination --to ssh://{user}@{host} {path}",
+        copy {substitute} --to ssh://{user}@{host} {path}",
         user = context.node.target.user,
         host = context.node.target.get_preferred_host()?,
         path = match push {
             Push::Derivation(drv) => format!("{drv} --derivation"),
             Push::Path(path) => path.clone(),
+        },
+        substitute = if context.substitute_on_destination {
+            "--substitute-on-destination"
+        } else {
+            ""
         }
     );
 

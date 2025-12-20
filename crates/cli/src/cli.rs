@@ -132,6 +132,7 @@ impl From<HandleUnreachableArg> for HandleUnreachable {
     }
 }
 
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Args)]
 pub struct ApplyArgs {
     #[arg(value_enum, default_value_t)]
@@ -158,6 +159,10 @@ pub struct ApplyArgs {
     /// Reboot the nodes after activation
     #[arg(short, long, default_value_t = false)]
     pub reboot: bool,
+
+    /// Enable `--substitute-on-destination` in Nix subcommands.
+    #[arg(short, long, default_value_t = true)]
+    pub substitute_on_destination: bool,
 
     /// How to handle an unreachable node in the ping step.
     ///
