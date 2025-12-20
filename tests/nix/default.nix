@@ -23,6 +23,13 @@ let
     lazyAttrsOf
     ;
   cfg = config.wire.testing;
+
+  stripTyping =
+    value:
+    let
+      split = builtins.split "(if TYPE_CHECKING:|# typing-end)" value;
+    in
+    (builtins.elemAt split 0) + (builtins.elemAt split 4);
 in
 {
   imports = [
@@ -44,6 +51,7 @@ in
               type = lines;
               default = '''';
               description = "test script for runNixOSTest";
+              apply = stripTyping;
             };
             testDir = mkOption {
               default = "${self}/tests/nix/suite/${name}";
@@ -163,7 +171,7 @@ in
 
               TEST_DIR="${injectedFlakeDir}/${path}"
 
-              ${builtins.readFile ./tools/__init__.py}
+              ${stripTyping (builtins.readFile ./tools/__init__.py)}
             ''
             + lib.concatStringsSep "\n" (mapAttrsToList (_: value: value._wire.testScript) value.nodes)
             + opts.testScript;

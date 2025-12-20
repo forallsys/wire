@@ -9,6 +9,8 @@ if TYPE_CHECKING:
     deployer: Machine = None  # type: ignore[invalid-assignment]
     TEST_DIR = ""
 
+# typing-end
+
 deployer.succeed(
     f"echo @tag | wire apply --on deployer --no-progress --path {TEST_DIR}/hive.nix --no-keys -vvv >&2"
 )

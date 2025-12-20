@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     # https://github.com/NixOS/nixpkgs/blob/d10d9933b1c206f9b2950e5e1d68268c5ed0a3c7/nixos/lib/test-script-prepend.py#L43
     subtest: Callable[[str], ContextManager[None]] = None  # type: ignore[invalid-assignment]
 
+# typing-end
 
 with subtest("Test unreachable hosts"):
     deployer.fail(
@@ -45,9 +46,9 @@ deployer.succeed(
 )
 
 _first_system = receiver.succeed("readlink -f /run/current-system")
-assert first_system == _first_system, (
-    "apply boot without --reboot changed /run/current-system"
-)
+assert (
+    first_system == _first_system
+), "apply boot without --reboot changed /run/current-system"
 
 # with subtest("Check /etc/identity after reboot"):
 #   receiver.reboot()

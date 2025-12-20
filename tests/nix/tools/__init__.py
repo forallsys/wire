@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from test_driver.machine import Machine
 
+# typing-end
+
 
 def collect_store_objects(machine: Machine) -> set[str]:
     return set(machine.succeed("ls /nix/store").strip().split("\n"))
