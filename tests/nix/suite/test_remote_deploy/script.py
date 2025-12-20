@@ -45,9 +45,9 @@ deployer.succeed(
 )
 
 _first_system = receiver.succeed("readlink -f /run/current-system")
-assert (
-    first_system == _first_system
-), "apply boot without --reboot changed /run/current-system"
+assert first_system == _first_system, (
+    "apply boot without --reboot changed /run/current-system"
+)
 
 # with subtest("Check /etc/identity after reboot"):
 #   receiver.reboot()
