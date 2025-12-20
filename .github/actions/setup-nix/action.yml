@@ -3,16 +3,9 @@ name: Set up Nix
 description: |
   Sets up the Nix environment for wire, removing unnecessary bloat and installing Nix along with proper
   substituters being set
-inputs:
-  withQEMU:
-    description: Enable QEMU
-    default: false
 runs:
   using: "composite"
   steps:
-    - uses: wimpysworld/nothing-but-nix@10c936d9e46521bf923f75458e0cbd4fa309300d
-      with:
-        hatchet-protocol: "carve"
     - name: Generate nix.conf
       shell: bash
       id: config
@@ -21,32 +14,16 @@ runs:
           echo 'config<<EOF'
           echo "system-features = nixos-test benchmark big-parallel kvm"
 
-          if [ "${INPUTS_WITHQEMU}" = "true" ]; then
-            echo "extra-platforms = aarch64-linux i686-linux"
-          fi
-
           echo "substituters = https://cache.nixos.org?priority=1 https://cache.althaea.zone?priority=2 https://cache.garnix.io?priority=3"
           echo "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g= cache.althaea.zone:BelRpa863X9q3Y+AOnl5SM7QFzre3qb+5I7g2s/mqHI="
 
           echo EOF
         } >> "$GITHUB_OUTPUT"
-      env:
-        INPUTS_WITHQEMU: ${{ inputs.withQEMU }}
     - uses: cachix/install-nix-action@4e002c8ec80594ecd40e759629461e26c8abed15
       with:
         nix_path: nixpkgs=channel:nixos-unstable
         extra_nix_config: ${{ steps.config.outputs.config }}
     - name: Sanity check nix.conf
-      if: ${{ inputs.withQEMU == 'true' && runner.debug == '1' }}
+      if: ${{ runner.debug == '1' }}
       shell: bash
       run: cat /etc/nix/nix.conf
-    - name: Register binfmt
-      if: ${{ inputs.withQEMU == 'true' }}
-      shell: bash
-      run: |
-        docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-    - name: Sanity check binfmt
-      if: ${{ inputs.withQEMU == 'true' && runner.debug == '1' }}
-      shell: bash
-      run: |
-        cat /proc/sys/fs/binfmt_misc/qemu-aarch64
