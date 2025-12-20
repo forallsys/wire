@@ -20,15 +20,10 @@ impl CommandStringBuilder {
         }
     }
 
-    pub(crate) fn literal<S: AsRef<str>>(&mut self, literal_string: S) {
-        let argument = literal_string.as_ref();
-        self.command.push_str(argument);
-    }
-
     pub(crate) fn arg<S: AsRef<str>>(&mut self, argument: S) {
         let argument = argument.as_ref().trim();
         self.command.push(' ');
-        self.literal(argument);
+        self.command.push_str(argument);
     }
 
     pub(crate) fn opt_arg<S: AsRef<str>>(&mut self, opt: bool, argument: S) {
@@ -75,9 +70,5 @@ mod tests {
             std::convert::AsRef::<str>::as_ref(&builder)
         );
         assert_eq!(builder.to_string(), "a b c d e g");
-
-        builder.literal(" ` h! ` ");
-
-        assert_eq!(builder.to_string(), "a b c d e g ` h! ` ");
     }
 }

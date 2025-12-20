@@ -218,7 +218,7 @@ impl HiveLocation {
             "flakes",
             "--json",
         ]);
-        command_string.literal(&uri);
+        command_string.arg(&uri);
 
         let command = run_command(
             &CommandArguments::new(command_string, modifiers)

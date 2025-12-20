@@ -147,7 +147,7 @@ pub async fn evaluate_hive_attribute(
         "--json",
     ]);
     command_string.opt_arg(modifiers.show_trace, "--show-trace");
-    command_string.literal(&attribute);
+    command_string.arg(&attribute);
 
     let child = run_command(
         &CommandArguments::new(command_string, modifiers)
