@@ -10,3 +10,6 @@ mutants*/
 run.json
 stats.md
 .nixos-test-history
+.venv/
+.ruff_cache/
+__pycache__/

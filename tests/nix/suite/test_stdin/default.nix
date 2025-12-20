@@ -7,9 +7,6 @@
       _wire.deployer = true;
       _wire.receiver = true;
     };
-    testScript = ''
-      deployer.succeed(f"echo @tag | wire apply --on deployer --no-progress --path {TEST_DIR}/hive.nix --no-keys -vvv >&2")
-      deployer.succeed("test -f /etc/a")
-    '';
+    testScript = builtins.readFile ./script.py;
   };
 }

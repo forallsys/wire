@@ -89,6 +89,7 @@
               prettier.enable = true;
               protolint.enable = true;
               taplo.enable = true;
+              ruff-format.enable = true;
             };
             settings.formatter = {
               nixfmt.excludes = [ "doc/snippets/*.nix" ];
