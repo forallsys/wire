@@ -19,8 +19,8 @@ It is recommended you stick to either using a tagged version of wire, or the `st
 
 ## Binary Cache
 
-You should enable the [garnix binary cache](https://garnix.io/docs/caching)
-_before_ continuing otherwise you will be compiling from source:
+You should enable the [garnix binary cache](https://garnix.io/docs/caching) _before_
+continuing otherwise you will be compiling from source:
 
 ::: code-group
 <<< @/snippets/tutorial/cache.conf [nix.conf]
