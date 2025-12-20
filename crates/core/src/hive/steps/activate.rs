@@ -7,7 +7,7 @@ use tracing::{error, info, instrument, warn};
 
 use crate::{
     HiveLibError,
-    commands::{CommandArguments, WireCommandChip, run_command},
+    commands::{CommandArguments, WireCommandChip, builder::CommandStringBuilder, run_command},
     errors::{ActivationError, NetworkError},
     hive::node::{Context, ExecuteStep, Goal, SwitchToConfigurationGoal},
 };
@@ -47,7 +47,9 @@ async fn set_profile(
 ) -> Result<(), HiveLibError> {
     info!("Setting profiles in anticipation for switch-to-configuration {goal}");
 
-    let command_string = format!("nix-env -p /nix/var/nix/profiles/system/ --set {built_path}");
+    let mut command_string = CommandStringBuilder::new("nix-env");
+    command_string.args(&["-p", "/nix/var/nix/profiles/system", "--set"]);
+    command_string.arg(built_path);
 
     let child = run_command(
         &CommandArguments::new(command_string, ctx.modifiers)
@@ -95,15 +97,13 @@ impl ExecuteStep for SwitchToConfiguration {
 
         info!("Running switch-to-configuration {goal}");
 
-        let command_string = format!(
-            "{built_path}/bin/switch-to-configuration {}",
-            match goal {
+        let mut command_string = CommandStringBuilder::new(format!("{built_path}/bin/switch-to-configuration"));
+        command_string.arg(match goal {
                 SwitchToConfigurationGoal::Switch => "switch",
                 SwitchToConfigurationGoal::Boot => "boot",
                 SwitchToConfigurationGoal::Test => "test",
                 SwitchToConfigurationGoal::DryActivate => "dry-activate",
-            }
-        );
+        });
 
         let child = run_command(
             &CommandArguments::new(command_string, ctx.modifiers)

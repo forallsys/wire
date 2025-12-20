@@ -7,7 +7,10 @@ use tracing::instrument;
 
 use crate::{
     EvalGoal, SubCommandModifiers,
-    commands::{CommandArguments, Either, WireCommandChip, run_command, run_command_with_env},
+    commands::{
+        CommandArguments, Either, WireCommandChip, builder::CommandStringBuilder, run_command,
+        run_command_with_env,
+    },
     errors::{CommandError, HiveInitialisationError, HiveLibError},
     hive::{
         HiveLocation,
@@ -26,21 +29,25 @@ fn get_common_copy_path_help(error: &CommandError) -> Option<String> {
 }
 
 pub async fn push(context: &Context<'_>, push: Push<'_>) -> Result<(), HiveLibError> {
-    let command_string = format!(
-        "nix --extra-experimental-features nix-command \
-        copy {substitute} --to ssh://{user}@{host} {path}",
-        user = context.node.target.user,
-        host = context.node.target.get_preferred_host()?,
-        path = match push {
+    let mut command_string = CommandStringBuilder::nix();
+
+    command_string.args(&["--extra-experimental-features", "nix-command", "copy"]);
+    command_string.opt_arg(
+        context.substitute_on_destination,
+        "--substitute-on-destination",
+    );
+    command_string.arg("--to");
+    command_string.args(&[
+        format!(
+            "ssh://{user}@{host}",
+            user = context.node.target.user,
+            host = context.node.target.get_preferred_host()?,
+        ),
+        match push {
             Push::Derivation(drv) => format!("{drv} --derivation"),
             Push::Path(path) => path.clone(),
         },
-        substitute = if context.substitute_on_destination {
-            "--substitute-on-destination"
-        } else {
-            ""
-        }
-    );
+    ]);
 
     let child = run_command_with_env(
         &CommandArguments::new(command_string, context.modifiers)
@@ -130,16 +137,17 @@ pub async fn evaluate_hive_attribute(
         }
     };
 
-    let command_string = format!(
-        "nix --extra-experimental-features nix-command \
-        --extra-experimental-features flakes \
-        eval --json {mods} {attribute}",
-        mods = if modifiers.show_trace {
-            "--show-trace"
-        } else {
-            ""
-        },
-    );
+    let mut command_string = CommandStringBuilder::nix();
+    command_string.args(&[
+        "--extra-experimental-features",
+        "nix-command",
+        "--extra-experimental-features",
+        "flakes",
+        "eval",
+        "--json",
+    ]);
+    command_string.opt_arg(modifiers.show_trace, "--show-trace");
+    command_string.literal(&attribute);
 
     let child = run_command(
         &CommandArguments::new(command_string, modifiers)
