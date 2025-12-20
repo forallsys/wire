@@ -31,9 +31,9 @@ deployer.fail("test -f /run/keys/source_string_name")
 receiver.succeed("systemctl cat source_string_name-key.service")
 
 _, is_failed = receiver.execute("systemctl is-failed source_string_name-key.service")
-assert (
-    is_failed == "inactive\n"
-), f"source_string_name-key.service must be inactive before key exists ({is_failed})"
+assert is_failed == "inactive\n", (
+    f"source_string_name-key.service must be inactive before key exists ({is_failed})"
+)
 
 
 def test_keys(target, target_object, non_interactive):
@@ -95,9 +95,9 @@ def perform_routine(target, target_object, non_interactive):
 
     if target == "receiver":
         _, is_failed = target_object.execute("systemctl is-active command-key.service")
-        assert (
-            is_failed == "failed\n"
-        ), f"command-key.service is failed after deletion ({is_failed})"
+        assert is_failed == "failed\n", (
+            f"command-key.service is failed after deletion ({is_failed})"
+        )
 
     # Test keys twice to ensure the operation is idempotent,
     # especially around directory creation.
