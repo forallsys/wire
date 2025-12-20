@@ -18,6 +18,7 @@ use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
 use crate::cache::InspectionCache;
+use crate::commands::builder::CommandStringBuilder;
 use crate::commands::common::evaluate_hive_attribute;
 use crate::commands::{CommandArguments, Either, WireCommandChip, run_command};
 use crate::errors::{HiveInitialisationError, HiveLocationError};
@@ -206,8 +207,21 @@ impl HiveLocation {
         uri: String,
         modifiers: SubCommandModifiers,
     ) -> Result<HiveLocation, HiveLibError> {
+        let mut command_string = CommandStringBuilder::nix();
+        command_string.args(&[
+            "nix",
+            "flake",
+            "prefetch",
+            "--extra-experimental-features",
+            "nix-command",
+            "--extra-experimental-features",
+            "flakes",
+            "--json",
+        ]);
+        command_string.arg(&uri);
+
         let command = run_command(
-            &CommandArguments::new(format!("nix flake prefetch --extra-experimental-features nix-command --extra-experimental-features flakes --json {uri}"), modifiers)
+            &CommandArguments::new(command_string, modifiers)
                 .mode(crate::commands::ChildOutputMode::Generic),
         )
         .await?;

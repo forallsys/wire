@@ -12,6 +12,7 @@ use std::sync::atomic::AtomicBool;
 use tokio::sync::oneshot;
 use tracing::{Instrument, Level, Span, debug, error, event, instrument, trace};
 
+use crate::commands::builder::CommandStringBuilder;
 use crate::commands::common::evaluate_hive_attribute;
 use crate::commands::{CommandArguments, WireCommandChip, run_command};
 use crate::errors::NetworkError;
@@ -213,11 +214,10 @@ impl Node {
     pub async fn ping(&self, modifiers: SubCommandModifiers) -> Result<(), HiveLibError> {
         let host = self.target.get_preferred_host()?;
 
-        let command_string = format!(
-            "ssh {}@{host} {} exit",
-            self.target.user,
-            self.target.create_ssh_opts(modifiers, true)?
-        );
+        let mut command_string = CommandStringBuilder::new("ssh");
+        command_string.arg(format!("{}@{host}", self.target.user));
+        command_string.arg(self.target.create_ssh_opts(modifiers, true)?);
+        command_string.arg("exit");
 
         let output = run_command(
             &CommandArguments::new(command_string, modifiers)
