@@ -97,12 +97,13 @@ impl ExecuteStep for SwitchToConfiguration {
 
         info!("Running switch-to-configuration {goal}");
 
-        let mut command_string = CommandStringBuilder::new(format!("{built_path}/bin/switch-to-configuration"));
+        let mut command_string =
+            CommandStringBuilder::new(format!("{built_path}/bin/switch-to-configuration"));
         command_string.arg(match goal {
-                SwitchToConfigurationGoal::Switch => "switch",
-                SwitchToConfigurationGoal::Boot => "boot",
-                SwitchToConfigurationGoal::Test => "test",
-                SwitchToConfigurationGoal::DryActivate => "dry-activate",
+            SwitchToConfigurationGoal::Switch => "switch",
+            SwitchToConfigurationGoal::Boot => "boot",
+            SwitchToConfigurationGoal::Test => "test",
+            SwitchToConfigurationGoal::DryActivate => "dry-activate",
         });
 
         let child = run_command(

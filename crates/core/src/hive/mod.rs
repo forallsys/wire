@@ -208,7 +208,16 @@ impl HiveLocation {
         modifiers: SubCommandModifiers,
     ) -> Result<HiveLocation, HiveLibError> {
         let mut command_string = CommandStringBuilder::nix();
-        command_string.args(&["nix", "flake", "prefetch", "--extra-experimental-features", "nix-command", "--extra-experimental-features", "flakes", "--json"]);
+        command_string.args(&[
+            "nix",
+            "flake",
+            "prefetch",
+            "--extra-experimental-features",
+            "nix-command",
+            "--extra-experimental-features",
+            "flakes",
+            "--json",
+        ]);
         command_string.literal(&uri);
 
         let command = run_command(

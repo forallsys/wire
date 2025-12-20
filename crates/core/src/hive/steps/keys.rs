@@ -253,7 +253,8 @@ impl ExecuteStep for Keys {
             return Ok(());
         }
 
-        let command_string = CommandStringBuilder::new(format!("{agent_directory}/bin/wire-key-agent"));
+        let command_string =
+            CommandStringBuilder::new(format!("{agent_directory}/bin/wire-key-agent"));
 
         let mut child = run_command(
             &CommandArguments::new(command_string, ctx.modifiers)

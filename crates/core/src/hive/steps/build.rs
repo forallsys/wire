@@ -7,7 +7,10 @@ use tracing::{info, instrument};
 
 use crate::{
     HiveLibError,
-    commands::{CommandArguments, Either, WireCommandChip, builder::CommandStringBuilder, run_command_with_env},
+    commands::{
+        CommandArguments, Either, WireCommandChip, builder::CommandStringBuilder,
+        run_command_with_env,
+    },
     hive::node::{Context, ExecuteStep, Goal},
 };
 
@@ -30,7 +33,14 @@ impl ExecuteStep for Build {
         let top_level = ctx.state.evaluation.as_ref().unwrap();
 
         let mut command_string = CommandStringBuilder::nix();
-        command_string.args(&["--extra-experimental-features", "nix-command", "build", "--print-build-logs", "--no-link", "--print-out-paths"]);
+        command_string.args(&[
+            "--extra-experimental-features",
+            "nix-command",
+            "build",
+            "--print-build-logs",
+            "--no-link",
+            "--print-out-paths",
+        ]);
         command_string.arg(top_level.to_string());
 
         let status = run_command_with_env(
