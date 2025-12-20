@@ -163,7 +163,7 @@ in
 
               TEST_DIR="${injectedFlakeDir}/${path}"
 
-              ${builtins.readFile ./tools.py}
+              ${builtins.readFile ./tools/__init__.py}
             ''
             + lib.concatStringsSep "\n" (mapAttrsToList (_: value: value._wire.testScript) value.nodes)
             + opts.testScript;

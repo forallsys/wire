@@ -23,6 +23,7 @@
                 inherit (toolchain) cargo clippy;
               };
             };
+            ruff.enable = true;
             cargo-check = {
               enable = true;
               package = toolchain.cargo;

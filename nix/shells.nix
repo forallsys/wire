@@ -24,6 +24,7 @@
           pkgs.sqlite
           pkgs.turso
           pkgs.zstd
+          pkgs.uv
         ];
 
         PROTOC = lib.getExe pkgs.protobuf;
