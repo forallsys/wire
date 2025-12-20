@@ -27,7 +27,7 @@ let
   stripTyping =
     value:
     let
-      split = builtins.split "(if TYPE_CHECKING:|# typing-end)" value;
+      split = builtins.split "(from typing import TYPE_CHECKING|# typing-end)" value;
     in
     (builtins.elemAt split 0) + (builtins.elemAt split 4);
 in
