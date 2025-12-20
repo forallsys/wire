@@ -34,7 +34,7 @@ jobs:
         if: github.ref != 'refs/heads/stable'
       - name: Deploy to Cloudflare Pages
         id: deployment
-        uses: cloudflare/wrangler-action@707f63750981584eb6abc365a50d441516fb04b8
+        uses: cloudflare/wrangler-action@da0e0dfe58b7a431659754fdf3f186c529afbe65
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
