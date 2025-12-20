@@ -115,6 +115,7 @@ impl<'a> Context<'a> {
             goal: Goal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch),
             reboot: false,
             should_apply_locally: false,
+            substitute_on_destination: false,
             handle_unreachable: HandleUnreachable::default(),
             should_shutdown: Arc::new(AtomicBool::new(false)),
         }
