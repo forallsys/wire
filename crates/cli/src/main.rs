@@ -3,6 +3,7 @@
 
 #![feature(sync_nonpoison)]
 #![feature(nonpoison_mutex)]
+#![feature(assert_matches)]
 
 use std::process::Command;
 use std::sync::Arc;
@@ -75,6 +76,9 @@ async fn main() -> Result<()> {
         cli::Commands::Apply(apply_args) => {
             let mut hive = Hive::new_from_path(&location, cache.clone(), modifiers).await?;
             apply::apply(&mut hive, should_shutdown, location, apply_args, modifiers).await?;
+        }
+        cli::Commands::Build(_build_args) => {
+            todo!()
         }
         cli::Commands::Inspect { json, selection } => println!("{}", {
             match selection {

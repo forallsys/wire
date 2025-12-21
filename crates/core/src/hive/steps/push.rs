@@ -8,7 +8,7 @@ use tracing::instrument;
 use crate::{
     HiveLibError,
     commands::common::push,
-    hive::node::{Context, ExecuteStep, Goal},
+    hive::node::{Context, ExecuteStep, Goal, Objective},
 };
 
 #[derive(Debug, PartialEq)]
@@ -30,9 +30,13 @@ impl Display for PushBuildOutput {
 
 impl ExecuteStep for PushEvaluatedOutput {
     fn should_execute(&self, ctx: &Context) -> bool {
-        !matches!(ctx.goal, Goal::Keys)
-            && !ctx.should_apply_locally
-            && (ctx.node.build_remotely | matches!(ctx.goal, Goal::Push))
+        let Objective::Apply(apply_objective) = ctx.objective else {
+            return false;
+        };
+
+        !matches!(apply_objective.goal, Goal::Keys)
+            && !apply_objective.should_apply_locally
+            && (ctx.node.build_remotely | matches!(apply_objective.goal, Goal::Push))
     }
 
     #[instrument(skip_all, name = "push_eval")]
@@ -47,7 +51,11 @@ impl ExecuteStep for PushEvaluatedOutput {
 
 impl ExecuteStep for PushBuildOutput {
     fn should_execute(&self, ctx: &Context) -> bool {
-        if matches!(ctx.goal, Goal::Keys | Goal::Push) {
+        let Objective::Apply(apply_objective) = ctx.objective else {
+            return false;
+        };
+
+        if matches!(apply_objective.goal, Goal::Keys | Goal::Push) {
             // skip if we are not building
             return false;
         }
@@ -57,7 +65,7 @@ impl ExecuteStep for PushBuildOutput {
             return false;
         }
 
-        if ctx.should_apply_locally {
+        if apply_objective.should_apply_locally {
             // skip step if we are applying locally
             return false;
         }

@@ -14,7 +14,7 @@ use crate::{
     errors::{CommandError, HiveInitialisationError, HiveLibError},
     hive::{
         HiveLocation,
-        node::{Context, Push},
+        node::{Context, Objective, Push},
     },
 };
 
@@ -32,10 +32,12 @@ pub async fn push(context: &Context<'_>, push: Push<'_>) -> Result<(), HiveLibEr
     let mut command_string = CommandStringBuilder::nix();
 
     command_string.args(&["--extra-experimental-features", "nix-command", "copy"]);
-    command_string.opt_arg(
-        context.substitute_on_destination,
-        "--substitute-on-destination",
-    );
+    if let Objective::Apply(apply_objective) = context.objective {
+        command_string.opt_arg(
+            apply_objective.substitute_on_destination,
+            "--substitute-on-destination",
+        );
+    }
     command_string.arg("--to");
     command_string.args(&[
         format!(

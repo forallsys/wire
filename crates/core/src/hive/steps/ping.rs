@@ -7,7 +7,7 @@ use tracing::{Level, event, instrument};
 
 use crate::{
     HiveLibError,
-    hive::node::{Context, ExecuteStep},
+    hive::node::{Context, ExecuteStep, Objective},
 };
 
 #[derive(Debug, PartialEq)]
@@ -21,7 +21,11 @@ impl Display for Ping {
 
 impl ExecuteStep for Ping {
     fn should_execute(&self, ctx: &Context) -> bool {
-        !ctx.should_apply_locally
+        let Objective::Apply(apply_objective) = ctx.objective else {
+            return false;
+        };
+
+        !apply_objective.should_apply_locally
     }
 
     #[instrument(skip_all, name = "ping")]

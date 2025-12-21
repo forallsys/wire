@@ -111,14 +111,16 @@ impl<'a> Context<'a> {
             node,
             hive_location: Arc::new(hive_location),
             modifiers: SubCommandModifiers::default(),
-            no_keys: false,
+            objective: Objective::Apply(ApplyObjective {
+                goal: Goal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch),
+                no_keys: false,
+                reboot: false,
+                should_apply_locally: false,
+                substitute_on_destination: false,
+                handle_unreachable: HandleUnreachable::default(),
+            }),
             state: StepState::default(),
-            goal: Goal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch),
-            reboot: false,
-            should_apply_locally: false,
-            substitute_on_destination: false,
-            handle_unreachable: HandleUnreachable::default(),
-            should_shutdown: Arc::new(AtomicBool::new(false)),
+            should_quit: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -273,6 +275,24 @@ pub enum Goal {
     Keys,
 }
 
+// TODO: Get rid of this allow and resolve it
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Clone, Copy)]
+pub struct ApplyObjective {
+    pub goal: Goal,
+    pub no_keys: bool,
+    pub reboot: bool,
+    pub should_apply_locally: bool,
+    pub substitute_on_destination: bool,
+    pub handle_unreachable: HandleUnreachable,
+}
+
+#[derive(Clone, Copy)]
+pub enum Objective {
+    Apply(ApplyObjective),
+    BuildLocally,
+}
+
 #[enum_dispatch]
 pub(crate) trait ExecuteStep: Send + Sync + Display + std::fmt::Debug {
     async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError>;
@@ -282,7 +302,7 @@ pub(crate) trait ExecuteStep: Send + Sync + Display + std::fmt::Debug {
 
 // may include other options such as FailAll in the future
 #[non_exhaustive]
-#[derive(Clone, Default)]
+#[derive(Clone, Copy, Default)]
 pub enum HandleUnreachable {
     Ignore,
     #[default]
@@ -297,21 +317,14 @@ pub struct StepState {
     pub key_agent_directory: Option<String>,
 }
 
-// TODO: Get rid of this allow and resolve it
-#[allow(clippy::struct_excessive_bools)]
 pub struct Context<'a> {
     pub name: &'a Name,
     pub node: &'a mut Node,
     pub hive_location: Arc<HiveLocation>,
     pub modifiers: SubCommandModifiers,
-    pub no_keys: bool,
     pub state: StepState,
-    pub goal: Goal,
-    pub reboot: bool,
-    pub should_apply_locally: bool,
-    pub substitute_on_destination: bool,
-    pub handle_unreachable: HandleUnreachable,
-    pub should_shutdown: Arc<AtomicBool>,
+    pub should_quit: Arc<AtomicBool>,
+    pub objective: Objective,
 }
 
 #[enum_dispatch(ExecuteStep)]
@@ -352,7 +365,7 @@ pub struct GoalExecutor<'a> {
 /// returns Err if the application should shut down.
 fn app_shutdown_guard(context: &Context) -> Result<(), HiveLibError> {
     if context
-        .should_shutdown
+        .should_quit
         .load(std::sync::atomic::Ordering::Relaxed)
     {
         return Err(HiveLibError::Sigint);
@@ -382,7 +395,6 @@ impl<'a> GoalExecutor<'a> {
                 Step::Keys(Keys {
                     filter: UploadKeyAt::PostActivation,
                 }),
-                Step::CleanUp(CleanUp),
             ],
             context,
         }
@@ -427,7 +439,12 @@ impl<'a> GoalExecutor<'a> {
                 .is_some()
         );
 
-        if !matches!(self.context.goal, Goal::Keys) {
+        let spawn_evaluator = match self.context.objective {
+            Objective::Apply(apply_objective) => !matches!(apply_objective.goal, Goal::Keys),
+            Objective::BuildLocally => true,
+        };
+
+        if spawn_evaluator {
             tokio::spawn(
                 GoalExecutor::evaluate_task(
                     tx,
@@ -468,8 +485,12 @@ impl<'a> GoalExecutor<'a> {
                 // discard error from cleanup
                 let _ = CleanUp.execute(&mut self.context).await;
 
-                if matches!(step, Step::Ping(..))
-                    && matches!(self.context.handle_unreachable, HandleUnreachable::Ignore)
+                if let Objective::Apply(apply_objective) = self.context.objective
+                    && matches!(step, Step::Ping(..))
+                    && matches!(
+                        apply_objective.handle_unreachable,
+                        HandleUnreachable::Ignore,
+                    )
                 {
                     return Ok(());
                 }
@@ -564,7 +585,6 @@ mod tests {
                     filter: UploadKeyAt::PostActivation
                 }
                 .into(),
-                CleanUp.into()
             ]
         );
     }
@@ -576,7 +596,11 @@ mod tests {
         let name = &Name(function_name!().into());
         let mut context = Context::create_test_context(location, name, &mut node);
 
-        context.goal = Goal::Keys;
+        let Objective::Apply(ref mut apply_objective) = context.objective else {
+            unreachable!()
+        };
+
+        apply_objective.goal = Goal::Keys;
 
         let executor = GoalExecutor::new(context);
         let steps = get_steps(executor);
@@ -590,19 +614,21 @@ mod tests {
                     filter: UploadKeyAt::NoFilter
                 }
                 .into(),
-                CleanUp.into()
             ]
         );
     }
 
     #[tokio::test]
-    async fn order_build_only() {
+    async fn order_build() {
         let location = location!(get_test_path!());
         let mut node = Node::default();
         let name = &Name(function_name!().into());
         let mut context = Context::create_test_context(location, name, &mut node);
 
-        context.goal = Goal::Build;
+        let Objective::Apply(ref mut apply_objective) = context.objective else {
+            unreachable!()
+        };
+        apply_objective.goal = Goal::Build;
 
         let executor = GoalExecutor::new(context);
         let steps = get_steps(executor);
@@ -614,7 +640,6 @@ mod tests {
                 crate::hive::steps::evaluate::Evaluate.into(),
                 crate::hive::steps::build::Build.into(),
                 crate::hive::steps::push::PushBuildOutput.into(),
-                CleanUp.into()
             ]
         );
     }
@@ -626,7 +651,10 @@ mod tests {
         let name = &Name(function_name!().into());
         let mut context = Context::create_test_context(location, name, &mut node);
 
-        context.goal = Goal::Push;
+        let Objective::Apply(ref mut apply_objective) = context.objective else {
+            unreachable!()
+        };
+        apply_objective.goal = Goal::Push;
 
         let executor = GoalExecutor::new(context);
         let steps = get_steps(executor);
@@ -637,7 +665,6 @@ mod tests {
                 Ping.into(),
                 crate::hive::steps::evaluate::Evaluate.into(),
                 crate::hive::steps::push::PushEvaluatedOutput.into(),
-                CleanUp.into()
             ]
         );
     }
@@ -671,7 +698,6 @@ mod tests {
                     filter: UploadKeyAt::PostActivation
                 }
                 .into(),
-                CleanUp.into()
             ]
         );
     }
@@ -683,7 +709,12 @@ mod tests {
 
         let name = &Name(function_name!().into());
         let mut context = Context::create_test_context(location, name, &mut node);
-        context.no_keys = true;
+
+        let Objective::Apply(ref mut apply_objective) = context.objective else {
+            unreachable!()
+        };
+        apply_objective.no_keys = true;
+
         let executor = GoalExecutor::new(context);
         let steps = get_steps(executor);
 
@@ -695,7 +726,6 @@ mod tests {
                 crate::hive::steps::build::Build.into(),
                 crate::hive::steps::push::PushBuildOutput.into(),
                 SwitchToConfiguration.into(),
-                CleanUp.into()
             ]
         );
     }
@@ -707,8 +737,13 @@ mod tests {
 
         let name = &Name(function_name!().into());
         let mut context = Context::create_test_context(location, name, &mut node);
-        context.no_keys = true;
-        context.should_apply_locally = true;
+
+        let Objective::Apply(ref mut apply_objective) = context.objective else {
+            unreachable!()
+        };
+        apply_objective.no_keys = true;
+        apply_objective.should_apply_locally = true;
+
         let executor = GoalExecutor::new(context);
         let steps = get_steps(executor);
 
@@ -718,6 +753,28 @@ mod tests {
                 crate::hive::steps::evaluate::Evaluate.into(),
                 crate::hive::steps::build::Build.into(),
                 SwitchToConfiguration.into(),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn order_build_only() {
+        let location = location!(get_test_path!());
+        let mut node = Node::default();
+
+        let name = &Name(function_name!().into());
+        let mut context = Context::create_test_context(location, name, &mut node);
+
+        context.objective = Objective::BuildLocally;
+
+        let executor = GoalExecutor::new(context);
+        let steps = get_steps(executor);
+
+        assert_eq!(
+            steps,
+            vec![
+                crate::hive::steps::evaluate::Evaluate.into(),
+                crate::hive::steps::build::Build.into()
             ]
         );
     }
@@ -870,7 +927,7 @@ mod tests {
         let name = &Name(function_name!().into());
         let context = Context::create_test_context(location, name, &mut node);
         context
-            .should_shutdown
+            .should_quit
             .store(true, std::sync::atomic::Ordering::Relaxed);
         let executor = GoalExecutor::new(context);
         let status = executor.execute().await;

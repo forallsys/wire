@@ -10,7 +10,9 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use thiserror::Error;
 use tracing::{Span, error, info};
-use wire_core::hive::node::{Context, GoalExecutor, Name, StepState, should_apply_locally};
+use wire_core::hive::node::{
+    ApplyObjective, Context, GoalExecutor, Name, Objective, StepState, should_apply_locally,
+};
 use wire_core::hive::{Hive, HiveLocation};
 use wire_core::status::STATUS;
 use wire_core::{SubCommandModifiers, errors::HiveLibError};
@@ -65,7 +67,7 @@ pub async fn apply(
 
     let header_span_enter = header_span.enter();
 
-    let (tags, names) = args.on.iter().fold(
+    let (tags, names) = args.common.on.iter().fold(
         (HashSet::new(), HashSet::new()),
         |(mut tags, mut names), target| {
             match target {
@@ -92,7 +94,7 @@ pub async fn apply(
         .nodes
         .iter_mut()
         .filter(|(name, node)| {
-            args.on.is_empty()
+            args.common.on.is_empty()
                 || names.contains(name)
                 || node.tags.iter().any(|tag| tags.contains(tag))
         })
@@ -108,23 +110,25 @@ pub async fn apply(
     let mut set = selected_nodes
         .into_iter()
         .map(|(name, node)| {
-            info!("Resolved {:?} to include {}", args.on, name);
+            info!("Resolved {:?} to include {}", args.common.on, name);
 
             let should_apply_locally = should_apply_locally(node.allow_local_deployment, &name.0);
 
             let context = Context {
                 node,
                 name,
-                goal: args.goal.clone().try_into().unwrap(),
+                objective: Objective::Apply(ApplyObjective {
+                    goal: args.goal.clone().try_into().unwrap(),
+                    no_keys: args.no_keys,
+                    reboot: args.reboot,
+                    substitute_on_destination: args.substitute_on_destination,
+                    should_apply_locally,
+                    handle_unreachable: args.handle_unreachable.clone().into(),
+                }),
                 state: StepState::default(),
-                no_keys: args.no_keys,
                 hive_location: location.clone(),
                 modifiers,
-                reboot: args.reboot,
-                substitute_on_destination: args.substitute_on_destination,
-                should_apply_locally,
-                handle_unreachable: args.handle_unreachable.clone().into(),
-                should_shutdown: should_shutdown.clone(),
+                should_quit: should_shutdown.clone(),
             };
 
             GoalExecutor::new(context)
@@ -137,7 +141,7 @@ pub async fn apply(
         error!("There are no nodes selected for deployment");
     }
 
-    let futures = futures::stream::iter(set).buffer_unordered(args.parallel);
+    let futures = futures::stream::iter(set).buffer_unordered(args.common.parallel);
     let result = futures.collect::<Vec<_>>().await;
     let (successful, errors): (Vec<_>, Vec<_>) =
         result
