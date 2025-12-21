@@ -61,6 +61,24 @@ _Example:_
 }
 ```
 
+## meta.nodeSpecialArgs
+
+Extra `specialArgs` to override `meta.specialArgs` for each node
+
+_Type:_ attribute set of attribute set
+
+_Default:_ `{ }`
+
+_Example:_
+
+```nix
+{
+  meta.nodeSpecialArgs = {
+    extra-property = "some-value";
+  };
+}
+```
+
 ## meta.nodeNixpkgs
 
 Per-node nixpkgs to override `meta.nixpkgs`.

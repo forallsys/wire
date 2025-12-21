@@ -83,7 +83,8 @@ let
       specialArgs = {
         inherit name nodes;
       }
-      // mergedHive.meta.specialArgs or { };
+      // mergedHive.meta.specialArgs or { }
+      // mergedHive.meta.nodeSpecialArgs.${name} or { };
     };
 
   nodes = builtins.listToAttrs (

@@ -5,7 +5,17 @@ let
   inherit (import ../utils.nix { testName = "test_keys-@IDENT@"; }) makeHive mkHiveNode;
 in
 makeHive {
-  meta.nixpkgs = import <nixpkgs> { localSystem = "x86_64-linux"; };
+  meta = {
+    nixpkgs = import <nixpkgs> { localSystem = "x86_64-linux"; };
+
+    specialArgs = {
+      message = "second";
+    };
+
+    nodeSpecialArgs = {
+      receiver-third.message = "third";
+    };
+  };
 
   receiver = mkHiveNode { hostname = "receiver"; } {
     environment.etc."identity".text = "first";
@@ -20,15 +30,21 @@ makeHive {
     ];
   };
 
-  receiver-second = mkHiveNode { hostname = "receiver"; } {
-    environment.etc."identity".text = "second";
-    deployment.target.host = "receiver";
-  };
+  receiver-second = mkHiveNode { hostname = "receiver"; } (
+    { message, ... }:
+    {
+      environment.etc."identity".text = message;
+      deployment.target.host = "receiver";
+    }
+  );
 
-  receiver-third = mkHiveNode { hostname = "receiver"; } {
-    environment.etc."identity".text = "third";
-    deployment.target.host = "receiver";
-  };
+  receiver-third = mkHiveNode { hostname = "receiver"; } (
+    { message, ... }:
+    {
+      environment.etc."identity".text = message;
+      deployment.target.host = "receiver";
+    }
+  );
 
   receiver-unreachable = mkHiveNode { hostname = "receiver"; } {
     # test node pinging
