@@ -119,6 +119,7 @@ export default defineConfig({
             },
             { text: "Apply your Config", link: "/guides/apply" },
             { text: "Target Nodes", link: "/guides/targeting" },
+            { text: "Build in CI", link: "/guides/build-in-ci" },
             {
               text: "Features",
               items: [

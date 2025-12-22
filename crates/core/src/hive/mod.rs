@@ -209,7 +209,6 @@ impl HiveLocation {
     ) -> Result<HiveLocation, HiveLibError> {
         let mut command_string = CommandStringBuilder::nix();
         command_string.args(&[
-            "nix",
             "flake",
             "prefetch",
             "--extra-experimental-features",

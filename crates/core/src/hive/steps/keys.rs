@@ -31,7 +31,7 @@ use crate::commands::builder::CommandStringBuilder;
 use crate::commands::common::push;
 use crate::commands::{CommandArguments, WireCommandChip, run_command};
 use crate::errors::KeyError;
-use crate::hive::node::{Context, ExecuteStep, Goal, Push, SwitchToConfigurationGoal};
+use crate::hive::node::{Context, ExecuteStep, Goal, Objective, Push, SwitchToConfigurationGoal};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Hash)]
 #[serde(tag = "t", content = "c")]
@@ -226,14 +226,18 @@ where
 
 impl ExecuteStep for Keys {
     fn should_execute(&self, ctx: &Context) -> bool {
-        if ctx.no_keys {
+        let Objective::Apply(apply_objective) = ctx.objective else {
+            return false;
+        };
+
+        if apply_objective.no_keys {
             return false;
         }
 
         // should execute if no filter, and the goal is keys.
         // otherwise, only execute if the goal is switch and non-nofilter
         matches!(
-            (&self.filter, &ctx.goal),
+            (&self.filter, &apply_objective.goal),
             (UploadKeyAt::NoFilter, Goal::Keys)
                 | (
                     UploadKeyAt::PreActivation | UploadKeyAt::PostActivation,
@@ -256,9 +260,13 @@ impl ExecuteStep for Keys {
         let command_string =
             CommandStringBuilder::new(format!("{agent_directory}/bin/wire-key-agent"));
 
+        let Objective::Apply(apply_objective) = ctx.objective else {
+            unreachable!()
+        };
+
         let mut child = run_command(
             &CommandArguments::new(command_string, ctx.modifiers)
-                .on_target(if ctx.should_apply_locally {
+                .on_target(if apply_objective.should_apply_locally {
                     None
                 } else {
                     Some(&ctx.node.target)
@@ -321,12 +329,16 @@ impl Keys {
 
 impl ExecuteStep for PushKeyAgent {
     fn should_execute(&self, ctx: &Context) -> bool {
-        if ctx.no_keys {
+        let Objective::Apply(apply_objective) = ctx.objective else {
+            return false;
+        };
+
+        if apply_objective.no_keys {
             return false;
         }
 
         matches!(
-            &ctx.goal,
+            &apply_objective.goal,
             Goal::Keys | Goal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch)
         )
     }
@@ -347,7 +359,11 @@ impl ExecuteStep for PushKeyAgent {
             ),
         };
 
-        if !ctx.should_apply_locally {
+        let Objective::Apply(apply_objective) = ctx.objective else {
+            unreachable!()
+        };
+
+        if !apply_objective.should_apply_locally {
             push(ctx, Push::Path(&agent_directory)).await?;
         }
 

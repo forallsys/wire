@@ -11,7 +11,7 @@ use crate::{
         CommandArguments, Either, WireCommandChip, builder::CommandStringBuilder,
         run_command_with_env,
     },
-    hive::node::{Context, ExecuteStep, Goal},
+    hive::node::{Context, ExecuteStep, Goal, Objective},
 };
 
 #[derive(Debug, PartialEq)]
@@ -25,7 +25,12 @@ impl Display for Build {
 
 impl ExecuteStep for Build {
     fn should_execute(&self, ctx: &Context) -> bool {
-        !matches!(ctx.goal, Goal::Keys | Goal::Push)
+        match ctx.objective {
+            Objective::Apply(apply_objective) => {
+                !matches!(apply_objective.goal, Goal::Keys | Goal::Push)
+            }
+            Objective::BuildLocally => true,
+        }
     }
 
     #[instrument(skip_all, name = "build")]
@@ -46,13 +51,19 @@ impl ExecuteStep for Build {
         let status = run_command_with_env(
             &CommandArguments::new(command_string, ctx.modifiers)
                 // build remotely if asked for AND we arent applying locally
-                // building remotely but applying locally does not logically
-                // make any sense
-                .on_target(if ctx.node.build_remotely && !ctx.should_apply_locally {
-                    Some(&ctx.node.target)
-                } else {
-                    None
-                })
+                //
+                // (building remotely but applying locally does not logically
+                // make any sense)
+                .on_target(
+                    if ctx.node.build_remotely
+                        && let Objective::Apply(apply_objective) = ctx.objective
+                        && apply_objective.should_apply_locally
+                    {
+                        Some(&ctx.node.target)
+                    } else {
+                        None
+                    },
+                )
                 .mode(crate::commands::ChildOutputMode::Nix)
                 .log_stdout(),
             std::collections::HashMap::new(),
@@ -70,6 +81,10 @@ impl ExecuteStep for Build {
         };
 
         info!("Built output: {stdout:?}");
+
+        // print built path to stdout
+        println!("{stdout}");
+
         ctx.state.build = Some(stdout);
 
         Ok(())

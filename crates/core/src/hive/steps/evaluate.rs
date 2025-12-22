@@ -7,7 +7,7 @@ use tracing::instrument;
 
 use crate::{
     HiveLibError,
-    hive::node::{Context, ExecuteStep, Goal},
+    hive::node::{Context, ExecuteStep, Goal, Objective},
 };
 
 #[derive(Debug, PartialEq)]
@@ -21,7 +21,10 @@ impl Display for Evaluate {
 
 impl ExecuteStep for Evaluate {
     fn should_execute(&self, ctx: &Context) -> bool {
-        !matches!(ctx.goal, Goal::Keys)
+        match ctx.objective {
+            Objective::Apply(apply_objective) => !matches!(apply_objective.goal, Goal::Keys),
+            Objective::BuildLocally => true,
+        }
     }
 
     #[instrument(skip_all, name = "eval")]

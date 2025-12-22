@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright 2024-2025 wire Contributors
 
+#![deny(clippy::pedantic)]
 #![feature(sync_nonpoison)]
 #![feature(nonpoison_mutex)]
+#![feature(assert_matches)]
 
 use std::process::Command;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
 use crate::cli::Cli;
+use crate::cli::Partitions;
 use crate::cli::ToSubCommandModifiers;
 use crate::sigint::handle_signals;
 use crate::tracing_setup::setup_logging;
@@ -25,6 +28,9 @@ use wire_core::cache::InspectionCache;
 use wire_core::commands::common::get_hive_node_names;
 use wire_core::hive::Hive;
 use wire_core::hive::get_hive_location;
+use wire_core::hive::node::ApplyObjective;
+use wire_core::hive::node::Objective;
+use wire_core::hive::node::should_apply_locally;
 
 #[macro_use]
 extern crate enum_display_derive;
@@ -74,7 +80,47 @@ async fn main() -> Result<()> {
     match args.command {
         cli::Commands::Apply(apply_args) => {
             let mut hive = Hive::new_from_path(&location, cache.clone(), modifiers).await?;
-            apply::apply(&mut hive, should_shutdown, location, apply_args, modifiers).await?;
+            let goal: wire_core::hive::node::Goal = apply_args.goal.clone().try_into().unwrap();
+
+            // Respect user's --always-build-local arg
+            hive.force_always_local(apply_args.always_build_local)?;
+
+            apply::apply(
+                &mut hive,
+                should_shutdown,
+                location,
+                apply_args.common,
+                Partitions::default(),
+                |name, node| {
+                    Objective::Apply(ApplyObjective {
+                        goal,
+                        no_keys: apply_args.no_keys,
+                        reboot: apply_args.reboot,
+                        substitute_on_destination: apply_args.substitute_on_destination,
+                        should_apply_locally: should_apply_locally(
+                            node.allow_local_deployment,
+                            &name.0,
+                        ),
+                        handle_unreachable: apply_args.handle_unreachable.clone().into(),
+                    })
+                },
+                modifiers,
+            )
+            .await?;
+        }
+        cli::Commands::Build(build_args) => {
+            let mut hive = Hive::new_from_path(&location, cache.clone(), modifiers).await?;
+
+            apply::apply(
+                &mut hive,
+                should_shutdown,
+                location,
+                build_args.common,
+                build_args.partition.unwrap_or_default(),
+                |_name, _node| Objective::BuildLocally,
+                modifiers,
+            )
+            .await?;
         }
         cli::Commands::Inspect { json, selection } => println!("{}", {
             match selection {

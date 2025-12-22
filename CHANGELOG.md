@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add a `--substitute-on-destination` argument.
 - Add the `meta.nodeSpecialArgs` meta option.
+- Add `wire build`, a new command to build nodes offline.
+  It is distinct from `wire apply build`, as it will not ping
+  or push the result, making it useful for CI.
+
+### Changed
+
+- Build store paths will be output to std out
 
 ### Fixed
 

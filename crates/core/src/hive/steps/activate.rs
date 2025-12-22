@@ -9,7 +9,7 @@ use crate::{
     HiveLibError,
     commands::{CommandArguments, WireCommandChip, builder::CommandStringBuilder, run_command},
     errors::{ActivationError, NetworkError},
-    hive::node::{Context, ExecuteStep, Goal, SwitchToConfigurationGoal},
+    hive::node::{Context, ExecuteStep, Goal, Objective, SwitchToConfigurationGoal},
 };
 
 #[derive(Debug, PartialEq)]
@@ -51,10 +51,14 @@ async fn set_profile(
     command_string.args(&["-p", "/nix/var/nix/profiles/system", "--set"]);
     command_string.arg(built_path);
 
+    let Objective::Apply(apply_objective) = ctx.objective else {
+        unreachable!()
+    };
+
     let child = run_command(
         &CommandArguments::new(command_string, ctx.modifiers)
             .mode(crate::commands::ChildOutputMode::Nix)
-            .on_target(if ctx.should_apply_locally {
+            .on_target(if apply_objective.should_apply_locally {
                 None
             } else {
                 Some(&ctx.node.target)
@@ -75,14 +79,23 @@ async fn set_profile(
 
 impl ExecuteStep for SwitchToConfiguration {
     fn should_execute(&self, ctx: &Context) -> bool {
-        matches!(ctx.goal, Goal::SwitchToConfiguration(..))
+        let Objective::Apply(apply_objective) = ctx.objective else {
+            return false;
+        };
+
+        matches!(apply_objective.goal, Goal::SwitchToConfiguration(..))
     }
 
+    #[allow(clippy::too_many_lines)]
     #[instrument(skip_all, name = "activate")]
     async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
         let built_path = ctx.state.build.as_ref().unwrap();
 
-        let Goal::SwitchToConfiguration(goal) = &ctx.goal else {
+        let Objective::Apply(apply_objective) = ctx.objective else {
+            unreachable!()
+        };
+
+        let Goal::SwitchToConfiguration(goal) = &apply_objective.goal else {
             unreachable!("Cannot reach as guarded by should_execute")
         };
 
@@ -108,7 +121,7 @@ impl ExecuteStep for SwitchToConfiguration {
 
         let child = run_command(
             &CommandArguments::new(command_string, ctx.modifiers)
-                .on_target(if ctx.should_apply_locally {
+                .on_target(if apply_objective.should_apply_locally {
                     None
                 } else {
                     Some(&ctx.node.target)
@@ -122,11 +135,11 @@ impl ExecuteStep for SwitchToConfiguration {
 
         match result {
             Ok(_) => {
-                if !ctx.reboot {
+                if !apply_objective.reboot {
                     return Ok(());
                 }
 
-                if ctx.should_apply_locally {
+                if apply_objective.should_apply_locally {
                     error!("Refusing to reboot local machine!");
 
                     return Ok(());
@@ -176,7 +189,7 @@ impl ExecuteStep for SwitchToConfiguration {
                 // Bail if the command couldn't of broken the system
                 // and don't try to regain connection to localhost
                 if matches!(goal, SwitchToConfigurationGoal::DryActivate)
-                    || ctx.should_apply_locally
+                    || apply_objective.should_apply_locally
                 {
                     return Err(HiveLibError::ActivationError(
                         ActivationError::SwitchToConfigurationError(*goal, ctx.name.clone(), error),

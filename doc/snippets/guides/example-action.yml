@@ -1,0 +1,40 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-partitioned:
+    name: Build Partitioned
+    runs-on: ubuntu-latest
+    permissions: {}
+    strategy:
+      matrix:
+        # Break into 4 partitions
+        partition: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      # This will likely be required if you have multiple architectures
+      # in your hive.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130
+      - uses: cachix/install-nix-action@4e002c8ec80594ecd40e759629461e26c8abed15
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            # Install binary cache as described in the install wire guide
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g=
+            substituters = https://cache.nixos.org/ https://cache.garnix.io
+
+            # Again, include additional architectures if you have multiple
+            # architectures in your hive
+            extra-platforms = aarch64-linux i686-linux
+      # Uses wire from your shell (as described in the install wire guide).
+      - name: Build partition ${{ matrix.partition }}
+        run: nix develop -Lvc wire \
+          build \
+          --parallel 1 \
+          --partition ${{ matrix.partition }}/4

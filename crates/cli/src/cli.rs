@@ -95,6 +95,28 @@ fn more_than_zero(s: &str) -> Result<usize, String> {
     number_range(s, 1, usize::MAX)
 }
 
+fn parse_partitions(s: &str) -> Result<Partitions, String> {
+    let parts: [&str; 2] = s
+        .split('/')
+        .collect::<Vec<_>>()
+        .try_into()
+        .map_err(|_| "partition must contain exactly one '/'")?;
+
+    let (current, maximum) =
+        std::array::from_fn(|i| parts[i].parse::<usize>().map_err(|x| x.to_string())).into();
+    let (current, maximum) = (current?, maximum?);
+
+    if current > maximum {
+        return Err("current is more than total".to_string());
+    }
+
+    if current == 0 || maximum == 0 {
+        return Err("partition segments cannot be 0.".to_string());
+    }
+
+    Ok(Partitions { current, maximum })
+}
+
 #[derive(Clone)]
 pub enum HandleUnreachableArg {
     Ignore,
@@ -132,12 +154,8 @@ impl From<HandleUnreachableArg> for HandleUnreachable {
     }
 }
 
-#[allow(clippy::struct_excessive_bools)]
 #[derive(Args)]
-pub struct ApplyArgs {
-    #[arg(value_enum, default_value_t)]
-    pub goal: Goal,
-
+pub struct CommonVerbArgs {
     /// List of literal node names, a literal `-`, or `@` prefixed tags.
     ///
     /// `-` will read additional values from stdin, separated by whitespace.
@@ -147,6 +165,16 @@ pub struct ApplyArgs {
 
     #[arg(short, long, default_value_t = 10, value_parser=more_than_zero)]
     pub parallel: usize,
+}
+
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Args)]
+pub struct ApplyArgs {
+    #[command(flatten)]
+    pub common: CommonVerbArgs,
+
+    #[arg(value_enum, default_value_t)]
+    pub goal: Goal,
 
     /// Skip key uploads. noop when [GOAL] = Keys
     #[arg(short, long, default_value_t = false)]
@@ -179,10 +207,44 @@ pub struct ApplyArgs {
     pub ssh_accept_host: bool,
 }
 
+#[derive(Clone, Debug)]
+pub struct Partitions {
+    pub current: usize,
+    pub maximum: usize,
+}
+
+impl Default for Partitions {
+    fn default() -> Self {
+        Self {
+            current: 1,
+            maximum: 1,
+        }
+    }
+}
+
+#[derive(Args)]
+pub struct BuildArgs {
+    #[command(flatten)]
+    pub common: CommonVerbArgs,
+
+    /// Partition builds into buckets.
+    ///
+    /// In the format of `current/total`, where 1 <= current <= total.
+    #[arg(short = 'P', default_value="1/1", long, value_parser=parse_partitions)]
+    pub partition: Option<Partitions>,
+}
+
 #[derive(Subcommand)]
 pub enum Commands {
     /// Deploy nodes
     Apply(ApplyArgs),
+    /// Build nodes offline
+    ///
+    /// This is distinct from `wire apply build`, as it will not ping or push
+    /// the result, making it useful for CI.
+    ///
+    /// Additionally, you may partition the build jobs into buckets.
+    Build(BuildArgs),
     /// Inspect hive
     #[clap(visible_alias = "show")]
     Inspect {
@@ -209,13 +271,13 @@ pub enum Goal {
     /// Make the configuration the boot default and activate now
     #[default]
     Switch,
-    /// Build the configuration but do nothing with it
+    /// Build the configuration & push the results
     Build,
-    /// Copy system derivation to remote hosts
+    /// Copy the system derivation to the remote hosts
     Push,
-    /// Push deployment keys to remote hosts
+    /// Push deployment keys to the remote hosts
     Keys,
-    /// Activate system profile on next boot
+    /// Activate the system profile on next boot
     Boot,
     /// Activate the configuration, but don't make it the boot default
     Test,
@@ -309,4 +371,28 @@ fn node_names_completer(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
 
         completions
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::assert_matches::assert_matches;
+
+    use crate::cli::{Partitions, parse_partitions};
+
+    #[test]
+    fn test_partition_parsing() {
+        assert_matches!(parse_partitions(""), Err(..));
+        assert_matches!(parse_partitions("/"), Err(..));
+        assert_matches!(parse_partitions(" / "), Err(..));
+        assert_matches!(parse_partitions("abc/"), Err(..));
+        assert_matches!(parse_partitions("abc"), Err(..));
+        assert_matches!(parse_partitions("1/1"), Ok(Partitions {
+            current,
+            maximum
+        }) if current == 1 && maximum == 1);
+        assert_matches!(parse_partitions("0/1"), Err(..));
+        assert_matches!(parse_partitions("-11/1"), Err(..));
+        assert_matches!(parse_partitions("100/99"), Err(..));
+        assert_matches!(parse_partitions("5/10"), Ok(Partitions { current, maximum }) if current == 5 && maximum == 10);
+    }
 }
