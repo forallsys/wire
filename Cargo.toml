@@ -2,7 +2,7 @@
 members = ["crates/key_agent", "crates/core", "crates/cli"]
 resolver = "2"
 package.edition = "2024"
-package.version = "1.0.0"
+package.version = "1.1.0-dev"
 
 [workspace.metadata.crane]
 name = "wire"

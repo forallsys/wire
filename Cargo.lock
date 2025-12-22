@@ -3157,7 +3157,7 @@ dependencies = [
 
 [[package]]
 name = "wire"
-version = "1.0.0"
+version = "1.1.0-dev"
 dependencies = [
  "clap",
  "clap-markdown",
@@ -3186,7 +3186,7 @@ dependencies = [
 
 [[package]]
 name = "wire-core"
-version = "1.0.0"
+version = "1.1.0-dev"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -3225,7 +3225,7 @@ dependencies = [
 
 [[package]]
 name = "wire-key-agent"
-version = "1.0.0"
+version = "1.1.0-dev"
 dependencies = [
  "anyhow",
  "base64",
