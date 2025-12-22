@@ -14,7 +14,7 @@ hero:
       link: /guides/installation
     - theme: alt
       text: Sources
-      link: https://github.com/mrshmllow/wire.git
+      link: https://github.com/forallsys/wire.git
 
 features:
   - title: Deploy in Parallel

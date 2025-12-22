@@ -45,13 +45,13 @@ Using npins specifically is not required, you can pin your sources in any way
 you'd like, really.
 
 ```sh
-$ npins add github mrshmllow wire --branch stable
+$ npins add github forallsys wire --branch stable
 ```
 
 Alternatively, you can use a tag instead:
 
 ```sh
-$ npins add github mrshmllow wire --at v1.1.0
+$ npins add github forallsys wire --at v1.1.0
 ```
 
 Then, use this pinned version of wire for both your `hive.nix` and `shell.nix`:
