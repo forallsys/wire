@@ -23,6 +23,10 @@ wire.makeHive {
         # type: attrset
         specialArgs = { };
 
+        # `meta.nodeSpecialArgs` lets you override `meta.specialArgs` per-node.
+        # type: attrset of attrset
+        nodeSpecialArgs: = { };
+
         # `meta.nodeNixpkgs` lets you override nixpkgs per-node.
         # type: attrset of "A path or an instance of nixpkgs."
         nodeNixpkgs: = { };
