@@ -31,11 +31,11 @@ export default defineConfig({
       { text: "Guides", link: "/guides/installation" },
       { text: "Reference", link: "/reference/cli" },
       {
-        text: MODE === "stable" ? pkg.version : "Unstable",
+        text: MODE === "stable" ? pkg.version : `Unstable (${pkg.version})`,
         items: [
           MODE === "unstable"
             ? {
-                text: `View ${pkg.version}`,
+                text: `View Stable`,
                 link: "https://wire.althaea.zone",
               }
             : {
