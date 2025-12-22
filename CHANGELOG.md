@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   It is distinct from `wire apply build`, as it will not ping
   or push the result, making it useful for CI.
 
+### Changed
+
+- Build store paths will be output to std out
+
 ## [v1.0.0] - 2025-12-17
 
 ### Added

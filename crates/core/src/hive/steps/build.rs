@@ -81,6 +81,10 @@ impl ExecuteStep for Build {
         };
 
         info!("Built output: {stdout:?}");
+
+        // print built path to stdout
+        println!("{stdout}");
+
         ctx.state.build = Some(stdout);
 
         Ok(())
