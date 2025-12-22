@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
 use crate::cli::Cli;
+use crate::cli::Partitions;
 use crate::cli::ToSubCommandModifiers;
 use crate::sigint::handle_signals;
 use crate::tracing_setup::setup_logging;
@@ -89,6 +90,7 @@ async fn main() -> Result<()> {
                 should_shutdown,
                 location,
                 apply_args.common,
+                Partitions::default(),
                 |name, node| {
                     Objective::Apply(ApplyObjective {
                         goal,
@@ -114,6 +116,7 @@ async fn main() -> Result<()> {
                 should_shutdown,
                 location,
                 build_args.common,
+                build_args.partition.unwrap_or_default(),
                 |_name, _node| Objective::BuildLocally,
                 modifiers,
             )

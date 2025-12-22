@@ -29,7 +29,9 @@ use crate::{EvalGoal, StrictHostKeyChecking, SubCommandModifiers};
 use super::HiveLibError;
 use super::steps::activate::SwitchToConfiguration;
 
-#[derive(Serialize, Deserialize, Clone, Debug, Hash, Eq, PartialEq, derive_more::Display)]
+#[derive(
+    Serialize, Deserialize, Clone, Debug, Hash, Eq, PartialEq, PartialOrd, Ord, derive_more::Display,
+)]
 pub struct Name(pub Arc<str>);
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash, Eq, PartialEq)]

@@ -4,6 +4,7 @@
 use futures::{FutureExt, StreamExt};
 use itertools::{Either, Itertools};
 use miette::{Diagnostic, IntoDiagnostic, Result};
+use std::any::Any;
 use std::collections::HashSet;
 use std::io::{Read, stderr};
 use std::sync::Arc;
@@ -15,7 +16,7 @@ use wire_core::hive::{Hive, HiveLocation};
 use wire_core::status::STATUS;
 use wire_core::{SubCommandModifiers, errors::HiveLibError};
 
-use crate::cli::{ApplyTarget, CommonVerbArgs};
+use crate::cli::{ApplyTarget, CommonVerbArgs, Partitions};
 
 #[derive(Debug, Error, Diagnostic)]
 #[error("node {} failed to apply", .0)]
@@ -77,40 +78,69 @@ fn resolve_targets(
     )
 }
 
+fn partition_arr<T>(arr: Vec<T>, partition: &Partitions) -> Vec<T>
+where
+    T: Any + Clone,
+{
+    if arr.is_empty() {
+        return arr;
+    }
+
+    let items_per_chunk = arr.len().div_ceil(partition.maximum);
+
+    arr.chunks(items_per_chunk)
+        .nth(partition.current - 1)
+        .unwrap_or(&[])
+        .to_vec()
+}
+
 pub async fn apply<F>(
     hive: &mut Hive,
     should_shutdown: Arc<AtomicBool>,
     location: HiveLocation,
     args: CommonVerbArgs,
+    partition: Partitions,
     make_objective: F,
     mut modifiers: SubCommandModifiers,
 ) -> Result<()>
 where
-    F: Fn(&Name, &mut Node) -> Objective,
+    F: Fn(&Name, &Node) -> Objective,
 {
     let location = Arc::new(location);
 
     let (tags, names) = resolve_targets(&args.on, &mut modifiers);
 
-    let selected_nodes: Vec<_> = hive
+    let selected_names: Vec<_> = hive
         .nodes
-        .iter_mut()
+        .iter()
         .filter(|(name, node)| {
             args.on.is_empty()
                 || names.contains(name)
                 || node.tags.iter().any(|tag| tags.contains(tag))
         })
+        .sorted_by_key(|(name, _)| *name)
+        .map(|(name, _)| name.clone())
         .collect();
 
-    STATUS.lock().add_many(
-        &selected_nodes
-            .iter()
-            .map(|(name, _)| *name)
-            .collect::<Vec<_>>(),
-    );
+    let num_selected = selected_names.len();
 
-    let mut set = selected_nodes
-        .into_iter()
+    let partitioned_names = partition_arr(selected_names, &partition);
+
+    if num_selected != partitioned_names.len() {
+        info!(
+            "Partitioning reduced selected number of nodes from {num_selected} to {}",
+            partitioned_names.len()
+        );
+    }
+
+    STATUS
+        .lock()
+        .add_many(&partitioned_names.iter().collect::<Vec<_>>());
+
+    let mut set = hive
+        .nodes
+        .iter_mut()
+        .filter(|(name, _)| partitioned_names.contains(name))
         .map(|(name, node)| {
             info!("Resolved {:?} to include {}", args.on, name);
 
@@ -168,4 +198,144 @@ where
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn test_partitioning() {
+        let arr = (1..=10).collect::<Vec<_>>();
+        assert_eq!(arr, partition_arr(arr.clone(), &Partitions::default()));
+
+        assert_eq!(
+            vec![1, 2, 3, 4, 5],
+            partition_arr(
+                arr.clone(),
+                &Partitions {
+                    current: 1,
+                    maximum: 2
+                }
+            )
+        );
+        assert_eq!(
+            vec![6, 7, 8, 9, 10],
+            partition_arr(
+                arr,
+                &Partitions {
+                    current: 2,
+                    maximum: 2
+                }
+            )
+        );
+
+        // test odd number
+        let arr = (1..10).collect::<Vec<_>>();
+        assert_eq!(
+            arr.clone(),
+            partition_arr(arr.clone(), &Partitions::default())
+        );
+
+        assert_eq!(
+            vec![1, 2, 3, 4, 5],
+            partition_arr(
+                arr.clone(),
+                &Partitions {
+                    current: 1,
+                    maximum: 2
+                }
+            )
+        );
+        assert_eq!(
+            vec![6, 7, 8, 9],
+            partition_arr(
+                arr.clone(),
+                &Partitions {
+                    current: 2,
+                    maximum: 2
+                }
+            )
+        );
+
+        // test large number of partitions
+        let arr = (1..=10).collect::<Vec<_>>();
+        assert_eq!(
+            arr.clone(),
+            partition_arr(arr.clone(), &Partitions::default())
+        );
+
+        for i in 1..=10 {
+            assert_eq!(
+                vec![i],
+                partition_arr(
+                    arr.clone(),
+                    &Partitions {
+                        current: i,
+                        maximum: 10
+                    }
+                )
+            );
+
+            assert_eq!(
+                vec![i],
+                partition_arr(
+                    arr.clone(),
+                    &Partitions {
+                        current: i,
+                        maximum: 15
+                    }
+                )
+            );
+        }
+
+        // stretching thin with higher partitions will start to leave higher ones empty
+        assert_eq!(
+            Vec::<usize>::new(),
+            partition_arr(
+                arr,
+                &Partitions {
+                    current: 11,
+                    maximum: 15
+                }
+            )
+        );
+
+        // test the above holds for a lot of numbers
+        for i in 1..1000 {
+            let arr: Vec<usize> = (0..i).collect();
+            let total = arr.len();
+
+            assert_eq!(
+                arr.clone(),
+                partition_arr(arr.clone(), &Partitions::default()),
+            );
+
+            let buckets = 2;
+            let chunk_size = total.div_ceil(buckets);
+            let split_index = std::cmp::min(chunk_size, total);
+
+            assert_eq!(
+                &arr.clone()[..split_index],
+                partition_arr(
+                    arr.clone(),
+                    &Partitions {
+                        current: 1,
+                        maximum: 2
+                    }
+                ),
+            );
+            assert_eq!(
+                &arr.clone()[split_index..],
+                partition_arr(
+                    arr.clone(),
+                    &Partitions {
+                        current: 2,
+                        maximum: 2
+                    }
+                ),
+            );
+        }
+    }
 }

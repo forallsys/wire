@@ -48,17 +48,17 @@ impl ExecuteStep for Build {
         ]);
         command_string.arg(top_level.to_string());
 
-        let Objective::Apply(apply_objective) = ctx.objective else {
-            unreachable!()
-        };
-
         let status = run_command_with_env(
             &CommandArguments::new(command_string, ctx.modifiers)
                 // build remotely if asked for AND we arent applying locally
-                // building remotely but applying locally does not logically
-                // make any sense
+                //
+                // (building remotely but applying locally does not logically
+                // make any sense)
                 .on_target(
-                    if ctx.node.build_remotely && !apply_objective.should_apply_locally {
+                    if ctx.node.build_remotely
+                        && let Objective::Apply(apply_objective) = ctx.objective
+                        && apply_objective.should_apply_locally
+                    {
                         Some(&ctx.node.target)
                     } else {
                         None

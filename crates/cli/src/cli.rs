@@ -100,7 +100,7 @@ fn parse_partitions(s: &str) -> Result<Partitions, String> {
         .split('/')
         .collect::<Vec<_>>()
         .try_into()
-        .map_err(|_| "parition must contain exactly one '/'")?;
+        .map_err(|_| "partition must contain exactly one '/'")?;
 
     let (current, maximum) =
         std::array::from_fn(|i| parts[i].parse::<usize>().map_err(|x| x.to_string())).into();
@@ -108,6 +108,10 @@ fn parse_partitions(s: &str) -> Result<Partitions, String> {
 
     if current > maximum {
         return Err("current is more than total".to_string());
+    }
+
+    if current == 0 || maximum == 0 {
+        return Err("partition segments cannot be 0.".to_string());
     }
 
     Ok(Partitions { current, maximum })
@@ -205,8 +209,17 @@ pub struct ApplyArgs {
 
 #[derive(Clone, Debug)]
 pub struct Partitions {
-    current: usize,
-    maximum: usize,
+    pub current: usize,
+    pub maximum: usize,
+}
+
+impl Default for Partitions {
+    fn default() -> Self {
+        Self {
+            current: 1,
+            maximum: 1,
+        }
+    }
 }
 
 #[derive(Args)]
@@ -216,7 +229,7 @@ pub struct BuildArgs {
 
     /// Partition builds into buckets.
     ///
-    /// In the format of `current_bucket/total_buckets`.
+    /// In the format of `current/total`, where 1 <= current <= total.
     #[arg(short = 'P', default_value="1/1", long, value_parser=parse_partitions)]
     pub partition: Option<Partitions>,
 }
@@ -230,7 +243,7 @@ pub enum Commands {
     /// This is distinct from `wire apply build`, as it will not ping or push
     /// the result, making it useful for CI.
     ///
-    /// Additionally, you may parition the build jobs into buckets.
+    /// Additionally, you may partition the build jobs into buckets.
     Build(BuildArgs),
     /// Inspect hive
     #[clap(visible_alias = "show")]
@@ -367,7 +380,7 @@ mod tests {
     use crate::cli::{Partitions, parse_partitions};
 
     #[test]
-    fn test_partitions() {
+    fn test_partition_parsing() {
         assert_matches!(parse_partitions(""), Err(..));
         assert_matches!(parse_partitions("/"), Err(..));
         assert_matches!(parse_partitions(" / "), Err(..));
@@ -377,7 +390,7 @@ mod tests {
             current,
             maximum
         }) if current == 1 && maximum == 1);
-        assert_matches!(parse_partitions("0/1"), Ok(Partitions { current, maximum }) if current == 0 && maximum == 1);
+        assert_matches!(parse_partitions("0/1"), Err(..));
         assert_matches!(parse_partitions("-11/1"), Err(..));
         assert_matches!(parse_partitions("100/99"), Err(..));
         assert_matches!(parse_partitions("5/10"), Ok(Partitions { current, maximum }) if current == 5 && maximum == 10);
