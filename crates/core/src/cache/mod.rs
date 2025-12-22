@@ -115,6 +115,7 @@ impl InspectionCache {
         // atleast once
         if Self::cache_invalid(&cached_blob.store_path) {
             trace!("discarding cache that does not exist in the nix store");
+            return None;
         }
 
         trace!(
