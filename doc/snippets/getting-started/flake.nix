@@ -1,6 +1,6 @@
 {
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-  inputs.wire.url = "github:mrshmllow/wire";
+  inputs.wire.url = "github:forallsys/wire";
 
   outputs = inputs @ {
     nixpkgs,

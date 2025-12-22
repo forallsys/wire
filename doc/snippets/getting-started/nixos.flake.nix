@@ -2,7 +2,7 @@
   inputs = {
     # ...
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    wire.url = "github:mrshmllow/wire"; # [!code ++]
+    wire.url = "github:forallsys/wire"; # [!code ++]
   };
 
   outputs = inputs @ {

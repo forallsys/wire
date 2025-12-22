@@ -20,7 +20,7 @@ export default defineConfig({
 
     footer: {
       message:
-        'Released under the <a href="https://github.com/mrshmllow/wire/blob/trunk/COPYING">AGPL-3.0 License</a>.',
+        'Released under the <a href="https://github.com/forallsys/wire/blob/trunk/COPYING">AGPL-3.0 License</a>.',
       copyright: "Copyright 2024-2025 wire Contributors",
     },
 
@@ -44,7 +44,7 @@ export default defineConfig({
               },
           {
             text: "Changelog",
-            link: "https://github.com/mrshmllow/wire/blob/trunk/CHANGELOG.md",
+            link: "https://github.com/forallsys/wire/blob/trunk/CHANGELOG.md",
           },
           {
             text: "CI Server",
@@ -150,12 +150,12 @@ export default defineConfig({
     },
 
     editLink: {
-      pattern: "https://github.com/mrshmllow/wire/edit/trunk/doc/:path",
+      pattern: "https://github.com/forallsys/wire/edit/trunk/doc/:path",
       text: "Edit this page on GitHub",
     },
 
     socialLinks: [
-      { icon: "github", link: "https://github.com/mrshmllow/wire" },
+      { icon: "github", link: "https://github.com/forallsys/wire" },
     ],
   },
   markdown: {

@@ -3,7 +3,6 @@ name: autofix.ci
 on:
   pull_request:
   push:
-    branches: ["trunk"]
 
 permissions:
   contents: read
@@ -24,7 +23,7 @@ jobs:
             docs-pnpm:
               - 'doc/pnpm-lock.yaml'
   autofix:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     needs: check-changes
     env:
       UV_CACHE_DIR: /tmp/.uv-cache

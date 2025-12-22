@@ -41,7 +41,7 @@ binary.
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     colmena.url = "github:zhaofengli/colmena"; # [!code --]
-    wire.url = "github:mrshmllow/wire/stable"; # [!code ++]
+    wire.url = "github:forallsys/wire/stable"; # [!code ++]
   };
   outputs =
     { nixpkgs, colmena, ... }:
