@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - yyyy-mm-dd
 
+## [v1.1.0] - 2025-12-31
+
 ### Added
 
 - Add a `--substitute-on-destination` argument.
@@ -17,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Build store paths will be output to std out
+- Build store paths will be output to stdout
 
 ### Fixed
 
