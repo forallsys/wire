@@ -45,6 +45,12 @@
                 ''
               );
             };
+            machete = {
+              enable = true;
+              name = "cargo-machete";
+              files = "\\.(rs|toml)$";
+              entry = lib.getExe pkgs.cargo-machete;
+            };
             typos = {
               enable = true;
               settings = {

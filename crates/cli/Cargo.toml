@@ -12,7 +12,6 @@ dhat-heap = []
 [dependencies]
 clap = { workspace = true }
 clap-verbosity-flag = { workspace = true }
-serde = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-log = { workspace = true }
@@ -22,14 +21,12 @@ serde_json = { workspace = true }
 miette = { workspace = true }
 thiserror = { workspace = true }
 enum-display-derive = "0.1.1"
-im = { workspace = true }
 futures = "0.3.31"
 clap-num = "1.2.0"
 clap-markdown = "0.1.5"
 itertools = "0.14.0"
 dhat = "0.3.2"
 clap_complete = { version = "4.5.60", features = ["unstable-dynamic"] }
-nix-compat = { workspace = true }
 owo-colors = { workspace = true }
 signal-hook-tokio = { version = "0.3.1", features = ["futures-v0_3"] }
 signal-hook = "0.3.18"
