@@ -54,7 +54,7 @@ impl ExecuteStep for Build {
                 //
                 // (building remotely but applying locally does not logically
                 // make any sense)
-                .on_target(
+                .execute_on_remote(
                     if ctx.node.build_remotely
                         && let Objective::Apply(apply_objective) = ctx.objective
                         && apply_objective.should_apply_locally

@@ -58,7 +58,7 @@ async fn set_profile(
     let child = run_command(
         &CommandArguments::new(command_string, ctx.modifiers)
             .mode(crate::commands::ChildOutputMode::Nix)
-            .on_target(if apply_objective.should_apply_locally {
+            .execute_on_remote(if apply_objective.should_apply_locally {
                 None
             } else {
                 Some(&ctx.node.target)
@@ -121,7 +121,7 @@ impl ExecuteStep for SwitchToConfiguration {
 
         let child = run_command(
             &CommandArguments::new(command_string, ctx.modifiers)
-                .on_target(if apply_objective.should_apply_locally {
+                .execute_on_remote(if apply_objective.should_apply_locally {
                     None
                 } else {
                     Some(&ctx.node.target)
@@ -150,7 +150,7 @@ impl ExecuteStep for SwitchToConfiguration {
                 let reboot = run_command(
                     &CommandArguments::new("reboot now", ctx.modifiers)
                         .log_stdout()
-                        .on_target(Some(&ctx.node.target))
+                        .execute_on_remote(Some(&ctx.node.target))
                         .elevated(ctx.node),
                 )
                 .await?;

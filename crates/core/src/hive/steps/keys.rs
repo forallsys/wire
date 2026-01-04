@@ -266,7 +266,7 @@ impl ExecuteStep for Keys {
 
         let mut child = run_command(
             &CommandArguments::new(command_string, ctx.modifiers)
-                .on_target(if apply_objective.should_apply_locally {
+                .execute_on_remote(if apply_objective.should_apply_locally {
                     None
                 } else {
                     Some(&ctx.node.target)

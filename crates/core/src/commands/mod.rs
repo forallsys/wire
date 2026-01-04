@@ -68,7 +68,7 @@ impl<'a, S: AsRef<str>> CommandArguments<'a, S> {
         }
     }
 
-    pub(crate) const fn on_target(mut self, target: Option<&'a Target>) -> Self {
+    pub(crate) const fn execute_on_remote(mut self, target: Option<&'a Target>) -> Self {
         self.target = target;
         self
     }
