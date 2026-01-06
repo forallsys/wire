@@ -1,8 +1,15 @@
 builds:
-  exclude: []
-  include:
-    - packages.x86_64-linux.docs
-    - packages.x86_64-linux.docs-unstable
-    - packages.*.wire
-    - packages.*.wire-small
-  branch: trunk
+  - exclude: []
+    include:
+      - packages.x86_64-linux.docs
+      - packages.x86_64-linux.docs-unstable
+      - packages.*.wire
+      - packages.*.wire-small
+    branch: trunk
+  - exclude: []
+    include:
+      - packages.x86_64-linux.docs
+      - packages.x86_64-linux.docs-unstable
+      - packages.*.wire
+      - packages.*.wire-small
+    branch: stable
