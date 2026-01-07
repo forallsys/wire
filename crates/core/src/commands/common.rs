@@ -22,7 +22,7 @@ fn get_common_copy_path_help(error: &CommandError) -> Option<String> {
     if let CommandError::CommandFailed { logs, .. } = error
         && (logs.contains("error: unexpected end-of-file"))
     {
-        Some("wire requires the deploying user or wire binary cache is trusted on the remote server. if you're attempting to make that change, skip keys with --no-keys. please read https://wire.althaea.zone/guides/keys for more information".to_string())
+        Some("wire requires the deploying user or wire binary cache is trusted on the remote server. if you're attempting to make that change, skip keys with --no-keys. please read https://wire.forall.systems/guides/keys for more information".to_string())
     } else {
         None
     }

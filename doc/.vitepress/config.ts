@@ -36,7 +36,7 @@ export default defineConfig({
           MODE === "unstable"
             ? {
                 text: `View Stable`,
-                link: "https://wire.althaea.zone",
+                link: "https://wire.forall.systems",
               }
             : {
                 text: "View Unstable",

@@ -21,7 +21,7 @@ jobs:
     permissions: {}
     environment:
       name: production
-      url: https://wire.althaea.zone/
+      url: https://wire.forall.systems/
     if: github.actor != 'dependabot[bot]' && needs.pre-job.outputs.should_skip != 'true'
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8

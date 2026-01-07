@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Manpages for `1` & `5`, including subcommands.
 
+### Changed
+
+- The domain for documentation to be `wire.forall.systems`. The previous URL
+  will continue to be available but may redirect in the future.
+
 ### Fixed
 
 - Fix a bug where key permissions where being printed in decimal format instead
