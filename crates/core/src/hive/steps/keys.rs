@@ -108,7 +108,7 @@ impl Default for Key {
     }
 }
 
-fn get_u32_permission(key: &Key) -> Result<u32, KeyError> {
+fn get_u32_unix_mode(key: &Key) -> Result<u32, KeyError> {
     u32::from_str_radix(&key.permissions, 8).map_err(KeyError::ParseKeyPermissions)
 }
 
@@ -170,7 +170,7 @@ async fn process_key(key: &Key) -> Result<(wire_key_agent::keys::KeySpec, Vec<u8
                 .expect("Failed to convert usize buf length to i32"),
             user: key.user.clone(),
             group: key.group.clone(),
-            permissions: get_u32_permission(key)?,
+            unix_mode: get_u32_unix_mode(key)?,
             destination: destination.into_os_string().into_string().unwrap(),
             digest: Sha256::digest(&buf).to_vec(),
             last: false,

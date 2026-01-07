@@ -26,8 +26,8 @@ fn create_path(key_path: &Path) -> Result<(), anyhow::Error> {
 
 fn pretty_keyspec(spec: &KeySpec) -> String {
     format!(
-        "{} {}:{} {}",
-        spec.destination, spec.user, spec.group, spec.permissions
+        "{} {}:{} {:o}",
+        spec.destination, spec.user, spec.group, spec.unix_mode
     )
 }
 
@@ -68,7 +68,7 @@ async fn main() -> Result<(), anyhow::Error> {
         let mut file = File::create(path).await?;
         let mut permissions = file.metadata().await?.permissions();
 
-        permissions.set_mode(spec.permissions);
+        permissions.set_mode(spec.unix_mode);
         file.set_permissions(permissions).await?;
 
         let user = User::from_name(&spec.user)?;

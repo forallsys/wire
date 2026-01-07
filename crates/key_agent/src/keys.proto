@@ -9,7 +9,7 @@ message KeySpec {
   string destination = 1;
   string user = 2;
   string group = 3;
-  uint32 permissions = 4;
+  uint32 unix_mode = 4;
   uint32 length = 5;
   bool last = 6;
   /// Sha256 digest
