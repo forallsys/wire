@@ -3236,6 +3236,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "wire-keys"
+version = "1.1.1"
+dependencies = [
+ "either",
+ "im",
+ "serde",
+ "tokio",
+ "wire-core",
+]
+
+[[package]]
+name = "wire-plan"
+version = "1.1.1"
+dependencies = [
+ "either",
+ "im",
+ "serde",
+ "wire-core",
+ "wire-keys",
+]
+
+[[package]]
 name = "wit-bindgen-rt"
 version = "0.39.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

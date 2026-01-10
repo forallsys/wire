@@ -1,0 +1,14 @@
+[package]
+name = "wire-plan"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+wire-core = { path = "../core" }
+wire-keys = { path = "../keys" }
+im = { workspace = true }
+serde = { workspace = true }
+either = "1.15.0"
+
+[lints]
+workspace = true

@@ -1,5 +1,11 @@
 [workspace]
-members = ["crates/key_agent", "crates/core", "crates/cli"]
+members = [
+  "crates/key_agent",
+  "crates/core",
+  "crates/cli",
+  "crates/plan",
+  "crates/keys",
+]
 resolver = "2"
 package.edition = "2024"
 package.version = "1.1.1"
