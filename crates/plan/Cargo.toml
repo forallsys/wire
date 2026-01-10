@@ -7,6 +7,7 @@ version.workspace = true
 wire-core = { path = "../core" }
 wire-keys = { path = "../keys" }
 im = { workspace = true }
+tokio = { workspace = true }
 serde = { workspace = true }
 either = "1.15.0"
 

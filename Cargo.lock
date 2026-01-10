@@ -3253,6 +3253,7 @@ dependencies = [
  "either",
  "im",
  "serde",
+ "tokio",
  "wire-core",
  "wire-keys",
 ]
