@@ -6,10 +6,11 @@ version.workspace = true
 [dependencies]
 wire-core = { path = "../core" }
 wire-keys = { path = "../keys" }
+wire-execute = { path = "../execute" }
 im = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
-either = "1.15.0"
+enum_dispatch = { workspace = true }
 
 [lints]
 workspace = true

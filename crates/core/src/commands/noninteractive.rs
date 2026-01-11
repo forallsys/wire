@@ -2,9 +2,7 @@
 // Copyright 2024-2025 wire Contributors
 
 use std::{
-    collections::{HashMap, VecDeque},
-    process::ExitStatus,
-    sync::Arc,
+    collections::{HashMap, VecDeque}, hash::BuildHasher, process::ExitStatus, sync::Arc
 };
 
 use crate::{
@@ -22,7 +20,7 @@ use tokio::{
 };
 use tracing::{Instrument, debug, instrument, trace};
 
-pub(crate) struct NonInteractiveChildChip {
+pub struct NonInteractiveChildChip {
     error_collection: Arc<Mutex<VecDeque<String>>>,
     stdout_collection: Arc<Mutex<VecDeque<String>>>,
     child: Child,
@@ -32,9 +30,9 @@ pub(crate) struct NonInteractiveChildChip {
 }
 
 #[instrument(skip_all, name = "run", fields(elevated = %arguments.is_elevated()))]
-pub(crate) fn non_interactive_command_with_env<S: AsRef<str>>(
+pub(crate) fn non_interactive_command_with_env<S: AsRef<str>, B: BuildHasher>(
     arguments: &CommandArguments<S>,
-    envs: HashMap<String, String>,
+    envs: HashMap<String, String, B>,
 ) -> Result<NonInteractiveChildChip, HiveLibError> {
     let mut command = if let Some(target) = arguments.target {
         create_sync_ssh_command(target, arguments.modifiers)?

@@ -146,19 +146,21 @@ where
 
             let objective = make_objective(name, node);
 
-            let context = Context {
-                node,
-                name,
-                objective,
-                state: StepState::default(),
-                hive_location: location.clone(),
-                modifiers,
-                should_quit: should_shutdown.clone(),
-            };
+            todo!()
 
-            GoalExecutor::new(context)
-                .execute()
-                .map(move |result| (name, result))
+            // let context = Context {
+            //     node,
+            //     name,
+            //     objective,
+            //     state: StepState::default(),
+            //     hive_location: location.clone(),
+            //     modifiers,
+            //     should_quit: should_shutdown.clone(),
+            // };
+            //
+            // GoalExecutor::new(context)
+            //     .execute()
+            //     .map(move |result| (name, result))
         })
         .peekable();
 
@@ -166,36 +168,36 @@ where
         error!("There are no nodes selected for deployment");
     }
 
-    let futures = futures::stream::iter(set).buffer_unordered(args.parallel);
-    let result = futures.collect::<Vec<_>>().await;
-    let (successful, errors): (Vec<_>, Vec<_>) =
-        result
-            .into_iter()
-            .partition_map(|(name, result)| match result {
-                Ok(..) => Either::Left(name),
-                Err(err) => Either::Right((name, err)),
-            });
-
-    if !successful.is_empty() {
-        info!(
-            "Successfully applied goal to {} node(s): {:?}",
-            successful.len(),
-            successful
-        );
-    }
-
-    if !errors.is_empty() {
-        // clear the status bar if we are about to print error messages
-        STATUS.lock().clear(&mut stderr());
-
-        return Err(NodeErrors(
-            errors
-                .into_iter()
-                .map(|(name, error)| NodeError(name.clone(), error))
-                .collect(),
-        )
-        .into());
-    }
+    // let futures = futures::stream::iter(set).buffer_unordered(args.parallel);
+    // let result = futures.collect::<Vec<_>>().await;
+    // let (successful, errors): (Vec<_>, Vec<_>) =
+    //     result
+    //         .into_iter()
+    //         .partition_map(|(name, result)| match result {
+    //             Ok(..) => Either::Left(name),
+    //             Err(err) => Either::Right((name, err)),
+    //         });
+    //
+    // if !successful.is_empty() {
+    //     info!(
+    //         "Successfully applied goal to {} node(s): {:?}",
+    //         successful.len(),
+    //         successful
+    //     );
+    // }
+    //
+    // if !errors.is_empty() {
+    //     // clear the status bar if we are about to print error messages
+    //     STATUS.lock().clear(&mut stderr());
+    //
+    //     return Err(NodeErrors(
+    //         errors
+    //             .into_iter()
+    //             .map(|(name, error)| NodeError(name.clone(), error))
+    //             .collect(),
+    //     )
+    //     .into());
+    // }
 
     Ok(())
 }

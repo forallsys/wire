@@ -30,55 +30,22 @@ impl Display for PushBuildOutput {
 
 impl ExecuteStep for PushEvaluatedOutput {
     fn should_execute(&self, ctx: &Context) -> bool {
-        let Objective::Apply(apply_objective) = ctx.objective else {
-            return false;
-        };
-
-        !matches!(apply_objective.goal, Goal::Keys)
-            && !apply_objective.should_apply_locally
-            && (ctx.node.build_remotely | matches!(apply_objective.goal, Goal::Push))
+        todo!()
     }
 
     #[instrument(skip_all, name = "push_eval")]
     async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
-        let top_level = ctx.state.evaluation.as_ref().unwrap();
-
-        push(ctx, crate::hive::node::Push::Derivation(top_level)).await?;
-
-        Ok(())
+        todo!()
     }
 }
 
 impl ExecuteStep for PushBuildOutput {
     fn should_execute(&self, ctx: &Context) -> bool {
-        let Objective::Apply(apply_objective) = ctx.objective else {
-            return false;
-        };
-
-        if matches!(apply_objective.goal, Goal::Keys | Goal::Push) {
-            // skip if we are not building
-            return false;
-        }
-
-        if ctx.node.build_remotely {
-            // skip if we are building remotely
-            return false;
-        }
-
-        if apply_objective.should_apply_locally {
-            // skip step if we are applying locally
-            return false;
-        }
-
-        true
+        todo!()
     }
 
     #[instrument(skip_all, name = "push_build")]
     async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
-        let built_path = ctx.state.build.as_ref().unwrap();
-
-        push(ctx, crate::hive::node::Push::Path(built_path)).await?;
-
-        Ok(())
+        todo!()
     }
 }

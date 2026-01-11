@@ -2,7 +2,7 @@
 // Copyright 2024-2025 wire Contributors
 
 use crate::commands::pty::{InteractiveChildChip, interactive_command_with_env};
-use std::{collections::HashMap, str::from_utf8, sync::LazyLock};
+use std::{collections::HashMap, hash::BuildHasher, str::from_utf8, sync::{Arc, LazyLock}};
 
 use aho_corasick::AhoCorasick;
 use gjson::Value;
@@ -18,13 +18,13 @@ use crate::{
     hive::node::{Node, Target},
 };
 
-pub(crate) mod builder;
+pub mod builder;
 pub mod common;
 pub(crate) mod noninteractive;
 pub(crate) mod pty;
 
 #[derive(Copy, Clone, Debug)]
-pub(crate) enum ChildOutputMode {
+pub enum ChildOutputMode {
     Nix,
     Generic,
     Interactive,
@@ -37,7 +37,7 @@ pub enum Either<L, R> {
 }
 
 #[derive(Debug)]
-pub(crate) struct CommandArguments<'t, S: AsRef<str>> {
+pub struct CommandArguments<'t, S: AsRef<str>> {
     modifiers: SubCommandModifiers,
     target: Option<&'t Target>,
     output_mode: ChildOutputMode,
@@ -56,7 +56,7 @@ static AHO_CORASICK: LazyLock<AhoCorasick> = LazyLock::new(|| {
 });
 
 impl<'a, S: AsRef<str>> CommandArguments<'a, S> {
-    pub(crate) const fn new(command_string: S, modifiers: SubCommandModifiers) -> Self {
+    pub const fn new(command_string: S, modifiers: SubCommandModifiers) -> Self {
         Self {
             command_string,
             keep_stdin_open: false,
@@ -68,46 +68,52 @@ impl<'a, S: AsRef<str>> CommandArguments<'a, S> {
         }
     }
 
-    pub(crate) const fn execute_on_remote(mut self, target: Option<&'a Target>) -> Self {
+    #[must_use]
+    pub const fn execute_on_remote(mut self, target: Option<&'a Target>) -> Self {
         self.target = target;
         self
     }
 
-    pub(crate) const fn mode(mut self, mode: ChildOutputMode) -> Self {
+    #[must_use]
+    pub const fn mode(mut self, mode: ChildOutputMode) -> Self {
         self.output_mode = mode;
         self
     }
 
-    pub(crate) const fn keep_stdin_open(mut self) -> Self {
+    #[must_use]
+    pub const fn keep_stdin_open(mut self) -> Self {
         self.keep_stdin_open = true;
         self
     }
 
-    pub(crate) fn elevated(mut self, node: &Node) -> Self {
+    #[must_use]
+    pub fn privileged(mut self, escalation_command: &[Arc<str>]) -> Self {
         self.privilege_escalation_command =
-            Some(node.privilege_escalation_command.iter().join(" "));
+            Some(escalation_command.iter().join(" "));
         self
     }
 
-    pub(crate) const fn is_elevated(&self) -> bool {
+    #[must_use]
+    pub const fn is_elevated(&self) -> bool {
         self.privilege_escalation_command.is_some()
     }
 
-    pub(crate) const fn log_stdout(mut self) -> Self {
+    #[must_use]
+    pub const fn log_stdout(mut self) -> Self {
         self.log_stdout = true;
         self
     }
 }
 
-pub(crate) async fn run_command<S: AsRef<str>>(
+pub async fn run_command<S: AsRef<str>>(
     arguments: &CommandArguments<'_, S>,
 ) -> Result<Either<InteractiveChildChip, NonInteractiveChildChip>, HiveLibError> {
     run_command_with_env(arguments, HashMap::new()).await
 }
 
-pub(crate) async fn run_command_with_env<S: AsRef<str>>(
+pub async fn run_command_with_env<S: AsRef<str>, B: BuildHasher>(
     arguments: &CommandArguments<'_, S>,
-    envs: HashMap<String, String>,
+    envs: HashMap<String, String, B>,
 ) -> Result<Either<InteractiveChildChip, NonInteractiveChildChip>, HiveLibError> {
     // use the non interactive command runner when forced
     // ... or when there is no reason for interactivity, local and unprivileged
@@ -124,10 +130,12 @@ pub(crate) async fn run_command_with_env<S: AsRef<str>>(
     ))
 }
 
-pub(crate) trait WireCommandChip {
+pub trait WireCommandChip {
     type ExitStatus;
-
+    
+    #[allow(async_fn_in_trait)]
     async fn wait_till_success(self) -> Result<Self::ExitStatus, CommandError>;
+    #[allow(async_fn_in_trait)]
     async fn write_stdin(&mut self, data: Vec<u8>) -> Result<(), HiveLibError>;
 }
 

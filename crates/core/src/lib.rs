@@ -13,7 +13,11 @@ use std::{
 
 use tokio::sync::{AcquireError, Semaphore, SemaphorePermit};
 
-use crate::{errors::HiveLibError, hive::node::Name, status::STATUS};
+use crate::{
+    errors::HiveLibError,
+    hive::node::{Name, Target},
+    status::STATUS,
+};
 
 pub mod cache;
 pub mod commands;

@@ -25,65 +25,11 @@ impl Display for Build {
 
 impl ExecuteStep for Build {
     fn should_execute(&self, ctx: &Context) -> bool {
-        match ctx.objective {
-            Objective::Apply(apply_objective) => {
-                !matches!(apply_objective.goal, Goal::Keys | Goal::Push)
-            }
-            Objective::BuildLocally => true,
-        }
+        todo!()
     }
 
     #[instrument(skip_all, name = "build")]
     async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
-        let top_level = ctx.state.evaluation.as_ref().unwrap();
-
-        let mut command_string = CommandStringBuilder::nix();
-        command_string.args(&[
-            "--extra-experimental-features",
-            "nix-command",
-            "build",
-            "--print-build-logs",
-            "--no-link",
-            "--print-out-paths",
-        ]);
-        command_string.arg(top_level.to_string());
-
-        let status = run_command_with_env(
-            &CommandArguments::new(command_string, ctx.modifiers)
-                // build remotely if asked for AND we arent applying locally
-                .execute_on_remote(
-                    if ctx.node.build_remotely
-                        && let Objective::Apply(apply_objective) = ctx.objective
-                        && !apply_objective.should_apply_locally
-                    {
-                        Some(&ctx.node.target)
-                    } else {
-                        None
-                    },
-                )
-                .mode(crate::commands::ChildOutputMode::Nix)
-                .log_stdout(),
-            std::collections::HashMap::new(),
-        )
-        .await?
-        .wait_till_success()
-        .await
-        .map_err(|source| HiveLibError::NixBuildError {
-            name: ctx.name.clone(),
-            source,
-        })?;
-
-        let stdout = match status {
-            Either::Left((_, stdout)) | Either::Right((_, stdout)) => stdout,
-        };
-
-        info!("Built output: {stdout:?}");
-
-        // print built path to stdout
-        println!("{stdout}");
-
-        ctx.state.build = Some(stdout);
-
-        Ok(())
+        todo!()
     }
 }

@@ -5,10 +5,13 @@ version.workspace = true
 
 [dependencies]
 wire-core = { path = "../core" }
+wire-key-agent = { path = "../key_agent" }
 serde.workspace = true
 tokio.workspace = true
 im = { workspace = true }
+sha2 = { workspace = true }
 either = "1.15.0"
+secrecy.workspace = true
 
 [lints]
 workspace = true

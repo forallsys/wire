@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - yyyy-mm-dd
 
+### Changed
+
+- Internally refactor how nodes are "executed", split into two distinct
+  stages. "Planning" and "Executing". Previously, these two were intertwined and
+  difficult to maintain.
+- Now zeroizes the key data in memory when dropped.
+
 ### Fixed
 
 - Fix a bug where key permissions where being printed in decimal format instead

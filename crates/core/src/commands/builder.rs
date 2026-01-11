@@ -3,30 +3,30 @@
 
 use std::fmt;
 
-pub(crate) struct CommandStringBuilder {
+pub struct CommandStringBuilder {
     command: String,
 }
 
 impl CommandStringBuilder {
-    pub(crate) fn nix() -> Self {
+    pub fn nix() -> Self {
         Self {
             command: "nix".to_string(),
         }
     }
 
-    pub(crate) fn new<S: AsRef<str>>(s: S) -> Self {
+    pub fn new<S: AsRef<str>>(s: S) -> Self {
         Self {
             command: s.as_ref().trim().to_string(),
         }
     }
 
-    pub(crate) fn arg<S: AsRef<str>>(&mut self, argument: S) {
+    pub fn arg<S: AsRef<str>>(&mut self, argument: S) {
         let argument = argument.as_ref().trim();
         self.command.push(' ');
         self.command.push_str(argument);
     }
 
-    pub(crate) fn opt_arg<S: AsRef<str>>(&mut self, opt: bool, argument: S) {
+    pub fn opt_arg<S: AsRef<str>>(&mut self, opt: bool, argument: S) {
         if !opt {
             return;
         }
@@ -34,7 +34,7 @@ impl CommandStringBuilder {
         self.arg(argument);
     }
 
-    pub(crate) fn args<S: AsRef<str>>(&mut self, arguments: &[S]) {
+    pub fn args<S: AsRef<str>>(&mut self, arguments: &[S]) {
         for arg in arguments {
             self.arg(arg);
         }

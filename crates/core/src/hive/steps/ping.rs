@@ -21,38 +21,11 @@ impl Display for Ping {
 
 impl ExecuteStep for Ping {
     fn should_execute(&self, ctx: &Context) -> bool {
-        let Objective::Apply(apply_objective) = ctx.objective else {
-            return false;
-        };
-
-        !apply_objective.should_apply_locally
+        todo!()
     }
 
     #[instrument(skip_all, name = "ping")]
     async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
-        loop {
-            event!(
-                Level::INFO,
-                status = "attempting",
-                host = ctx.node.target.get_preferred_host()?.to_string()
-            );
-
-            if ctx.node.ping(ctx.modifiers).await.is_ok() {
-                event!(
-                    Level::INFO,
-                    status = "success",
-                    host = ctx.node.target.get_preferred_host()?.to_string()
-                );
-                return Ok(());
-            }
-
-            // ? will take us out if we ran out of hosts
-            event!(
-                Level::WARN,
-                status = "failed to ping",
-                host = ctx.node.target.get_preferred_host()?.to_string()
-            );
-            ctx.node.target.host_failed();
-        }
+        todo!()
     }
 }

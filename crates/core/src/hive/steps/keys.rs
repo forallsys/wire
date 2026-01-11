@@ -207,14 +207,14 @@ impl<F> SimpleLengthDelimWriter<F>
 where
     F: AsyncFnMut(Vec<u8>) -> Result<(), HiveLibError>,
 {
-    fn new(write_fn: F) -> Self {
+    pub fn new(write_fn: F) -> Self {
         Self {
             codec: LengthDelimitedCodec::new(),
             write_fn,
         }
     }
 
-    async fn send(&mut self, data: prost::bytes::Bytes) -> Result<(), HiveLibError> {
+    pub async fn send(&mut self, data: prost::bytes::Bytes) -> Result<(), HiveLibError> {
         let mut buffer = BytesMut::new();
         tokio_util::codec::Encoder::encode(&mut self.codec, data, &mut buffer)
             .map_err(HiveLibError::Encoding)?;
@@ -226,148 +226,45 @@ where
 
 impl ExecuteStep for Keys {
     fn should_execute(&self, ctx: &Context) -> bool {
-        let Objective::Apply(apply_objective) = ctx.objective else {
-            return false;
-        };
-
-        if apply_objective.no_keys {
-            return false;
-        }
-
-        // should execute if no filter, and the goal is keys.
-        // otherwise, only execute if the goal is switch and non-nofilter
-        matches!(
-            (&self.filter, &apply_objective.goal),
-            (UploadKeyAt::NoFilter, Goal::Keys)
-                | (
-                    UploadKeyAt::PreActivation | UploadKeyAt::PostActivation,
-                    Goal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch)
-                )
-        )
+        todo!()
     }
 
     #[instrument(skip_all, name = "keys")]
     async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
-        let agent_directory = ctx.state.key_agent_directory.as_ref().unwrap();
-
-        let mut keys = self.select_keys(&ctx.node.keys).await?;
-
-        if keys.peek().is_none() {
-            debug!("Had no keys to push, ending KeyStep early.");
-            return Ok(());
-        }
-
-        let command_string =
-            CommandStringBuilder::new(format!("{agent_directory}/bin/wire-key-agent"));
-
-        let Objective::Apply(apply_objective) = ctx.objective else {
-            unreachable!()
-        };
-
-        let mut child = run_command(
-            &CommandArguments::new(command_string, ctx.modifiers)
-                .execute_on_remote(if apply_objective.should_apply_locally {
-                    None
-                } else {
-                    Some(&ctx.node.target)
-                })
-                .elevated(ctx.node)
-                .keep_stdin_open()
-                .log_stdout(),
-        )
-        .await?;
-
-        let mut writer = SimpleLengthDelimWriter::new(async |data| child.write_stdin(data).await);
-
-        for (position, (mut spec, buf)) in keys.with_position() {
-            if matches!(position, Position::Last | Position::Only) {
-                spec.last = true;
-            }
-
-            debug!("Writing spec & buf for {:?}", spec);
-
-            writer
-                .send(BASE64_STANDARD.encode(spec.encode_to_vec()).into())
-                .await?;
-            writer.send(BASE64_STANDARD.encode(buf).into()).await?;
-        }
-
-        let status = child
-            .wait_till_success()
-            .await
-            .map_err(HiveLibError::CommandError)?;
-
-        debug!("status: {status:?}");
-
-        Ok(())
-    }
-}
-
-impl Keys {
-    async fn select_keys(
-        &self,
-        keys: &Vector<Key>,
-    ) -> Result<Peekable<IntoIter<(wire_key_agent::keys::KeySpec, std::vec::Vec<u8>)>>, HiveLibError>
-    {
-        let futures = keys
-            .iter()
-            .filter(|key| self.filter == UploadKeyAt::NoFilter || (key.upload_at == self.filter))
-            .map(|key| async move {
-                process_key(key)
-                    .await
-                    .map_err(|err| HiveLibError::KeyError(key.name.clone(), err))
-            });
-
-        Ok(join_all(futures)
-            .await
-            .into_iter()
-            .collect::<Result<Vec<_>, HiveLibError>>()?
-            .into_iter()
-            .peekable())
+        todo!()
     }
 }
 
 impl ExecuteStep for PushKeyAgent {
     fn should_execute(&self, ctx: &Context) -> bool {
-        let Objective::Apply(apply_objective) = ctx.objective else {
-            return false;
-        };
-
-        if apply_objective.no_keys {
-            return false;
-        }
-
-        matches!(
-            &apply_objective.goal,
-            Goal::Keys | Goal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch)
-        )
+        todo!()
     }
 
     #[instrument(skip_all, name = "push_agent")]
     async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
-        let arg_name = format!(
-            "WIRE_KEY_AGENT_{platform}",
-            platform = ctx.node.host_platform.replace('-', "_")
-        );
+        // let arg_name = format!(
+        //     "WIRE_KEY_AGENT_{platform}",
+        //     platform = ctx.node.host_platform.replace('-', "_")
+        // );
+        //
+        // let agent_directory = match env::var_os(&arg_name) {
+        //     Some(agent) => agent.into_string().unwrap(),
+        //     None => panic!(
+        //         "{arg_name} environment variable not set! \n
+        //         wire was not built with the ability to deploy keys to this platform. \n
+        //         Please create an issue: https://github.com/forallsys/wire/issues/new?template=bug_report.md"
+        //     ),
+        // };
 
-        let agent_directory = match env::var_os(&arg_name) {
-            Some(agent) => agent.into_string().unwrap(),
-            None => panic!(
-                "{arg_name} environment variable not set! \n
-                wire was not built with the ability to deploy keys to this platform. \n
-                Please create an issue: https://github.com/forallsys/wire/issues/new?template=bug_report.md"
-            ),
-        };
-
-        let Objective::Apply(apply_objective) = ctx.objective else {
-            unreachable!()
-        };
-
-        if !apply_objective.should_apply_locally {
-            push(ctx, Push::Path(&agent_directory)).await?;
-        }
-
-        ctx.state.key_agent_directory = Some(agent_directory);
+        // let Objective::Apply(apply_objective) = ctx.objective else {
+        //     unreachable!()
+        // };
+        //
+        // if !apply_objective.should_apply_locally {
+        //     push(ctx, Push::Path(&agent_directory)).await?;
+        // }
+        //
+        // ctx.state.key_agent_directory = Some(agent_directory);
 
         Ok(())
     }

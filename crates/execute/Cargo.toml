@@ -1,0 +1,19 @@
+[package]
+name = "wire-execute"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+wire-keys = { path = "../keys" }
+wire-core = { path = "../core" }
+wire-key-agent = { path = "../key_agent" }
+tracing.workspace = true
+prost.workspace = true
+itertools.workspace = true
+futures-util.workspace = true
+secrecy.workspace = true
+base64 = { workspace = true }
+enum_dispatch.workspace = true
+
+[lints]
+workspace = true

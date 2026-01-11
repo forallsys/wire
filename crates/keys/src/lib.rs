@@ -1,12 +1,14 @@
+use secrecy::{ExposeSecret, ExposeSecretMut, SecretSlice};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::{
-    collections::HashSet, io::Cursor, path::PathBuf, pin::Pin, process::Stdio, str::from_utf8,
-    sync::Arc,
+    collections::{HashMap, HashSet}, io::Cursor, path::PathBuf, pin::Pin, process::Stdio, str::from_utf8,
+    sync::{Arc, Weak},
 };
 use tokio::{
     fs::File,
     io::{AsyncRead, AsyncReadExt},
-    process::Command,
+    process::Command, sync::OnceCell,
 };
 use wire_core::{
     errors::KeyError,
@@ -29,33 +31,69 @@ pub struct Key {
     pub environment: im::HashMap<String, String>,
 }
 
-#[derive(Debug, Eq, PartialEq, Hash)]
-pub struct StoredKey {
-    pub key: Key,
-    data: Option<Vec<u8>>,
-}
+// /// what nodes hold in execution
+// #[derive(Debug)]
+// pub struct StoredKey {
+//     pub key: Key,
+//
+//     data: Arc<SecretSlice<u8>>,
+// }
+//
+// #[derive(Default)]
+// pub struct KeyStore {
+//     // keys: HashSet<Arc<Key>>,
+//     // keys: HashMap<Arc<Key>, Option<Arc<Vec<u8>>>>,
+//
+//     cache: DashMap<Key, Weak<OnceCell<SecretSlice<u8>>>>
+// }
 
-#[derive(Default)]
-pub struct KeyStore {
-    keys: HashSet<Arc<Key>>,
-}
+// impl KeyStore {
+//     #[must_use]
+//     pub fn new() -> Self {
+//         Self { cache: DashMap::new() }
+//     }
+//
+//     // pub fn insert(&mut self, key: Key) -> Arc<Key> {
+//     //     let key = Arc::new(key);
+//     //
+//     //     self.keys.entry(key.clone()).or_insert(None);
+//     //
+//     //     if self.keys.contains_key(&key) {
+//     //         return self.keys.get_key_value(&key).unwrap().0.clone()
+//     //     }
+//     //
+//     //     let value = Arc::new(key);
+//     //     self.keys.insert(value.clone(), None);
+//     //
+//     //     value
+//     // }
+//     //
+//     // pub async fn read(&mut self, key: Arc<Key>) -> Result<&Vec<u8>, KeyError> {
+//     //     if let Some(Some(value)) = self.keys.get(&key) {
+//     //         return Ok(value);
+//     //     }
+//     //
+//     //     let mut buf = Vec::new();
+//     //
+//     //     let mut reader = key.create_reader().await?;
+//     //
+//     //     reader
+//     //         .read_to_end(&mut buf)
+//     //         .await
+//     //         .expect("failed to read into buffer");
+//     //
+//     //     drop(reader);
+//     //
+//     //     self.keys.insert(key.clone(), Some(buf));
+//     //
+//     //     Ok(self.keys.get(&key).unwrap().as_ref().unwrap())
+//     //
+//     // }
+// }
 
-impl KeyStore {
-    pub fn insert(&mut self, key: Key) -> Arc<Key> {
-        if let Some(value) = self.keys.get(&key) {
-            return value.clone();
-        }
-
-        let value = Arc::new(key);
-        self.keys.insert(value.clone());
-
-        value
-    }
-}
-
-impl StoredKey {
+impl Key {
     async fn create_reader(&self) -> Result<Pin<Box<dyn AsyncRead + Send + '_>>, KeyError> {
-        match &self.key.source {
+        match &self.source {
             Source::Path(path) => Ok(Box::pin(File::open(path).await.map_err(KeyError::File)?)),
             Source::String(string) => Ok(Box::pin(Cursor::new(string))),
             Source::Command(args) => {
@@ -64,7 +102,7 @@ impl StoredKey {
                     .stdin(Stdio::null())
                     .stdout(Stdio::piped())
                     .stderr(Stdio::piped())
-                    .envs(self.key.environment.clone())
+                    .envs(self.environment.clone())
                     .spawn()
                     .map_err(|err| KeyError::CommandSpawnError {
                         error: err,
@@ -90,13 +128,13 @@ impl StoredKey {
         }
     }
 
-    async fn read(&mut self) -> Result<&Vec<u8>, KeyError> {
-        if let Some(ref value) = self.data {
-            return Ok(value);
-        }
+    fn get_u32_unix_mode(&self) -> Result<u32, KeyError> {
+        u32::from_str_radix(&self.permissions, 8).map_err(KeyError::ParseKeyPermissions)
+    }
 
+
+    pub async fn read(&self) -> Result<(wire_key_agent::keys::KeySpec, SecretSlice<u8>), KeyError> {
         let mut buf = Vec::new();
-
         let mut reader = self.create_reader().await?;
 
         reader
@@ -104,10 +142,24 @@ impl StoredKey {
             .await
             .expect("failed to read into buffer");
 
-        drop(reader);
+        let buf = SecretSlice::from(buf);
 
-        self.data = Some(buf);
+        let destination: PathBuf = [self.dest_dir.clone(), self.name.clone()].iter().collect();
 
-        Ok(self.data.as_ref().unwrap())
+        Ok((
+        wire_key_agent::keys::KeySpec {
+            length: buf
+                .expose_secret()
+                .len()
+                .try_into()
+                .expect("Failed to convert usize buf length to i32"),
+            user: self.user.clone(),
+            group: self.group.clone(),
+            unix_mode: self.get_u32_unix_mode()?,
+            destination: destination.into_os_string().into_string().unwrap(),
+            digest: Sha256::digest(&buf.expose_secret()).to_vec(),
+            last: false,
+        },
+            buf))
     }
 }

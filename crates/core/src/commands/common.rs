@@ -14,7 +14,7 @@ use crate::{
     errors::{CommandError, HiveInitialisationError, HiveLibError},
     hive::{
         HiveLocation,
-        node::{Context, Objective, Push},
+        node::{Context, Push, Target},
     },
 };
 
@@ -28,22 +28,20 @@ fn get_common_copy_path_help(error: &CommandError) -> Option<String> {
     }
 }
 
-pub async fn push(context: &Context<'_>, push: Push<'_>) -> Result<(), HiveLibError> {
+pub async fn push(context: &Context<'_>, target: &Target, push: Push<'_>, substitute_on_destination: bool) -> Result<(), HiveLibError> {
     let mut command_string = CommandStringBuilder::nix();
 
     command_string.args(&["--extra-experimental-features", "nix-command", "copy"]);
-    if let Objective::Apply(apply_objective) = context.objective {
-        command_string.opt_arg(
-            apply_objective.substitute_on_destination,
-            "--substitute-on-destination",
-        );
-    }
+    command_string.opt_arg(
+        substitute_on_destination,
+        "--substitute-on-destination",
+    );
     command_string.arg("--to");
     command_string.args(&[
         format!(
             "ssh://{user}@{host}",
-            user = context.node.target.user,
-            host = context.node.target.get_preferred_host()?,
+            user = target.user,
+            host = target.get_preferred_host()?,
         ),
         match push {
             Push::Derivation(drv) => format!("{drv} --derivation"),
@@ -56,10 +54,7 @@ pub async fn push(context: &Context<'_>, push: Push<'_>) -> Result<(), HiveLibEr
             .mode(crate::commands::ChildOutputMode::Nix),
         HashMap::from([(
             "NIX_SSHOPTS".into(),
-            context
-                .node
-                .target
-                .create_ssh_opts(context.modifiers, false)?,
+            target.create_ssh_opts(context.modifiers, false)?,
         )]),
     )
     .await?;

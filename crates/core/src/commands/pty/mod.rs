@@ -11,6 +11,7 @@ use nix::unistd::write as posix_write;
 use portable_pty::{CommandBuilder, NativePtySystem, PtyPair, PtySize};
 use rand::distr::Alphabetic;
 use std::collections::VecDeque;
+use std::hash::BuildHasher;
 use std::io::stderr;
 use std::sync::{LazyLock, Mutex};
 use std::{
@@ -45,7 +46,7 @@ const THREAD_QUIT_SIGNAL: &[u8; 1] = b"q";
 
 type Child = Box<dyn portable_pty::Child + Send + Sync>;
 
-pub(crate) struct InteractiveChildChip {
+pub struct InteractiveChildChip {
     child: Child,
 
     cancel_stdin_pipe_w: OwnedFd,
@@ -124,9 +125,9 @@ fn create_starting_segment<S: AsRef<str>>(
 }
 
 #[instrument(skip_all, name = "run-int", fields(elevated = %arguments.is_elevated(), mode = ?arguments.output_mode))]
-pub(crate) async fn interactive_command_with_env<S: AsRef<str>>(
+pub(crate) async fn interactive_command_with_env<S: AsRef<str>, B: BuildHasher>(
     arguments: &CommandArguments<'_, S>,
-    envs: std::collections::HashMap<String, String>,
+    envs: std::collections::HashMap<String, String, B>,
 ) -> Result<InteractiveChildChip, HiveLibError> {
     print_authenticate_warning(arguments)?;
 

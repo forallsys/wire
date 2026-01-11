@@ -24,7 +24,7 @@ enum-display-derive = "0.1.1"
 futures = "0.3.31"
 clap-num = "1.2.0"
 clap-markdown = "0.1.5"
-itertools = "0.14.0"
+itertools.workspace = true
 dhat = "0.3.2"
 clap_complete = { version = "4.5.60", features = ["unstable-dynamic"] }
 owo-colors = { workspace = true }
