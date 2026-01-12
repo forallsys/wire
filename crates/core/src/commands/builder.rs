@@ -8,6 +8,7 @@ pub struct CommandStringBuilder {
 }
 
 impl CommandStringBuilder {
+    #[must_use] 
     pub fn nix() -> Self {
         Self {
             command: "nix".to_string(),

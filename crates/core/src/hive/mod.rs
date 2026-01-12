@@ -29,7 +29,7 @@ pub mod steps;
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Hive {
-    pub nodes: HashMap<Name, Node>,
+    pub nodes: HashMap<Name, NodeRepr>,
 
     #[serde(deserialize_with = "check_schema_version", rename = "_schema")]
     pub schema: u32,

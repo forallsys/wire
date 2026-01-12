@@ -13,6 +13,7 @@ use wire_core::SubCommandModifiers;
 use wire_core::commands::common::get_hive_node_names;
 use wire_core::hive::node::{Goal as HiveGoal, HandleUnreachable, Name, SwitchToConfigurationGoal};
 use wire_core::hive::{Hive, get_hive_location};
+use wire_plan::ApplyGoal;
 
 use std::io::IsTerminal;
 use std::{
@@ -174,7 +175,7 @@ pub struct ApplyArgs {
     pub common: CommonVerbArgs,
 
     #[arg(value_enum, default_value_t)]
-    pub goal: Goal,
+    pub goal: CliApplyGoal,
 
     /// Skip key uploads. noop when [GOAL] = Keys
     #[arg(short, long, default_value_t = false)]
@@ -267,7 +268,7 @@ pub enum Inspection {
 }
 
 #[derive(Clone, Debug, Default, ValueEnum, Display)]
-pub enum Goal {
+pub enum CliApplyGoal {
     /// Make the configuration the boot default and activate now
     #[default]
     Switch,
@@ -285,26 +286,26 @@ pub enum Goal {
     DryActivate,
 }
 
-impl TryFrom<Goal> for HiveGoal {
+impl TryFrom<CliApplyGoal> for ApplyGoal {
     type Error = miette::Error;
 
-    fn try_from(value: Goal) -> Result<Self, Self::Error> {
+    fn try_from(value: CliApplyGoal) -> Result<Self, Self::Error> {
         match value {
-            Goal::Build => Ok(HiveGoal::Build),
-            Goal::Push => Ok(HiveGoal::Push),
-            Goal::Boot => Ok(HiveGoal::SwitchToConfiguration(
+            CliApplyGoal::Build => Ok(ApplyGoal::Build),
+            CliApplyGoal::Push => Ok(ApplyGoal::Push),
+            CliApplyGoal::Boot => Ok(ApplyGoal::SwitchToConfiguration(
                 SwitchToConfigurationGoal::Boot,
             )),
-            Goal::Switch => Ok(HiveGoal::SwitchToConfiguration(
+            CliApplyGoal::Switch => Ok(ApplyGoal::SwitchToConfiguration(
                 SwitchToConfigurationGoal::Switch,
             )),
-            Goal::Test => Ok(HiveGoal::SwitchToConfiguration(
+            CliApplyGoal::Test => Ok(ApplyGoal::SwitchToConfiguration(
                 SwitchToConfigurationGoal::Test,
             )),
-            Goal::DryActivate => Ok(HiveGoal::SwitchToConfiguration(
+            CliApplyGoal::DryActivate => Ok(ApplyGoal::SwitchToConfiguration(
                 SwitchToConfigurationGoal::DryActivate,
             )),
-            Goal::Keys => Ok(HiveGoal::Keys),
+            CliApplyGoal::Keys => Ok(ApplyGoal::Keys),
         }
     }
 }

@@ -1,14 +1,13 @@
-use secrecy::{ExposeSecret, ExposeSecretMut, SecretSlice};
+use secrecy::{ExposeSecret, SecretSlice};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::{
-    collections::{HashMap, HashSet}, io::Cursor, path::PathBuf, pin::Pin, process::Stdio, str::from_utf8,
-    sync::{Arc, Weak},
+    io::Cursor, path::PathBuf, pin::Pin, process::Stdio, str::from_utf8,
 };
 use tokio::{
     fs::File,
     io::{AsyncRead, AsyncReadExt},
-    process::Command, sync::OnceCell,
+    process::Command,
 };
 use wire_core::{
     errors::KeyError,
@@ -157,7 +156,7 @@ impl Key {
             group: self.group.clone(),
             unix_mode: self.get_u32_unix_mode()?,
             destination: destination.into_os_string().into_string().unwrap(),
-            digest: Sha256::digest(&buf.expose_secret()).to_vec(),
+            digest: Sha256::digest(buf.expose_secret()).to_vec(),
             last: false,
         },
             buf))

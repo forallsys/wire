@@ -1,37 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright 2024-2025 wire Contributors
 
-use base64::Engine;
-use base64::prelude::BASE64_STANDARD;
-use futures::future::join_all;
-use im::Vector;
-use itertools::{Itertools, Position};
 use owo_colors::OwoColorize;
-use prost::Message;
 use prost::bytes::BytesMut;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
-use std::env;
 use std::fmt::Display;
-use std::io::Cursor;
-use std::iter::Peekable;
 use std::path::PathBuf;
-use std::pin::Pin;
-use std::process::Stdio;
-use std::str::from_utf8;
-use std::vec::IntoIter;
-use tokio::io::AsyncReadExt as _;
-use tokio::process::Command;
-use tokio::{fs::File, io::AsyncRead};
 use tokio_util::codec::LengthDelimitedCodec;
-use tracing::{debug, instrument};
 
 use crate::HiveLibError;
-use crate::commands::builder::CommandStringBuilder;
-use crate::commands::common::push;
-use crate::commands::{CommandArguments, WireCommandChip, run_command};
 use crate::errors::KeyError;
-use crate::hive::node::{Context, ExecuteStep, Goal, Objective, Push, SwitchToConfigurationGoal};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Hash)]
 #[serde(tag = "t", content = "c")]
@@ -140,8 +118,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use im::Vector;
-
     // use crate::hive::steps::keys::{Key, Keys, UploadKeyAt, process_key};
     //
     // fn new_key(upload_at: &UploadKeyAt) -> Key {

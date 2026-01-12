@@ -5,20 +5,18 @@
 use enum_dispatch::enum_dispatch;
 use gethostname::gethostname;
 use serde::{Deserialize, Serialize};
-use std::assert_matches::debug_assert_matches;
 use std::fmt::Display;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use tokio::sync::oneshot;
-use tracing::{Instrument, Level, Span, debug, error, event, instrument, trace};
+use tracing::{debug, instrument};
 
 use crate::commands::builder::CommandStringBuilder;
 use crate::commands::common::evaluate_hive_attribute;
 use crate::commands::{CommandArguments, WireCommandChip, run_command};
 use crate::errors::NetworkError;
 use crate::hive::HiveLocation;
-use crate::hive::steps::keys::{Key, UploadKeyAt};
-use crate::status::STATUS;
+use crate::hive::steps::keys::Key;
 use crate::{EvalGoal, StrictHostKeyChecking, SubCommandModifiers};
 
 use super::HiveLibError;
@@ -289,13 +287,6 @@ pub enum Objective {
     BuildLocally,
 }
 
-#[enum_dispatch]
-pub(crate) trait ExecuteStep: Send + Sync + Display + std::fmt::Debug {
-    async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError>;
-
-    fn should_execute(&self, context: &Context) -> bool;
-}
-
 // may include other options such as FailAll in the future
 #[non_exhaustive]
 #[derive(Clone, Copy, Default)]
@@ -313,34 +304,34 @@ pub struct StepState {
     pub key_agent_directory: Option<String>,
 }
 
-pub struct Context<'a> {
-    pub name: &'a Name,
+pub struct Context {
+    pub name: Name,
     pub hive_location: Arc<HiveLocation>,
     pub modifiers: SubCommandModifiers,
     pub state: StepState,
     pub should_quit: Arc<AtomicBool>,
 }
 
-pub struct GoalExecutor<'a> {
+pub struct GoalExecutor {
     // steps: Vec<Step>,
-    context: Context<'a>,
+    context: Context,
 }
 
-/// returns Err if the application should shut down.
-fn app_shutdown_guard(context: &Context) -> Result<(), HiveLibError> {
-    if context
-        .should_quit
-        .load(std::sync::atomic::Ordering::Relaxed)
-    {
-        return Err(HiveLibError::Sigint);
-    }
+// /// returns Err if the application should shut down.
+// fn app_shutdown_guard(context: &Context) -> Result<(), HiveLibError> {
+//     if context
+//         .should_quit
+//         .load(std::sync::atomic::Ordering::Relaxed)
+//     {
+//         return Err(HiveLibError::Sigint);
+//     }
+//
+//     Ok(())
+// }
 
-    Ok(())
-}
-
-impl<'a> GoalExecutor<'a> {
+impl<'a> GoalExecutor {
     #[must_use]
-    pub fn new(context: Context<'a>) -> Self {
+    pub fn new(_context: Context) -> Self {
         todo!()
         // Self {
         //     steps: vec![
@@ -385,7 +376,7 @@ impl<'a> GoalExecutor<'a> {
     }
 
     #[instrument(skip_all, fields(node = %self.context.name))]
-    pub async fn execute(mut self) -> Result<(), HiveLibError> {
+    pub async fn execute(self) -> Result<(), HiveLibError> {
         todo!()
         // app_shutdown_guard(&self.context)?;
         //

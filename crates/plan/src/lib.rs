@@ -4,7 +4,7 @@ use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
 use wire_core::{
     SubCommandModifiers, hive::{
-        HiveLocation, node::{Context, Derivation, Name, StepState, SwitchToConfigurationGoal, Target}, steps::keys::UploadKeyAt
+        HiveLocation, node::{Context, Name, StepState, SwitchToConfigurationGoal, Target}, steps::keys::UploadKeyAt
     }
 };
 use wire_execute::{
@@ -37,7 +37,7 @@ pub struct NodeRepr {
         deserialize = "privilegeEscalationCommand",
         serialize = "privilege_escalation_command"
     ))]
-    pub privilege_escalation_command: im::Vector<Arc<str>>,
+    pub privilege_escalation_command: Vec<Arc<str>>,
 }
 
 pub struct Node {
@@ -47,16 +47,17 @@ pub struct Node {
     pub tags: im::HashSet<String>,
     pub keys: Vec<Arc<Key>>,
     pub host_platform: Arc<str>,
-    pub privilege_escalation_command: im::Vector<Arc<str>>,
+    pub privilege_escalation_command: Arc<Vec<Arc<str>>>,
 }
 
-enum ApplyGoal {
+pub enum ApplyGoal {
     SwitchToConfiguration(SwitchToConfigurationGoal),
     Push,
+    Build,
     Keys,
 }
 
-enum Goal {
+pub enum Goal {
     Apply {
         goal: ApplyGoal,
         should_apply_locally: bool,
@@ -80,13 +81,13 @@ enum Step {
     SwitchToConfiguration,
 }
 
-struct NodePlan<'a> {
-    context: Context<'a>,
+struct NodePlan {
+    context: Context,
     steps: Vec<Step>,
     node: Node,
 }
 
-fn create_plans<'a>(nodes: HashMap<Name, NodeRepr>, goal: &'_ Goal) -> Vec<NodePlan> {
+pub fn create_plans<'a>(nodes: HashMap<Name, NodeRepr>, goal: &'_ Goal, hive_location: Arc<HiveLocation>, modifiers: &SubCommandModifiers, should_quit: Arc<AtomicBool>) -> Vec<NodePlan> {
     // let mut key_store = KeyStore::default();
     let mut plans = Vec::new();
 
@@ -98,21 +99,22 @@ fn create_plans<'a>(nodes: HashMap<Name, NodeRepr>, goal: &'_ Goal) -> Vec<NodeP
         //     keys.push(key);
         // }
         
-        todo!()
-
-        // let plan = plan_for_node(
-        //     Node {
-        //         target: node.target,
-        //         build_remotely: node.build_remotely,
-        //         allow_local_deployment: node.allow_local_deployment,
-        //         tags: node.tags,
-        //         host_platform: node.host_platform,
-        //         privilege_escalation_command: node.privilege_escalation_command,
-        //         keys,
-        //     },
-        //     name,
-        //     goal,
-        // );
+        let plan = plan_for_node(
+            Node {
+                target: Arc::new(node.target),
+                build_remotely: node.build_remotely,
+                allow_local_deployment: node.allow_local_deployment,
+                tags: node.tags,
+                host_platform: node.host_platform,
+                privilege_escalation_command: Arc::new(node.privilege_escalation_command),
+                keys,
+            },
+            name,
+            goal,
+            hive_location.clone(),
+            modifiers,
+            should_quit.clone()
+        );
 
         // plans.push(plan);
     }
@@ -120,12 +122,12 @@ fn create_plans<'a>(nodes: HashMap<Name, NodeRepr>, goal: &'_ Goal) -> Vec<NodeP
     plans
 }
 
-fn plan_for_node<'a>(node: Node, name: Name, goal: &'_ Goal, hive_location: Arc<HiveLocation>, modifiers: SubCommandModifiers, should_quit: Arc<AtomicBool>) -> NodePlan {
+pub fn plan_for_node<'a>(node: Node, name: Name, goal: &'_ Goal, hive_location: Arc<HiveLocation>, modifiers: &SubCommandModifiers, should_quit: Arc<AtomicBool>) -> NodePlan {
     match goal {
         Goal::Build => NodePlan {
             context: Context {
                 state: StepState::default(),
-                modifiers,
+                modifiers: *modifiers,
                 name,
                 hive_location,
                 should_quit
@@ -160,8 +162,8 @@ fn plan_for_node<'a>(node: Node, name: Name, goal: &'_ Goal, hive_location: Arc<
                 if !*should_apply_locally {
                     steps.push(Step::PushKeyAgent(PushKeyAgent {
                         substitute_on_destination: *substitute_on_destination,
-                        host_platform,
-                        target: node.target
+                        host_platform: host_platform.clone(),
+                        target: node.target.clone()
                     }));
                 }
 
@@ -180,11 +182,11 @@ fn plan_for_node<'a>(node: Node, name: Name, goal: &'_ Goal, hive_location: Arc<
                     steps.push(Step::Keys(Keys {
                         keys: node.keys.clone(),
                         target: if  *should_apply_locally {
-                            Some(node.target)
+                            Some(node.target.clone())
                         } else {
                             None 
                         },
-                        privilege_escalation_command: node.privilege_escalation_command.into()
+                        privilege_escalation_command: node.privilege_escalation_command.clone()
                     }));
                 }
             }
@@ -197,14 +199,14 @@ fn plan_for_node<'a>(node: Node, name: Name, goal: &'_ Goal, hive_location: Arc<
             {
                 steps.push(Step::PushEvaluatedOutput(PushEvaluatedOutput {
                     substitute_on_destination: *substitute_on_destination,
-                    target: node.target
+                    target: node.target.clone()
                 }));
             }
 
             if !matches!(goal, ApplyGoal::Keys | ApplyGoal::Push) {
                 steps.push(Step::Build(Build {
                     target: if node.build_remotely && !*should_apply_locally  {
-                        Some(node.target)
+                        Some(node.target.clone())
                     } else { None }
                 }));
             }
@@ -215,7 +217,7 @@ fn plan_for_node<'a>(node: Node, name: Name, goal: &'_ Goal, hive_location: Arc<
             {
                 steps.push(Step::PushBuildOutput(PushBuildOutput {
                     substitute_on_destination: *substitute_on_destination,
-                    target: ctx.Target
+                    target: node.target.clone()
                 }));
             }
 
@@ -224,9 +226,9 @@ fn plan_for_node<'a>(node: Node, name: Name, goal: &'_ Goal, hive_location: Arc<
                     goal: *goal,
                     reboot: *reboot,
                     target: if *should_apply_locally {
-                        Some(node.target)
+                        Some(node.target.clone())
                     } else { None },
-                    privilege_escalation_command: node.privilege_escalation_command
+                    privilege_escalation_command: node.privilege_escalation_command.clone()
                 }));
             }
 
@@ -235,7 +237,7 @@ fn plan_for_node<'a>(node: Node, name: Name, goal: &'_ Goal, hive_location: Arc<
                     state: StepState::default(),
                     name,
                     hive_location,
-                    modifiers,
+                    modifiers: *modifiers,
                     should_quit
                 },
                 steps,

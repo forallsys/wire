@@ -13,11 +13,11 @@ use wire_core::hive::steps::keys::SimpleLengthDelimWriter;
 use wire_core::commands::{CommandArguments, Either, WireCommandChip, run_command, run_command_with_env};
 use wire_key_agent::keys::KeySpec;
 use std::{env, sync::Arc};
-use tracing::{Level, debug, event, info};
+use tracing::{debug, info};
 use wire_core::{
     commands::common::push,
     errors::HiveLibError,
-    hive::node::{Context, Push, SwitchToConfigurationGoal},
+    hive::node::{Context, Push},
 };
 use wire_keys::Key;
 
@@ -38,7 +38,7 @@ pub struct PushKeyAgent {
 pub struct Keys {
     pub keys: Vec<Arc<Key>>,
     pub target: Option<Arc<Target>>,
-    pub privilege_escalation_command: Vec<Arc<str>>
+    pub privilege_escalation_command: Arc<Vec<Arc<str>>>
 }
 pub struct Evaluate;
 pub struct PushEvaluatedOutput {
@@ -54,7 +54,7 @@ pub struct PushBuildOutput {
 }
 
 impl ExecuteStep for Ping {
-    async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
+    async fn execute(&self, _ctx: &mut Context) -> Result<(), HiveLibError> {
         loop {
             todo!()
             // event!(
@@ -84,7 +84,7 @@ impl ExecuteStep for Ping {
 }
 
 impl ExecuteStep for PushKeyAgent {
-    async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
+    async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
         let arg_name = format!(
             "WIRE_KEY_AGENT_{platform}",
             platform = self.host_platform.replace('-', "_")
@@ -127,7 +127,7 @@ impl Keys {
 }
 
 impl ExecuteStep for Keys {
-    async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
+    async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
         let agent_directory = ctx.state.key_agent_directory.as_ref().unwrap();
 
         let command_string =
@@ -171,7 +171,7 @@ impl ExecuteStep for Keys {
 }
 
 impl ExecuteStep for Evaluate {
-    async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
+    async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
         let rx = ctx.state.evaluation_rx.take().unwrap();
 
         ctx.state.evaluation = Some(rx.await.unwrap()?);
@@ -181,7 +181,7 @@ impl ExecuteStep for Evaluate {
 }
 
 impl ExecuteStep for PushEvaluatedOutput {
-    async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
+    async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
         let top_level = ctx.state.evaluation.as_ref().unwrap();
 
         push(ctx, &self.target, Push::Derivation(top_level), self.substitute_on_destination).await?;
@@ -191,7 +191,7 @@ impl ExecuteStep for PushEvaluatedOutput {
 }
 
 impl ExecuteStep for Build {
-    async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
+    async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
         let top_level = ctx.state.evaluation.as_ref().unwrap();
 
         let mut command_string = CommandStringBuilder::nix();
@@ -236,7 +236,7 @@ impl ExecuteStep for Build {
 }
 
 impl ExecuteStep for PushBuildOutput {
-    async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
+    async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
         let built_path = ctx.state.build.as_ref().unwrap();
 
         push(ctx, &self.target, Push::Path(built_path), self.substitute_on_destination).await?;

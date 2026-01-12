@@ -9,13 +9,13 @@ pub struct SwitchToConfiguration {
     pub goal: SwitchToConfigurationGoal,
     pub reboot: bool,
     pub target: Option<Arc<Target>>,
-    pub privilege_escalation_command: Vec<Arc<str>>
+    pub privilege_escalation_command: Arc<Vec<Arc<str>>>
 }
 
 impl SwitchToConfiguration {
     async fn set_profile(
         &self,
-        ctx: &Context<'_>,
+        ctx: &Context,
         built_path: &String,
     ) -> Result<(), HiveLibError> {
         info!("Setting profiles in anticipation for switch-to-configuration {}", self.goal);
@@ -42,7 +42,7 @@ impl SwitchToConfiguration {
         Ok(())
     }
 
-    async fn wait_for_ping(&self, ctx: &Context<'_>) -> Result<(), HiveLibError> {
+    async fn wait_for_ping(&self, _ctx: &Context) -> Result<(), HiveLibError> {
         todo!()
         // let host = ctx.node.target.get_preferred_host()?;
         // let mut result = ctx.node.ping(ctx.modifiers).await;
@@ -64,7 +64,7 @@ impl SwitchToConfiguration {
 }
 
 impl ExecuteStep for SwitchToConfiguration {
-    async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
+    async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
         let built_path = ctx.state.build.as_ref().unwrap();
 
         if matches!(
@@ -73,7 +73,7 @@ impl ExecuteStep for SwitchToConfiguration {
             // https://github.com/NixOS/nixpkgs/blob/a2c92aa34735a04010671e3378e2aa2d109b2a72/pkgs/by-name/ni/nixos-rebuild-ng/src/nixos_rebuild/services.py#L224
             SwitchToConfigurationGoal::Switch | SwitchToConfigurationGoal::Boot
         ) {
-            self.set_profile(&ctx, built_path).await?;
+            self.set_profile(ctx, built_path).await?;
         }
 
         info!("Running switch-to-configuration {}", self.goal);

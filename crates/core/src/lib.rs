@@ -15,7 +15,7 @@ use tokio::sync::{AcquireError, Semaphore, SemaphorePermit};
 
 use crate::{
     errors::HiveLibError,
-    hive::node::{Name, Target},
+    hive::node::Name,
     status::STATUS,
 };
 

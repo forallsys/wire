@@ -10,13 +10,14 @@ workspace = true
 dhat-heap = []
 
 [dependencies]
+wire-core = { path = "../core" }
+wire-plan = { path = "../plan" }
 clap = { workspace = true }
 clap-verbosity-flag = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-log = { workspace = true }
 tracing-subscriber = { workspace = true }
-wire-core = { path = "../core" }
 serde_json = { workspace = true }
 miette = { workspace = true }
 thiserror = { workspace = true }

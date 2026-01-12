@@ -3188,6 +3188,7 @@ dependencies = [
  "tracing-log",
  "tracing-subscriber",
  "wire-core",
+ "wire-plan",
 ]
 
 [[package]]

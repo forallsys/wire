@@ -2,16 +2,17 @@
 // Copyright 2024-2025 wire Contributors
 
 use futures::{FutureExt, StreamExt};
-use itertools::{Either, Itertools};
+use itertools::Itertools;
 use miette::{Diagnostic, IntoDiagnostic, Result};
+use wire_plan::{Goal, plan_for_node};
 use std::any::Any;
-use std::collections::HashSet;
-use std::io::{Read, stderr};
+use std::collections::{HashMap, HashSet};
+use std::io::Read;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use thiserror::Error;
 use tracing::{error, info};
-use wire_core::hive::node::{Context, GoalExecutor, Name, Node, Objective, StepState};
+use wire_core::hive::node::{Name, Node};
 use wire_core::hive::{Hive, HiveLocation};
 use wire_core::status::STATUS;
 use wire_core::{SubCommandModifiers, errors::HiveLibError};
@@ -96,7 +97,7 @@ where
 
 pub async fn apply<F>(
     hive: &mut Hive,
-    should_shutdown: Arc<AtomicBool>,
+    _should_shutdown: Arc<AtomicBool>,
     location: HiveLocation,
     args: CommonVerbArgs,
     partition: Partitions,
@@ -104,9 +105,9 @@ pub async fn apply<F>(
     mut modifiers: SubCommandModifiers,
 ) -> Result<()>
 where
-    F: Fn(&Name, &Node) -> Objective,
+    F: Fn(&Name, &Node) -> Goal,
 {
-    let location = Arc::new(location);
+    let _location = Arc::new(location);
 
     let (tags, names) = resolve_targets(&args.on, &mut modifiers);
 
@@ -137,34 +138,35 @@ where
         .lock()
         .add_many(&partitioned_names.iter().collect::<Vec<_>>());
 
-    let mut set = hive
+    let mut nodes: HashMap<_, _> = hive
         .nodes
         .iter_mut()
         .filter(|(name, _)| partitioned_names.contains(name))
         .map(|(name, node)| {
-            info!("Resolved {:?} to include {}", args.on, name);
-
-            let objective = make_objective(name, node);
-
-            todo!()
-
-            // let context = Context {
-            //     node,
-            //     name,
-            //     objective,
-            //     state: StepState::default(),
-            //     hive_location: location.clone(),
-            //     modifiers,
-            //     should_quit: should_shutdown.clone(),
-            // };
-            //
-            // GoalExecutor::new(context)
-            //     .execute()
-            //     .map(move |result| (name, result))
+            let plan = plan_for_node(
+                Node {
+                    target: Arc::new(node.target),
+                    build_remotely: node.build_remotely,
+                    allow_local_deployment: node.allow_local_deployment,
+                    tags: node.tags,
+                    host_platform: node.host_platform,
+                    privilege_escalation_command: Arc::new(node.privilege_escalation_command),
+                    keys,
+                },
+                name,
+                goal,
+                hive_location.clone(),
+                modifiers,
+                should_quit.clone()
+            );
         })
-        .peekable();
+        .collect();
+    
+    // let plans = wire_plan::create_plans(nodes, goal);
 
-    if set.peek().is_none() {
+    // let plan = nodes.inter
+
+    if nodes.peek().is_none() {
         error!("There are no nodes selected for deployment");
     }
 
