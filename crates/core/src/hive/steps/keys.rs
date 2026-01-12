@@ -112,92 +112,6 @@ fn get_u32_unix_mode(key: &Key) -> Result<u32, KeyError> {
     u32::from_str_radix(&key.permissions, 8).map_err(KeyError::ParseKeyPermissions)
 }
 
-async fn create_reader(key: &'_ Key) -> Result<Pin<Box<dyn AsyncRead + Send + '_>>, KeyError> {
-    match &key.source {
-        Source::Path(path) => Ok(Box::pin(File::open(path).await.map_err(KeyError::File)?)),
-        Source::String(string) => Ok(Box::pin(Cursor::new(string))),
-        Source::Command(args) => {
-            let output = Command::new(args.first().ok_or(KeyError::Empty)?)
-                .args(&args[1..])
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .envs(key.environment.clone())
-                .spawn()
-                .map_err(|err| KeyError::CommandSpawnError {
-                    error: err,
-                    command: args.join(" "),
-                    command_span: Some((0..args.first().unwrap().len()).into()),
-                })?
-                .wait_with_output()
-                .await
-                .map_err(|err| KeyError::CommandResolveError {
-                    error: err,
-                    command: args.join(" "),
-                })?;
-
-            if output.status.success() {
-                return Ok(Box::pin(Cursor::new(output.stdout)));
-            }
-
-            Err(KeyError::CommandError(
-                output.status,
-                from_utf8(&output.stderr).unwrap().to_string(),
-            ))
-        }
-    }
-}
-
-async fn process_key(key: &Key) -> Result<(wire_key_agent::keys::KeySpec, Vec<u8>), KeyError> {
-    let mut reader = create_reader(key).await?;
-
-    let mut buf = Vec::new();
-
-    reader
-        .read_to_end(&mut buf)
-        .await
-        .expect("failed to read into buffer");
-
-    let destination: PathBuf = [key.dest_dir.clone(), key.name.clone()].iter().collect();
-
-    debug!("Staging push to {}", destination.clone().display());
-
-    Ok((
-        wire_key_agent::keys::KeySpec {
-            length: buf
-                .len()
-                .try_into()
-                .expect("Failed to convert usize buf length to i32"),
-            user: key.user.clone(),
-            group: key.group.clone(),
-            unix_mode: get_u32_unix_mode(key)?,
-            destination: destination.into_os_string().into_string().unwrap(),
-            digest: Sha256::digest(&buf).to_vec(),
-            last: false,
-        },
-        buf,
-    ))
-}
-
-#[derive(Debug, PartialEq)]
-pub struct Keys {
-    pub filter: UploadKeyAt,
-}
-#[derive(Debug, PartialEq)]
-pub struct PushKeyAgent;
-
-impl Display for Keys {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Upload key @ {:?}", self.filter)
-    }
-}
-
-impl Display for PushKeyAgent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Push the key agent")
-    }
-}
-
 pub struct SimpleLengthDelimWriter<F> {
     codec: LengthDelimitedCodec,
     write_fn: F,
@@ -224,115 +138,69 @@ where
     }
 }
 
-impl ExecuteStep for Keys {
-    fn should_execute(&self, ctx: &Context) -> bool {
-        todo!()
-    }
-
-    #[instrument(skip_all, name = "keys")]
-    async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
-        todo!()
-    }
-}
-
-impl ExecuteStep for PushKeyAgent {
-    fn should_execute(&self, ctx: &Context) -> bool {
-        todo!()
-    }
-
-    #[instrument(skip_all, name = "push_agent")]
-    async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
-        // let arg_name = format!(
-        //     "WIRE_KEY_AGENT_{platform}",
-        //     platform = ctx.node.host_platform.replace('-', "_")
-        // );
-        //
-        // let agent_directory = match env::var_os(&arg_name) {
-        //     Some(agent) => agent.into_string().unwrap(),
-        //     None => panic!(
-        //         "{arg_name} environment variable not set! \n
-        //         wire was not built with the ability to deploy keys to this platform. \n
-        //         Please create an issue: https://github.com/forallsys/wire/issues/new?template=bug_report.md"
-        //     ),
-        // };
-
-        // let Objective::Apply(apply_objective) = ctx.objective else {
-        //     unreachable!()
-        // };
-        //
-        // if !apply_objective.should_apply_locally {
-        //     push(ctx, Push::Path(&agent_directory)).await?;
-        // }
-        //
-        // ctx.state.key_agent_directory = Some(agent_directory);
-
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use im::Vector;
 
-    use crate::hive::steps::keys::{Key, Keys, UploadKeyAt, process_key};
-
-    fn new_key(upload_at: &UploadKeyAt) -> Key {
-        Key {
-            upload_at: upload_at.clone(),
-            source: super::Source::String(match upload_at {
-                UploadKeyAt::PreActivation => "pre".into(),
-                UploadKeyAt::PostActivation => "post".into(),
-                UploadKeyAt::NoFilter => "none".into(),
-            }),
-            ..Default::default()
-        }
-    }
-
-    #[tokio::test]
-    async fn key_filtering() {
-        let keys = Vector::from(vec![
-            new_key(&UploadKeyAt::PreActivation),
-            new_key(&UploadKeyAt::PostActivation),
-            new_key(&UploadKeyAt::PreActivation),
-            new_key(&UploadKeyAt::PostActivation),
-        ]);
-
-        for (_, buf) in (Keys {
-            filter: crate::hive::steps::keys::UploadKeyAt::PreActivation,
-        })
-        .select_keys(&keys)
-        .await
-        .unwrap()
-        {
-            assert_eq!(String::from_utf8_lossy(&buf), "pre");
-        }
-
-        for (_, buf) in (Keys {
-            filter: crate::hive::steps::keys::UploadKeyAt::PostActivation,
-        })
-        .select_keys(&keys)
-        .await
-        .unwrap()
-        {
-            assert_eq!(String::from_utf8_lossy(&buf), "post");
-        }
-
-        // test that NoFilter processes all keys.
-        let processed_all =
-            futures::future::join_all(keys.iter().map(async |x| process_key(x).await))
-                .await
-                .iter()
-                .flatten()
-                .cloned()
-                .collect::<Vec<_>>();
-        let no_filter = (Keys {
-            filter: crate::hive::steps::keys::UploadKeyAt::NoFilter,
-        })
-        .select_keys(&keys)
-        .await
-        .unwrap()
-        .collect::<Vec<_>>();
-
-        assert_eq!(processed_all, no_filter);
-    }
+    // use crate::hive::steps::keys::{Key, Keys, UploadKeyAt, process_key};
+    //
+    // fn new_key(upload_at: &UploadKeyAt) -> Key {
+    //     Key {
+    //         upload_at: upload_at.clone(),
+    //         source: super::Source::String(match upload_at {
+    //             UploadKeyAt::PreActivation => "pre".into(),
+    //             UploadKeyAt::PostActivation => "post".into(),
+    //             UploadKeyAt::NoFilter => "none".into(),
+    //         }),
+    //         ..Default::default()
+    //     }
+    // }
+    //
+    // #[tokio::test]
+    // async fn key_filtering() {
+    //     let keys = Vector::from(vec![
+    //         new_key(&UploadKeyAt::PreActivation),
+    //         new_key(&UploadKeyAt::PostActivation),
+    //         new_key(&UploadKeyAt::PreActivation),
+    //         new_key(&UploadKeyAt::PostActivation),
+    //     ]);
+    //
+    //     for (_, buf) in (Keys {
+    //         filter: crate::hive::steps::keys::UploadKeyAt::PreActivation,
+    //     })
+    //     .select_keys(&keys)
+    //     .await
+    //     .unwrap()
+    //     {
+    //         assert_eq!(String::from_utf8_lossy(&buf), "pre");
+    //     }
+    //
+    //     for (_, buf) in (Keys {
+    //         filter: crate::hive::steps::keys::UploadKeyAt::PostActivation,
+    //     })
+    //     .select_keys(&keys)
+    //     .await
+    //     .unwrap()
+    //     {
+    //         assert_eq!(String::from_utf8_lossy(&buf), "post");
+    //     }
+    //
+    //     // test that NoFilter processes all keys.
+    //     let processed_all =
+    //         futures::future::join_all(keys.iter().map(async |x| process_key(x).await))
+    //             .await
+    //             .iter()
+    //             .flatten()
+    //             .cloned()
+    //             .collect::<Vec<_>>();
+    //     let no_filter = (Keys {
+    //         filter: crate::hive::steps::keys::UploadKeyAt::NoFilter,
+    //     })
+    //     .select_keys(&keys)
+    //     .await
+    //     .unwrap()
+    //     .collect::<Vec<_>>();
+    //
+    //     assert_eq!(processed_all, no_filter);
+    // }
 }

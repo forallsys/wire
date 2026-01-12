@@ -17,17 +17,11 @@ use crate::commands::common::evaluate_hive_attribute;
 use crate::commands::{CommandArguments, WireCommandChip, run_command};
 use crate::errors::NetworkError;
 use crate::hive::HiveLocation;
-use crate::hive::steps::build::Build;
-use crate::hive::steps::cleanup::CleanUp;
-use crate::hive::steps::evaluate::Evaluate;
-use crate::hive::steps::keys::{Key, Keys, PushKeyAgent, UploadKeyAt};
-use crate::hive::steps::ping::Ping;
-use crate::hive::steps::push::{PushBuildOutput, PushEvaluatedOutput};
+use crate::hive::steps::keys::{Key, UploadKeyAt};
 use crate::status::STATUS;
 use crate::{EvalGoal, StrictHostKeyChecking, SubCommandModifiers};
 
 use super::HiveLibError;
-use super::steps::activate::SwitchToConfiguration;
 
 #[derive(
     Serialize, Deserialize, Clone, Debug, Hash, Eq, PartialEq, PartialOrd, Ord, derive_more::Display,
@@ -101,31 +95,31 @@ impl Default for Target {
     }
 }
 
-#[cfg(test)]
-impl<'a> Context<'a> {
-    fn create_test_context(
-        hive_location: HiveLocation,
-        name: &'a Name,
-        node: &'a mut Node,
-    ) -> Self {
-        Context {
-            name,
-            node,
-            hive_location: Arc::new(hive_location),
-            modifiers: SubCommandModifiers::default(),
-            objective: Objective::Apply(ApplyObjective {
-                goal: Goal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch),
-                no_keys: false,
-                reboot: false,
-                should_apply_locally: false,
-                substitute_on_destination: false,
-                handle_unreachable: HandleUnreachable::default(),
-            }),
-            state: StepState::default(),
-            should_quit: Arc::new(AtomicBool::new(false)),
-        }
-    }
-}
+// #[cfg(test)]
+// impl<'a> Context<'a> {
+//     fn create_test_context(
+//         hive_location: HiveLocation,
+//         name: &'a Name,
+//         node: &'a mut Node,
+//     ) -> Self {
+//         Context {
+//             name,
+//             node,
+//             hive_location: Arc::new(hive_location),
+//             modifiers: SubCommandModifiers::default(),
+//             objective: Objective::Apply(ApplyObjective {
+//                 goal: Goal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch),
+//                 no_keys: false,
+//                 reboot: false,
+//                 should_apply_locally: false,
+//                 substitute_on_destination: false,
+//                 handle_unreachable: HandleUnreachable::default(),
+//             }),
+//             state: StepState::default(),
+//             should_quit: Arc::new(AtomicBool::new(false)),
+//         }
+//     }
+// }
 
 impl Target {
     pub fn get_preferred_host(&self) -> Result<&Arc<str>, HiveLibError> {
@@ -327,38 +321,8 @@ pub struct Context<'a> {
     pub should_quit: Arc<AtomicBool>,
 }
 
-#[enum_dispatch(ExecuteStep)]
-#[derive(Debug, PartialEq)]
-enum Step {
-    Ping,
-    PushKeyAgent,
-    Keys,
-    Evaluate,
-    PushEvaluatedOutput,
-    Build,
-    PushBuildOutput,
-    SwitchToConfiguration,
-    CleanUp,
-}
-
-impl Display for Step {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Ping(step) => step.fmt(f),
-            Self::PushKeyAgent(step) => step.fmt(f),
-            Self::Keys(step) => step.fmt(f),
-            Self::Evaluate(step) => step.fmt(f),
-            Self::PushEvaluatedOutput(step) => step.fmt(f),
-            Self::Build(step) => step.fmt(f),
-            Self::PushBuildOutput(step) => step.fmt(f),
-            Self::SwitchToConfiguration(step) => step.fmt(f),
-            Self::CleanUp(step) => step.fmt(f),
-        }
-    }
-}
-
 pub struct GoalExecutor<'a> {
-    steps: Vec<Step>,
+    // steps: Vec<Step>,
     context: Context<'a>,
 }
 
@@ -377,27 +341,28 @@ fn app_shutdown_guard(context: &Context) -> Result<(), HiveLibError> {
 impl<'a> GoalExecutor<'a> {
     #[must_use]
     pub fn new(context: Context<'a>) -> Self {
-        Self {
-            steps: vec![
-                Step::Ping(Ping),
-                Step::PushKeyAgent(PushKeyAgent),
-                Step::Keys(Keys {
-                    filter: UploadKeyAt::NoFilter,
-                }),
-                Step::Keys(Keys {
-                    filter: UploadKeyAt::PreActivation,
-                }),
-                Step::Evaluate(super::steps::evaluate::Evaluate),
-                Step::PushEvaluatedOutput(super::steps::push::PushEvaluatedOutput),
-                Step::Build(super::steps::build::Build),
-                Step::PushBuildOutput(super::steps::push::PushBuildOutput),
-                Step::SwitchToConfiguration(SwitchToConfiguration),
-                Step::Keys(Keys {
-                    filter: UploadKeyAt::PostActivation,
-                }),
-            ],
-            context,
-        }
+        todo!()
+        // Self {
+        //     steps: vec![
+        //         Step::Ping(Ping),
+        //         Step::PushKeyAgent(PushKeyAgent),
+        //         Step::Keys(Keys {
+        //             filter: UploadKeyAt::NoFilter,
+        //         }),
+        //         Step::Keys(Keys {
+        //             filter: UploadKeyAt::PreActivation,
+        //         }),
+        //         Step::Evaluate(super::steps::evaluate::Evaluate),
+        //         Step::PushEvaluatedOutput(super::steps::push::PushEvaluatedOutput),
+        //         Step::Build(super::steps::build::Build),
+        //         Step::PushBuildOutput(super::steps::push::PushBuildOutput),
+        //         Step::SwitchToConfiguration(SwitchToConfiguration),
+        //         Step::Keys(Keys {
+        //             filter: UploadKeyAt::PostActivation,
+        //         }),
+        //     ],
+        //     context,
+        // }
     }
 
     #[instrument(skip_all, name = "eval")]

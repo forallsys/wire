@@ -3,9 +3,8 @@ use std::{collections::HashMap, sync::{Arc, atomic::AtomicBool}};
 use enum_dispatch::enum_dispatch;
 use serde::{Deserialize, Serialize};
 use wire_core::{
-    Context, SubCommandModifiers, hive::{
-        node::{Context, Derivation, Name, StepState, SwitchToConfigurationGoal, Target},
-        steps::keys::UploadKeyAt,
+    SubCommandModifiers, hive::{
+        HiveLocation, node::{Context, Derivation, Name, StepState, SwitchToConfigurationGoal, Target}, steps::keys::UploadKeyAt
     }
 };
 use wire_execute::{
