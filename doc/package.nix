@@ -3,7 +3,6 @@
   nixosOptionsDoc,
   runCommand,
   wire-small-dev,
-  wire-diagnostics-md,
   nix,
   nodejs,
   pnpm,
@@ -56,7 +55,6 @@ stdenv.mkDerivation (finalAttrs: {
   };
   patchPhase = ''
     cat ${optionsDoc} >> ./reference/module.md
-    cat ${wire-diagnostics-md} >> ./reference/errors.md
     wire inspect --markdown-help > ./reference/cli.md
   '';
   buildPhase = "pnpm run build > build.log 2>&1";
