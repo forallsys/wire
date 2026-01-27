@@ -143,7 +143,6 @@ export default defineConfig({
             { text: "CLI", link: "/reference/cli" },
             { text: "Meta Options", link: "/reference/meta" },
             { text: "Module Options", link: "/reference/module" },
-            { text: "Error Codes", link: "/reference/errors" },
           ],
         },
       ],

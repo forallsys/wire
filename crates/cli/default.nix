@@ -86,13 +86,6 @@
         wire-small-perf = self'.packages.wire-small.overrideAttrs {
           paths = [ self'.packages.wire-unwrapped-perf ];
         };
-
-        wire-diagnostics-md = self'.packages.wire-unwrapped.overrideAttrs {
-          DIAGNOSTICS_MD_OUTPUT = "/build/source";
-          installPhase = ''
-            mv /build/source/DIAGNOSTICS.md $out
-          '';
-        };
       };
     };
 }

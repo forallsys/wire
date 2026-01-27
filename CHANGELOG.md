@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix a bug where key permissions where being printed in decimal format instead
   of octal.
 
+### Removed
+
+- Remove "Error Codes" documentation page & links.
+
 ## [v1.1.1] - 2025-01-05
 
 ### Fixed
