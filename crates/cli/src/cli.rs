@@ -15,6 +15,8 @@ use wire_core::hive::node::{Goal as HiveGoal, HandleUnreachable, Name, SwitchToC
 use wire_core::hive::{Hive, get_hive_location};
 
 use std::io::IsTerminal;
+#[cfg(debug_assertions)]
+use std::path::PathBuf;
 use std::{
     fmt::{self, Display, Formatter},
     sync::Arc,
@@ -58,6 +60,10 @@ pub struct Cli {
     #[cfg(debug_assertions)]
     #[arg(long, hide = true, global = true)]
     pub markdown_help: bool,
+
+    #[cfg(debug_assertions)]
+    #[arg(long, hide = true, global = true)]
+    pub roff: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug)]
