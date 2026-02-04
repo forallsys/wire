@@ -14,17 +14,26 @@
       agents = lib.strings.concatMapStrings (
         system: "--set WIRE_KEY_AGENT_${cleanSystem system} ${(getSystem system).packages.agent} "
       ) (import inputs.linux-systems);
+
+      options = pkgs.callPackage ../../doc/options.nix { };
+
+      cliManpage = pkgs.runCommand "cli-manpage" { } ''
+        mkdir $out
+
+        ${lib.getExe' self'.packages.wire-unwrapped-dev "wire"} apply --roff $out
+      '';
     in
     {
       packages = {
         default = self'.packages.wire;
-        wire-unwrapped = buildRustProgram {
+
+        wire-unwrapped-dev = buildRustProgram {
           name = "wire";
           pname = "wire";
           cargoExtraArgs = "-p wire";
           doCheck = true;
+          CARGO_PROFILE = "dev";
           nativeBuildInputs = [
-            pkgs.installShellFiles
             pkgs.sqlx-cli
           ];
           preBuild = ''
@@ -32,17 +41,37 @@
             sqlx database create
             sqlx migrate run --source ./crates/core/src/cache/migrations/
           '';
+        };
+
+        wire-unwrapped = self'.packages.wire-unwrapped-dev.overrideAttrs (old: {
+          CARGO_PROFILE = "release";
+          nativeBuildInputs = old.nativeBuildInputs ++ [
+            pkgs.installShellFiles
+            pkgs.ronn
+          ];
           postInstall = ''
             installShellCompletion --cmd wire \
                 --bash <(COMPLETE=bash $out/bin/wire) \
                 --fish <(COMPLETE=fish $out/bin/wire) \
                 --zsh <(COMPLETE=zsh $out/bin/wire)
-          '';
-        };
 
-        wire-unwrapped-dev = self'.packages.wire-unwrapped.overrideAttrs {
-          CARGO_PROFILE = "dev";
-        };
+            mkdir -p $out/share/man/man1/
+            mkdir -p $out/share/man/man5/
+
+            cp ${options} wire.5
+            cp ${cliManpage}/* $out/share/man/man1/
+
+            ronn -r \
+                --manual="Module Options" \
+                --name="wire" \
+                --section="5" \
+                --date="2026-01-1" \
+                -o $out/share/man/man5/ \
+                wire.5
+
+            rm wire.5
+          '';
+        });
 
         wire-unwrapped-perf = buildRustProgram {
           name = "wire";

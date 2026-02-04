@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - yyyy-mm-dd
 
+### Added
+
+- Manpages for `1` & `5`, including subcommands.
+
 ### Fixed
 
 - Fix a bug where key permissions where being printed in decimal format instead

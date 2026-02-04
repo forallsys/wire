@@ -65,6 +65,12 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
+    #[cfg(debug_assertions)]
+    if let Some(path) = args.roff {
+        clap_mangen::generate_to(Cli::command(), path).unwrap();
+        return Ok(());
+    }
+
     if !check_nix_available() {
         miette::bail!("Nix is not available on this system.");
     }

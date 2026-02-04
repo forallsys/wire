@@ -20,12 +20,11 @@ let
     };
   };
 
-  optionsMd =
-    (nixosOptionsDoc {
-      inherit (eval) options;
-    }).optionsCommonMark;
+  options = nixosOptionsDoc {
+    inherit (eval) options;
+  };
 in
 runCommand "options-doc.md" { } ''
-  cat ${optionsMd} > $out
+  cat ${options.optionsCommonMark} > $out
   sed -i -e '/\*Declared by:\*/,+1d' $out
 ''
