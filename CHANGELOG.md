@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fix a bug where key permissions where being printed in decimal format instead
   of octal.
+- `wire inspect names` without `--json` will now correctly output names as a
+  newline separated string instead of always as a json list.
 
 ### Removed
 
