@@ -25,6 +25,5 @@ let
   };
 in
 runCommand "options-doc.md" { } ''
-  cat ${options.optionsCommonMark} > $out
-  sed -i -e '/\*Declared by:\*/,+1d' $out
+  sed '/\*Declared by:\*/,+1d' ${options.optionsCommonMark} > $out
 ''
