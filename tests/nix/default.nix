@@ -49,7 +49,7 @@ in
             };
             testScript = mkOption {
               type = lines;
-              default = '''';
+              default = "";
               description = "test script for runNixOSTest";
               apply = stripTyping;
             };
