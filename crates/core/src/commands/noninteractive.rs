@@ -192,7 +192,7 @@ fn create_sync_ssh_command(
     modifiers: SubCommandModifiers,
 ) -> Result<Command, HiveLibError> {
     let mut command = Command::new("ssh");
-    command.args(target.create_ssh_args(modifiers, true, false)?);
+    command.args(target.create_ssh_args(modifiers, true)?);
     command.arg(target.get_preferred_host()?.to_string());
 
     Ok(command)

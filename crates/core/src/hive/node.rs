@@ -49,9 +49,8 @@ impl Target {
     pub fn create_ssh_opts(
         &self,
         modifiers: SubCommandModifiers,
-        master: bool,
     ) -> Result<String, HiveLibError> {
-        self.create_ssh_args(modifiers, false, master)
+        self.create_ssh_args(modifiers, false)
             .map(|x| x.join(" "))
     }
 
@@ -60,7 +59,6 @@ impl Target {
         &self,
         modifiers: SubCommandModifiers,
         non_interactive_forced: bool,
-        master: bool,
     ) -> Result<Vec<String>, HiveLibError> {
         let mut vector = vec![
             "-l".to_string(),
@@ -220,7 +218,7 @@ impl Node {
 
         let mut command_string = CommandStringBuilder::new("ssh");
         command_string.arg(format!("{}@{host}", self.target.user));
-        command_string.arg(self.target.create_ssh_opts(modifiers, true)?);
+        command_string.arg(self.target.create_ssh_opts(modifiers)?);
         command_string.arg("exit");
 
         let output = run_command(
@@ -858,18 +856,18 @@ mod tests {
 
         assert_eq!(
             target
-                .create_ssh_args(subcommand_modifiers, false, false)
+                .create_ssh_args(subcommand_modifiers, false)
                 .unwrap(),
             args
         );
         assert_eq!(
-            target.create_ssh_opts(subcommand_modifiers, false).unwrap(),
+            target.create_ssh_opts(subcommand_modifiers).unwrap(),
             args.join(" ")
         );
 
         assert_eq!(
             target
-                .create_ssh_args(subcommand_modifiers, false, true)
+                .create_ssh_args(subcommand_modifiers, false)
                 .unwrap(),
             [
                 "-l".to_string(),
@@ -887,7 +885,7 @@ mod tests {
 
         assert_eq!(
             target
-                .create_ssh_args(subcommand_modifiers, true, true)
+                .create_ssh_args(subcommand_modifiers, true)
                 .unwrap(),
             [
                 "-l".to_string(),
@@ -906,7 +904,7 @@ mod tests {
         // forced non interactive is the same as --non-interactive
         assert_eq!(
             target
-                .create_ssh_args(subcommand_modifiers, true, false)
+                .create_ssh_args(subcommand_modifiers, true)
                 .unwrap(),
             target
                 .create_ssh_args(
@@ -914,7 +912,6 @@ mod tests {
                         non_interactive: true,
                         ..Default::default()
                     },
-                    false,
                     false
                 )
                 .unwrap()
