@@ -56,10 +56,7 @@ pub async fn push(context: &Context<'_>, push: Push<'_>) -> Result<(), HiveLibEr
             .mode(crate::commands::ChildOutputMode::Nix),
         HashMap::from([(
             "NIX_SSHOPTS".into(),
-            context
-                .node
-                .target
-                .create_ssh_opts(context.modifiers)?,
+            context.node.target.create_ssh_opts(context.modifiers)?,
         )]),
     )
     .await?;

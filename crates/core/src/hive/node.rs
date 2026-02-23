@@ -46,12 +46,8 @@ pub struct Target {
 
 impl Target {
     #[instrument(ret(level = tracing::Level::DEBUG), skip_all)]
-    pub fn create_ssh_opts(
-        &self,
-        modifiers: SubCommandModifiers,
-    ) -> Result<String, HiveLibError> {
-        self.create_ssh_args(modifiers, false)
-            .map(|x| x.join(" "))
+    pub fn create_ssh_opts(&self, modifiers: SubCommandModifiers) -> Result<String, HiveLibError> {
+        self.create_ssh_args(modifiers, false).map(|x| x.join(" "))
     }
 
     #[instrument(ret(level = tracing::Level::DEBUG))]
@@ -855,9 +851,7 @@ mod tests {
         ];
 
         assert_eq!(
-            target
-                .create_ssh_args(subcommand_modifiers, false)
-                .unwrap(),
+            target.create_ssh_args(subcommand_modifiers, false).unwrap(),
             args
         );
         assert_eq!(
@@ -866,9 +860,7 @@ mod tests {
         );
 
         assert_eq!(
-            target
-                .create_ssh_args(subcommand_modifiers, false)
-                .unwrap(),
+            target.create_ssh_args(subcommand_modifiers, false).unwrap(),
             [
                 "-l".to_string(),
                 target.user.to_string(),
@@ -884,9 +876,7 @@ mod tests {
         );
 
         assert_eq!(
-            target
-                .create_ssh_args(subcommand_modifiers, true)
-                .unwrap(),
+            target.create_ssh_args(subcommand_modifiers, true).unwrap(),
             [
                 "-l".to_string(),
                 target.user.to_string(),
@@ -903,9 +893,7 @@ mod tests {
 
         // forced non interactive is the same as --non-interactive
         assert_eq!(
-            target
-                .create_ssh_args(subcommand_modifiers, true)
-                .unwrap(),
+            target.create_ssh_args(subcommand_modifiers, true).unwrap(),
             target
                 .create_ssh_args(
                     SubCommandModifiers {
