@@ -11,9 +11,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use thiserror::Error;
 use tracing::{error, info};
-use wire_core::hive::executor::execute_plan;
 use wire_core::hive::node::{Name, Node};
-use wire_core::hive::plan::{Goal, plan_for_node};
 use wire_core::hive::{Hive, HiveLocation};
 use wire_core::status::STATUS;
 use wire_core::{SubCommandModifiers, errors::HiveLibError};
@@ -154,7 +152,6 @@ where
                 &modifiers,
                 should_quit.clone(),
             );
-
             execute_plan(plan).map(move |result| (name, result))
         })
         .peekable();
