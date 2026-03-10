@@ -93,11 +93,7 @@ impl Default for Target {
 
 #[cfg(test)]
 impl Context {
-    fn create_test_context(
-        hive_location: HiveLocation,
-        name: &Name,
-        node: &mut Node,
-    ) -> Self {
+    fn create_test_context(hive_location: HiveLocation, name: &Name, node: &mut Node) -> Self {
         Context {
             name: name.clone(),
             hive_location: Arc::new(hive_location),

@@ -354,17 +354,20 @@ mod tests {
 
         let node = Node {
             target: node::Target::from_host("name"),
-            keys: vec![Key {
-                name: "different-than-a".into(),
-                dest_dir: "/run/keys/".into(),
-                path: "/run/keys/different-than-a".into(),
-                group: "root".into(),
-                user: "root".into(),
-                permissions: "0600".into(),
-                source: Source::String("hi".into()),
-                upload_at: UploadKeyAt::PreActivation,
-                environment: im::HashMap::new()
-            }.into()],
+            keys: vec![
+                Key {
+                    name: "different-than-a".into(),
+                    dest_dir: "/run/keys/".into(),
+                    path: "/run/keys/different-than-a".into(),
+                    group: "root".into(),
+                    user: "root".into(),
+                    permissions: "0600".into(),
+                    source: Source::String("hi".into()),
+                    upload_at: UploadKeyAt::PreActivation,
+                    environment: im::HashMap::new(),
+                }
+                .into(),
+            ],
             build_remotely: true,
             ..Default::default()
         };

@@ -47,7 +47,7 @@ async fn evaluate_task(
 }
 
 /// Iterates and executes the steps in the plan.
-/// Performs some optimizations such as greedly executing evaluation before
+/// Performs some optimisations such as greedily executing evaluation before
 /// other steps independent of evaluation's result.
 #[instrument(skip_all, fields(node = %plan.context.name))]
 pub async fn execute(mut plan: NodePlan) -> Result<(), HiveLibError> {
