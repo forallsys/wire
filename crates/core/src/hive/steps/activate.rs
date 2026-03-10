@@ -17,7 +17,7 @@ pub struct SwitchToConfiguration {
     pub goal: SwitchToConfigurationGoal,
     pub reboot: bool,
     pub target: Option<Target>,
-    pub privilege_escalation_command: Arc<Vec<Arc<str>>>
+    pub privilege_escalation_command: Arc<Vec<Arc<str>>>,
 }
 
 impl Display for SwitchToConfiguration {
@@ -48,12 +48,11 @@ async fn wait_for_ping(_ctx: &Context) -> Result<(), HiveLibError> {
 }
 
 impl SwitchToConfiguration {
-    async fn set_profile(
-        &self,
-        built_path: &String,
-        ctx: &Context,
-    ) -> Result<(), HiveLibError> {
-        info!("Setting profiles in anticipation for switch-to-configuration {}", self.goal);
+    async fn set_profile(&self, built_path: &String, ctx: &Context) -> Result<(), HiveLibError> {
+        info!(
+            "Setting profiles in anticipation for switch-to-configuration {}",
+            self.goal
+        );
 
         let mut command_string = CommandStringBuilder::new("nix-env");
         command_string.args(&["-p", "/nix/var/nix/profiles/system", "--set"]);
@@ -131,7 +130,7 @@ impl ExecuteStep for SwitchToConfiguration {
                 let reboot = run_command(
                     &CommandArguments::new("reboot now", ctx.modifiers)
                         .log_stdout()
-                        .execute_on_remote(Some(&target))
+                        .execute_on_remote(Some(target))
                         .privileged(&self.privilege_escalation_command),
                 )
                 .await?;
@@ -169,15 +168,27 @@ impl ExecuteStep for SwitchToConfiguration {
 
                 // Bail if the command couldn't of broken the system
                 // and don't try to regain connection to localhost
-                let Some(target) = self.target.as_ref().filter(|_| !matches!(self.goal, SwitchToConfigurationGoal::DryActivate)) else {
+                let Some(target) = self
+                    .target
+                    .as_ref()
+                    .filter(|_| !matches!(self.goal, SwitchToConfigurationGoal::DryActivate))
+                else {
                     return Err(HiveLibError::ActivationError(
-                        ActivationError::SwitchToConfigurationError(self.goal, ctx.name.clone(), error),
+                        ActivationError::SwitchToConfigurationError(
+                            self.goal,
+                            ctx.name.clone(),
+                            error,
+                        ),
                     ));
                 };
 
                 if wait_for_ping(ctx).await.is_ok() {
                     return Err(HiveLibError::ActivationError(
-                        ActivationError::SwitchToConfigurationError(self.goal, ctx.name.clone(), error),
+                        ActivationError::SwitchToConfigurationError(
+                            self.goal,
+                            ctx.name.clone(),
+                            error,
+                        ),
                     ));
                 }
 

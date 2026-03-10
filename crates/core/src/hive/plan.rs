@@ -1,12 +1,29 @@
 use std::sync::{Arc, atomic::AtomicBool};
 
-use crate::{SubCommandModifiers, hive::{HiveLocation, node::{ApplyGoal, Context, HandleUnreachable, Name, Node, Step, StepState, SwitchToConfigurationGoal}, steps::{activate::SwitchToConfiguration, build::Build, evaluate::Evaluate, keys::{Keys, PushKeyAgent, UploadKeyAt}, ping::Ping, push::{PushBuildOutput, PushEvaluatedOutput}}}};
+use crate::{
+    SubCommandModifiers,
+    hive::{
+        HiveLocation,
+        node::{
+            ApplyGoal, Context, HandleUnreachable, Name, Node, Step, StepState,
+            SwitchToConfigurationGoal,
+        },
+        steps::{
+            activate::SwitchToConfiguration,
+            build::Build,
+            evaluate::Evaluate,
+            keys::{Keys, PushKeyAgent, UploadKeyAt},
+            ping::Ping,
+            push::{PushBuildOutput, PushEvaluatedOutput},
+        },
+    },
+};
 
 pub struct NodePlan {
     pub context: Context,
     pub steps: Vec<Step>,
     pub greedy_evaluate: bool,
-    pub ignore_failed_ping: bool
+    pub ignore_failed_ping: bool,
 }
 
 pub enum Goal {
@@ -17,14 +34,21 @@ pub enum Goal {
         substitute_on_destination: bool,
         reboot: bool,
         host_platform: Arc<str>,
-        handle_unreachable: HandleUnreachable
+        handle_unreachable: HandleUnreachable,
     },
     Build,
 }
 
 // TODO: remove this allow
 #[allow(clippy::too_many_lines)]
-pub fn plan_for_node(node: &Node, name: Name, goal: &'_ Goal, hive_location: Arc<HiveLocation>, modifiers: &SubCommandModifiers, should_quit: Arc<AtomicBool>) -> NodePlan {
+pub fn plan_for_node(
+    node: &Node,
+    name: Name,
+    goal: &'_ Goal,
+    hive_location: Arc<HiveLocation>,
+    modifiers: &SubCommandModifiers,
+    should_quit: Arc<AtomicBool>,
+) -> NodePlan {
     match goal {
         Goal::Build => NodePlan {
             context: Context {
@@ -32,14 +56,14 @@ pub fn plan_for_node(node: &Node, name: Name, goal: &'_ Goal, hive_location: Arc
                 modifiers: *modifiers,
                 hive_location,
                 should_quit,
-                name
+                name,
             },
             steps: vec![
                 Step::Evaluate(Evaluate),
                 Step::Build(Build { target: None }),
             ],
             greedy_evaluate: true,
-            ignore_failed_ping: false
+            ignore_failed_ping: false,
         },
         Goal::Apply {
             goal,
@@ -48,12 +72,12 @@ pub fn plan_for_node(node: &Node, name: Name, goal: &'_ Goal, hive_location: Arc
             substitute_on_destination,
             reboot,
             host_platform,
-            handle_unreachable
+            handle_unreachable,
         } => {
             let mut steps: Vec<Step> = Vec::new();
 
             if !*should_apply_locally {
-                steps.push(Step::Ping(Ping { }));
+                steps.push(Step::Ping(Ping {}));
             }
 
             if !*no_keys
@@ -67,7 +91,7 @@ pub fn plan_for_node(node: &Node, name: Name, goal: &'_ Goal, hive_location: Arc
                     steps.push(Step::PushKeyAgent(PushKeyAgent {
                         substitute_on_destination: *substitute_on_destination,
                         host_platform: host_platform.clone(),
-                        target: node.target.clone()
+                        target: node.target.clone(),
                     }));
                 }
 
@@ -85,12 +109,12 @@ pub fn plan_for_node(node: &Node, name: Name, goal: &'_ Goal, hive_location: Arc
                 if !keys.is_empty() {
                     steps.push(Step::Keys(Keys {
                         keys: node.keys.clone(),
-                        target: if  *should_apply_locally {
+                        target: if *should_apply_locally {
                             Some(node.target.clone())
                         } else {
-                            None 
+                            None
                         },
-                        privilege_escalation_command: node.privilege_escalation_command.clone()
+                        privilege_escalation_command: node.privilege_escalation_command.clone(),
                     }));
                 }
             }
@@ -103,15 +127,17 @@ pub fn plan_for_node(node: &Node, name: Name, goal: &'_ Goal, hive_location: Arc
             {
                 steps.push(Step::PushEvaluatedOutput(PushEvaluatedOutput {
                     substitute_on_destination: *substitute_on_destination,
-                    target: node.target.clone()
+                    target: node.target.clone(),
                 }));
             }
 
             if !matches!(goal, ApplyGoal::Keys | ApplyGoal::Push) {
                 steps.push(Step::Build(Build {
-                    target: if node.build_remotely && !*should_apply_locally  {
+                    target: if node.build_remotely && !*should_apply_locally {
                         Some(node.target.clone())
-                    } else { None }
+                    } else {
+                        None
+                    },
                 }));
             }
 
@@ -121,7 +147,7 @@ pub fn plan_for_node(node: &Node, name: Name, goal: &'_ Goal, hive_location: Arc
             {
                 steps.push(Step::PushBuildOutput(PushBuildOutput {
                     substitute_on_destination: *substitute_on_destination,
-                    target: node.target.clone()
+                    target: node.target.clone(),
                 }));
             }
 
@@ -131,8 +157,10 @@ pub fn plan_for_node(node: &Node, name: Name, goal: &'_ Goal, hive_location: Arc
                     reboot: *reboot,
                     target: if *should_apply_locally {
                         Some(node.target.clone())
-                    } else { None },
-                    privilege_escalation_command: node.privilege_escalation_command.clone()
+                    } else {
+                        None
+                    },
+                    privilege_escalation_command: node.privilege_escalation_command.clone(),
                 }));
             }
 
@@ -142,14 +170,11 @@ pub fn plan_for_node(node: &Node, name: Name, goal: &'_ Goal, hive_location: Arc
                     name: name.clone(),
                     hive_location,
                     modifiers: *modifiers,
-                    should_quit
+                    should_quit,
                 },
                 steps,
-                greedy_evaluate: !matches!(
-                    &goal,
-                    ApplyGoal::Keys
-                ),
-                ignore_failed_ping: matches!(handle_unreachable, HandleUnreachable::Ignore)
+                greedy_evaluate: !matches!(&goal, ApplyGoal::Keys),
+                ignore_failed_ping: matches!(handle_unreachable, HandleUnreachable::Ignore),
             }
         }
     }

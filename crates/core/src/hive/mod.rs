@@ -23,10 +23,10 @@ use crate::commands::common::evaluate_hive_attribute;
 use crate::commands::{CommandArguments, Either, WireCommandChip, run_command};
 use crate::errors::{HiveInitialisationError, HiveLocationError};
 use crate::{EvalGoal, HiveLibError, SubCommandModifiers};
-pub mod node;
-pub mod steps;
-pub mod plan;
 pub mod executor;
+pub mod node;
+pub mod plan;
+pub mod steps;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]

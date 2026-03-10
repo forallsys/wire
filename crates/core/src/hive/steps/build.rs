@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright 2024-2025 wire Contributors
 
-use std::{fmt::Display};
+use std::fmt::Display;
 
 use tracing::{info, instrument};
 
 use crate::{
     HiveLibError,
     commands::{
-        CommandArguments, Either, WireCommandChip, builder::CommandStringBuilder, run_command_with_env
+        CommandArguments, Either, WireCommandChip, builder::CommandStringBuilder,
+        run_command_with_env,
     },
     hive::node::{Context, ExecuteStep, Target},
 };

@@ -2,7 +2,11 @@
 // Copyright 2024-2025 wire Contributors
 
 use crate::commands::pty::{InteractiveChildChip, interactive_command_with_env};
-use std::{collections::HashMap, str::from_utf8, sync::{Arc, LazyLock}};
+use std::{
+    collections::HashMap,
+    str::from_utf8,
+    sync::{Arc, LazyLock},
+};
 
 use aho_corasick::AhoCorasick;
 use gjson::Value;

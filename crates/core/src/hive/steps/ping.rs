@@ -23,7 +23,7 @@ impl Display for Ping {
 
 impl ExecuteStep for Ping {
     #[instrument(skip_all, name = "ping")]
-    async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
+    async fn execute(&self, _ctx: &mut Context) -> Result<(), HiveLibError> {
         loop {
             todo!()
             // event!(

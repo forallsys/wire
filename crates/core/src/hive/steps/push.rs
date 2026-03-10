@@ -39,7 +39,13 @@ impl ExecuteStep for PushEvaluatedOutput {
     async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
         let top_level = ctx.state.evaluation.as_ref().unwrap();
 
-        push(ctx, &self.target, crate::hive::node::Push::Derivation(top_level), self.substitute_on_destination).await?;
+        push(
+            ctx,
+            &self.target,
+            crate::hive::node::Push::Derivation(top_level),
+            self.substitute_on_destination,
+        )
+        .await?;
 
         Ok(())
     }
@@ -50,7 +56,13 @@ impl ExecuteStep for PushBuildOutput {
     async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
         let built_path = ctx.state.build.as_ref().unwrap();
 
-        push(ctx, &self.target, crate::hive::node::Push::Path(built_path), self.substitute_on_destination).await?;
+        push(
+            ctx,
+            &self.target,
+            crate::hive::node::Push::Path(built_path),
+            self.substitute_on_destination,
+        )
+        .await?;
 
         Ok(())
     }

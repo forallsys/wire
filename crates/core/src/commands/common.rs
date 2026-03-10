@@ -28,7 +28,12 @@ fn get_common_copy_path_help(error: &CommandError) -> Option<String> {
     }
 }
 
-pub async fn push(context: &Context, target: &Target, push: Push<'_>, substitute_on_destination: bool) -> Result<(), HiveLibError> {
+pub async fn push(
+    context: &Context,
+    target: &Target,
+    push: Push<'_>,
+    substitute_on_destination: bool,
+) -> Result<(), HiveLibError> {
     let mut command_string = CommandStringBuilder::nix();
 
     command_string.args(&["--extra-experimental-features", "nix-command", "copy"]);

@@ -4,8 +4,6 @@
 use futures::{FutureExt, StreamExt};
 use itertools::{Either, Itertools};
 use miette::{Diagnostic, IntoDiagnostic, Result};
-use wire_core::hive::executor::execute_plan;
-use wire_core::hive::plan::{Goal, plan_for_node};
 use std::any::Any;
 use std::collections::HashSet;
 use std::io::{Read, stderr};
@@ -13,6 +11,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use thiserror::Error;
 use tracing::{error, info};
+use wire_core::hive::executor::execute_plan;
 use wire_core::hive::node::{Name, Node};
 use wire_core::hive::plan::{Goal, plan_for_node};
 use wire_core::hive::{Hive, HiveLocation};
@@ -153,9 +152,9 @@ where
                 &goal,
                 location.clone(),
                 &modifiers,
-                should_quit.clone()
+                should_quit.clone(),
             );
-            
+
             execute_plan(plan).map(move |result| (name, result))
         })
         .peekable();

@@ -85,7 +85,8 @@ async fn main() -> Result<()> {
     match args.command {
         cli::Commands::Apply(apply_args) => {
             let mut hive = Hive::new_from_path(&location, cache.clone(), modifiers).await?;
-            let goal: wire_core::hive::node::ApplyGoal = apply_args.goal.clone().try_into().unwrap();
+            let goal: wire_core::hive::node::ApplyGoal =
+                apply_args.goal.clone().try_into().unwrap();
 
             // Respect user's --always-build-local arg
             hive.force_always_local(apply_args.always_build_local)?;
@@ -96,19 +97,17 @@ async fn main() -> Result<()> {
                 location,
                 apply_args.common,
                 Partitions::default(),
-                |name, node| {
-                    Goal::Apply {
-                        goal,
-                        no_keys: apply_args.no_keys,
-                        reboot: apply_args.reboot,
-                        substitute_on_destination: apply_args.substitute_on_destination,
-                        should_apply_locally: should_apply_locally(
-                            node.allow_local_deployment,
-                            &name.0,
-                        ),
-                        handle_unreachable: apply_args.handle_unreachable.clone().into(),
-                        host_platform: node.host_platform.clone()
-                    }
+                |name, node| Goal::Apply {
+                    goal,
+                    no_keys: apply_args.no_keys,
+                    reboot: apply_args.reboot,
+                    substitute_on_destination: apply_args.substitute_on_destination,
+                    should_apply_locally: should_apply_locally(
+                        node.allow_local_deployment,
+                        &name.0,
+                    ),
+                    handle_unreachable: apply_args.handle_unreachable.clone().into(),
+                    host_platform: node.host_platform.clone(),
                 },
                 modifiers,
             )

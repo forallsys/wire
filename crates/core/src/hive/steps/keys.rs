@@ -183,7 +183,7 @@ async fn process_key(key: &Key) -> Result<(wire_key_agent::keys::KeySpec, Vec<u8
 pub struct Keys {
     pub keys: Vec<Arc<Key>>,
     pub target: Option<Target>,
-    pub privilege_escalation_command: Arc<Vec<Arc<str>>>
+    pub privilege_escalation_command: Arc<Vec<Arc<str>>>,
 }
 #[derive(Debug, PartialEq)]
 pub struct PushKeyAgent {
@@ -287,13 +287,11 @@ impl Keys {
         keys: &Vec<Arc<Key>>,
     ) -> Result<Peekable<IntoIter<(wire_key_agent::keys::KeySpec, std::vec::Vec<u8>)>>, HiveLibError>
     {
-        let futures = keys
-            .iter()
-            .map(|key| async move {
-                process_key(key)
-                    .await
-                    .map_err(|err| HiveLibError::KeyError(key.name.clone(), err))
-            });
+        let futures = keys.iter().map(|key| async move {
+            process_key(key)
+                .await
+                .map_err(|err| HiveLibError::KeyError(key.name.clone(), err))
+        });
 
         Ok(join_all(futures)
             .await
@@ -321,7 +319,13 @@ impl ExecuteStep for PushKeyAgent {
             ),
         };
 
-        push(ctx, &self.target, Push::Path(&agent_directory), self.substitute_on_destination).await?;
+        push(
+            ctx,
+            &self.target,
+            Push::Path(&agent_directory),
+            self.substitute_on_destination,
+        )
+        .await?;
 
         ctx.state.key_agent_directory = Some(agent_directory);
 

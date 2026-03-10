@@ -3,7 +3,17 @@ use std::{assert_matches::debug_assert_matches, sync::Arc};
 
 use tracing::{Instrument, Span, debug, error, event, instrument};
 
-use crate::{EvalGoal, SubCommandModifiers, commands::common::evaluate_hive_attribute, errors::HiveLibError, hive::{HiveLocation, node::{Context, Derivation, ExecuteStep, Name}, plan::NodePlan}, status::STATUS};
+use crate::{
+    EvalGoal, SubCommandModifiers,
+    commands::common::evaluate_hive_attribute,
+    errors::HiveLibError,
+    hive::{
+        HiveLocation,
+        node::{Context, Derivation, ExecuteStep, Name},
+        plan::NodePlan,
+    },
+    status::STATUS,
+};
 
 /// returns Err if the application should shut down.
 fn app_shutdown_guard(context: &Context) -> Result<(), HiveLibError> {
@@ -25,12 +35,11 @@ async fn evaluate_task(
     name: Name,
     modifiers: SubCommandModifiers,
 ) {
-    let output =
-        evaluate_hive_attribute(&hive_location, &EvalGoal::GetTopLevel(&name), modifiers)
-            .await
-            .map(|output| {
-                serde_json::from_str::<Derivation>(&output).expect("failed to parse derivation")
-            });
+    let output = evaluate_hive_attribute(&hive_location, &EvalGoal::GetTopLevel(&name), modifiers)
+        .await
+        .map(|output| {
+            serde_json::from_str::<Derivation>(&output).expect("failed to parse derivation")
+        });
 
     debug!(output = ?output, done = true);
 
