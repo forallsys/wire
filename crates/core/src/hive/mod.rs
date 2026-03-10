@@ -188,14 +188,14 @@ impl Display for Hive {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct FlakePrefetch {
     pub(crate) hash: String,
     #[serde(rename = "storePath")]
     pub(crate) store_path: String,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HiveLocation {
     HiveNix(PathBuf),
     Flake {
@@ -354,7 +354,7 @@ mod tests {
 
         let node = Node {
             target: node::Target::from_host("name"),
-            keys: vector![Key {
+            keys: vec![Key {
                 name: "different-than-a".into(),
                 dest_dir: "/run/keys/".into(),
                 path: "/run/keys/different-than-a".into(),
@@ -364,7 +364,7 @@ mod tests {
                 source: Source::String("hi".into()),
                 upload_at: UploadKeyAt::PreActivation,
                 environment: im::HashMap::new()
-            }],
+            }.into()],
             build_remotely: true,
             ..Default::default()
         };

@@ -95,26 +95,16 @@ impl Default for Target {
 impl Context {
     fn create_test_context(
         hive_location: HiveLocation,
-        name: &'a Name,
-        node: &'a mut Node,
+        name: &Name,
+        node: &mut Node,
     ) -> Self {
-        todo!();
-        // Context {
-        //     name,
-        //     node,
-        //     hive_location: Arc::new(hive_location),
-        //     modifiers: SubCommandModifiers::default(),
-        //     objective: Objective::Apply(ApplyObjective {
-        //         goal: Goal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch),
-        //         no_keys: false,
-        //         reboot: false,
-        //         should_apply_locally: false,
-        //         substitute_on_destination: false,
-        //         handle_unreachable: HandleUnreachable::default(),
-        //     }),
-        //     state: StepState::default(),
-        //     should_quit: Arc::new(AtomicBool::new(false)),
-        // }
+        Context {
+            name: name.clone(),
+            hive_location: Arc::new(hive_location),
+            modifiers: SubCommandModifiers::default(),
+            state: StepState::default(),
+            should_quit: Arc::new(AtomicBool::new(false)),
+        }
     }
 }
 

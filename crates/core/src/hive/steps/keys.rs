@@ -284,7 +284,7 @@ impl ExecuteStep for Keys {
 impl Keys {
     async fn select_keys(
         &self,
-        keys: &Vec<Arc<Key>>,
+        keys: &[Arc<Key>],
     ) -> Result<Peekable<IntoIter<(wire_key_agent::keys::KeySpec, std::vec::Vec<u8>)>>, HiveLibError>
     {
         let futures = keys.iter().map(|key| async move {
