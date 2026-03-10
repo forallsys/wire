@@ -3,15 +3,17 @@
 
 use std::fmt::Display;
 
-use tracing::{Level, event, instrument};
+use tracing::instrument;
 
 use crate::{
     HiveLibError,
-    hive::node::{Context, ExecuteStep, Objective},
+    hive::node::{Context, ExecuteStep},
 };
 
 #[derive(Debug, PartialEq)]
-pub struct Ping;
+pub struct Ping {
+    // target: Target
+}
 
 impl Display for Ping {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -20,39 +22,32 @@ impl Display for Ping {
 }
 
 impl ExecuteStep for Ping {
-    fn should_execute(&self, ctx: &Context) -> bool {
-        let Objective::Apply(apply_objective) = ctx.objective else {
-            return false;
-        };
-
-        !apply_objective.should_apply_locally
-    }
-
     #[instrument(skip_all, name = "ping")]
-    async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
+    async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
         loop {
-            event!(
-                Level::INFO,
-                status = "attempting",
-                host = ctx.node.target.get_preferred_host()?.to_string()
-            );
+            todo!()
+            // event!(
+            //     Level::INFO,
+            //     status = "attempting",
+            //     host = self.target.get_preferred_host()?.to_string()
+            // );
 
-            if ctx.node.ping(ctx.modifiers).await.is_ok() {
-                event!(
-                    Level::INFO,
-                    status = "success",
-                    host = ctx.node.target.get_preferred_host()?.to_string()
-                );
-                return Ok(());
-            }
+            // if ctx.node.ping(ctx.modifiers).await.is_ok() {
+            //     event!(
+            //         Level::INFO,
+            //         status = "success",
+            //         host = self.target.get_preferred_host()?.to_string()
+            //     );
+            //     return Ok(());
+            // }
 
             // ? will take us out if we ran out of hosts
-            event!(
-                Level::WARN,
-                status = "failed to ping",
-                host = ctx.node.target.get_preferred_host()?.to_string()
-            );
-            ctx.node.target.host_failed();
+            // event!(
+            //     Level::WARN,
+            //     status = "failed to ping",
+            //     host = self.target.get_preferred_host()?.to_string()
+            // );
+            // self.target.host_failed();
         }
     }
 }

@@ -4,6 +4,8 @@
 use futures::{FutureExt, StreamExt};
 use itertools::{Either, Itertools};
 use miette::{Diagnostic, IntoDiagnostic, Result};
+use wire_core::hive::executor::execute_plan;
+use wire_core::hive::plan::{Goal, plan_for_node};
 use std::any::Any;
 use std::collections::HashSet;
 use std::io::{Read, stderr};
@@ -11,7 +13,8 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use thiserror::Error;
 use tracing::{error, info};
-use wire_core::hive::node::{Context, GoalExecutor, Name, Node, Objective, StepState};
+use wire_core::hive::node::{Name, Node};
+use wire_core::hive::plan::{Goal, plan_for_node};
 use wire_core::hive::{Hive, HiveLocation};
 use wire_core::status::STATUS;
 use wire_core::{SubCommandModifiers, errors::HiveLibError};
@@ -96,15 +99,15 @@ where
 
 pub async fn apply<F>(
     hive: &mut Hive,
-    should_shutdown: Arc<AtomicBool>,
+    should_quit: Arc<AtomicBool>,
     location: HiveLocation,
     args: CommonVerbArgs,
     partition: Partitions,
-    make_objective: F,
+    make_goal: F,
     mut modifiers: SubCommandModifiers,
 ) -> Result<()>
 where
-    F: Fn(&Name, &Node) -> Objective,
+    F: Fn(&Name, &Node) -> Goal,
 {
     let location = Arc::new(location);
 
@@ -142,23 +145,18 @@ where
         .iter_mut()
         .filter(|(name, _)| partitioned_names.contains(name))
         .map(|(name, node)| {
-            info!("Resolved {:?} to include {}", args.on, name);
+            let goal = make_goal(name, node);
 
-            let objective = make_objective(name, node);
-
-            let context = Context {
+            let plan = plan_for_node(
                 node,
-                name,
-                objective,
-                state: StepState::default(),
-                hive_location: location.clone(),
-                modifiers,
-                should_quit: should_shutdown.clone(),
-            };
-
-            GoalExecutor::new(context)
-                .execute()
-                .map(move |result| (name, result))
+                name.clone(),
+                &goal,
+                location.clone(),
+                &modifiers,
+                should_quit.clone()
+            );
+            
+            execute_plan(plan).map(move |result| (name, result))
         })
         .peekable();
 
@@ -168,6 +166,7 @@ where
 
     let futures = futures::stream::iter(set).buffer_unordered(args.parallel);
     let result = futures.collect::<Vec<_>>().await;
+
     let (successful, errors): (Vec<_>, Vec<_>) =
         result
             .into_iter()

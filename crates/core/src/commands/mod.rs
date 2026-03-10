@@ -2,7 +2,7 @@
 // Copyright 2024-2025 wire Contributors
 
 use crate::commands::pty::{InteractiveChildChip, interactive_command_with_env};
-use std::{collections::HashMap, str::from_utf8, sync::LazyLock};
+use std::{collections::HashMap, str::from_utf8, sync::{Arc, LazyLock}};
 
 use aho_corasick::AhoCorasick;
 use gjson::Value;
@@ -15,7 +15,7 @@ use crate::{
     SubCommandModifiers,
     commands::noninteractive::{NonInteractiveChildChip, non_interactive_command_with_env},
     errors::{CommandError, HiveLibError},
-    hive::node::{Node, Target},
+    hive::node::Target,
 };
 
 pub(crate) mod builder;
@@ -83,9 +83,8 @@ impl<'a, S: AsRef<str>> CommandArguments<'a, S> {
         self
     }
 
-    pub(crate) fn elevated(mut self, node: &Node) -> Self {
-        self.privilege_escalation_command =
-            Some(node.privilege_escalation_command.iter().join(" "));
+    pub(crate) fn privileged(mut self, escalation_command: &[Arc<str>]) -> Self {
+        self.privilege_escalation_command = Some(escalation_command.iter().join(" "));
         self
     }
 

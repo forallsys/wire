@@ -25,6 +25,8 @@ use crate::errors::{HiveInitialisationError, HiveLocationError};
 use crate::{EvalGoal, HiveLibError, SubCommandModifiers};
 pub mod node;
 pub mod steps;
+pub mod plan;
+pub mod executor;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(deny_unknown_fields)]
