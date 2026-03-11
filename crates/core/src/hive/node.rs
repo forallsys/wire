@@ -91,19 +91,6 @@ impl Default for Target {
     }
 }
 
-#[cfg(test)]
-impl Context {
-    fn create_test_context(hive_location: HiveLocation, name: &Name, node: &mut Node) -> Self {
-        Context {
-            name: name.clone(),
-            hive_location: Arc::new(hive_location),
-            modifiers: SubCommandModifiers::default(),
-            state: StepState::default(),
-            should_quit: Arc::new(AtomicBool::new(false)),
-        }
-    }
-}
-
 impl Target {
     pub fn get_preferred_host(&self) -> Result<&Arc<str>, HiveLibError> {
         self.hosts
