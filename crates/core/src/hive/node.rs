@@ -241,18 +241,6 @@ pub enum ApplyGoal {
     Keys,
 }
 
-// TODO: Get rid of this allow and resolve it
-#[allow(clippy::struct_excessive_bools)]
-#[derive(Clone, Copy)]
-pub struct ApplyObjective {
-    pub goal: ApplyGoal,
-    pub no_keys: bool,
-    pub reboot: bool,
-    pub should_apply_locally: bool,
-    pub substitute_on_destination: bool,
-    pub handle_unreachable: HandleUnreachable,
-}
-
 #[enum_dispatch]
 pub(crate) trait ExecuteStep: Send + Sync + Display + std::fmt::Debug {
     async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError>;
