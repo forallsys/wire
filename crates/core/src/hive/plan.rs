@@ -88,11 +88,13 @@ pub fn plan_for_node(
                         | ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch)
                 )
             {
-                steps.push(Step::PushKeyAgent(PushKeyAgent {
-                    substitute_on_destination: *substitute_on_destination,
-                    host_platform: host_platform.clone(),
-                    target: node.target.clone(),
-                }));
+                if !*should_apply_locally {
+                    steps.push(Step::PushKeyAgent(PushKeyAgent {
+                        substitute_on_destination: *substitute_on_destination,
+                        host_platform: host_platform.clone(),
+                        target: node.target.clone(),
+                    }));
+                }
 
                 let (pre_keys, post_keys) = match goal {
                     ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch) => node
@@ -108,9 +110,9 @@ pub fn plan_for_node(
                     steps.push(Step::Keys(Keys {
                         keys: pre_keys,
                         target: if *should_apply_locally {
-                            Some(node.target.clone())
-                        } else {
                             None
+                        } else {
+                            Some(node.target.clone())
                         },
                         privilege_escalation_command: node.privilege_escalation_command.clone(),
                     }));
@@ -120,9 +122,9 @@ pub fn plan_for_node(
                     end.push(Step::Keys(Keys {
                         keys: post_keys,
                         target: if *should_apply_locally {
-                            Some(node.target.clone())
-                        } else {
                             None
+                        } else {
+                            Some(node.target.clone())
                         },
                         privilege_escalation_command: node.privilege_escalation_command.clone(),
                     }));
@@ -198,13 +200,13 @@ mod tests {
     use crate::{
         SubCommandModifiers, function_name, get_test_path,
         hive::{
-            node::{ApplyGoal, HandleUnreachable, Name, Node},
+            node::{ApplyGoal, HandleUnreachable, Name, Node, Step},
             plan::{Goal, plan_for_node},
             steps::{
                 build::Build,
                 evaluate::Evaluate,
-                keys::{Keys, PushKeyAgent},
-                ping::Ping,
+                keys::{Key, Keys, PushKeyAgent, UploadKeyAt},
+                ping::Ping, push::PushBuildOutput,
             },
         },
         location,
@@ -335,26 +337,26 @@ mod tests {
 
     #[tokio::test]
     async fn order_keys_only() {
-        // let location = location!(get_test_path!());
-        // let mut node = Node::default();
-        // let name = &Name(function_name!().into());
-        // let mut context = Context::create_test_context(location, name, &mut node);
-        //
-        // let Objective::Apply(ref mut apply_objective) = context.objective else {
-        //     unreachable!()
-        // };
-        //
-        // apply_objective.goal = Goal::Keys;
-        //
-        // let executor = GoalExecutor::new(context);
-        // let steps = get_steps(executor);
-
         let location = location!(get_test_path!());
-        let node = Node::default();
+        let node = Node {
+            keys: vec![
+                Key {
+                    upload_at: UploadKeyAt::PreActivation,
+                    ..Default::default()
+                }
+                .into(),
+                Key {
+                    upload_at: UploadKeyAt::PostActivation,
+                    ..Default::default()
+                }
+                .into(),
+            ],
+            ..Default::default()
+        };
         let name = &Name(function_name!().into());
         let should_quit = Arc::new(AtomicBool::new(false));
-        let plan = plan_for_node(
-            &node,
+        let plan_apply_keys = plan_for_node(
+            &node.clone(),
             name.clone(),
             &Goal::Apply {
                 goal: ApplyGoal::Keys,
@@ -371,19 +373,75 @@ mod tests {
         );
 
         assert_eq!(
-            plan.steps,
+            plan_apply_keys.steps,
             vec![
                 Ping {}.into(),
                 PushKeyAgent {
                     substitute_on_destination: true,
                     target: node.target.clone(),
-                    host_platform: node.host_platform
+                    host_platform: node.host_platform.clone()
+                }
+                .into(),
+                Keys {
+                    target: Some(node.target.clone()),
+                    keys: node.keys.clone(),
+                    privilege_escalation_command: node.privilege_escalation_command.clone()
+                }
+                .into(),
+            ]
+        );
+
+        // Test that keys are split by their `upload_at`, also tests that key
+        // step's `target` abides by should_apply_locally
+        let plan_activate_with_keys = plan_for_node(
+            &node,
+            name.clone(),
+            &Goal::Apply {
+                goal: ApplyGoal::SwitchToConfiguration(
+                    crate::hive::node::SwitchToConfigurationGoal::Switch,
+                ),
+                should_apply_locally: true,
+                no_keys: false,
+                substitute_on_destination: true,
+                reboot: false,
+                host_platform: "x86_64-linux".into(),
+                handle_unreachable: HandleUnreachable::default(),
+            },
+            location.clone().into(),
+            &SubCommandModifiers::default(),
+            should_quit.clone(),
+        );
+
+        assert_eq!(
+            plan_activate_with_keys
+                .steps
+                .into_iter()
+                .filter(|x| matches!(
+                    x,
+                    Step::Keys(Keys { .. }) | Step::PushKeyAgent(PushKeyAgent { .. })
+                ))
+                .collect::<Vec<Step>>(),
+            vec![
+                Keys {
+                    target: None,
+                    keys: node
+                        .keys
+                        .iter()
+                        .filter(|key| matches!(key.upload_at, UploadKeyAt::PreActivation))
+                        .cloned()
+                        .collect::<Vec<_>>(),
+                    privilege_escalation_command: node.privilege_escalation_command.clone()
                 }
                 .into(),
                 Keys {
                     target: None,
-                    keys: node.keys,
-                    privilege_escalation_command: node.privilege_escalation_command
+                    keys: node
+                        .keys
+                        .iter()
+                        .filter(|key| matches!(key.upload_at, UploadKeyAt::PostActivation))
+                        .cloned()
+                        .collect::<Vec<_>>(),
+                    privilege_escalation_command: node.privilege_escalation_command.clone()
                 }
                 .into(),
             ]
