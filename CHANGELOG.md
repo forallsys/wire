@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The domain for documentation to be `wire.forall.systems`. The previous URL
   will continue to be available but may redirect in the future.
+- Refactored node execution to be in two distinct phases, "planning" and
+  "execution". Previously, picking what steps would be ran was done on the fly
+  during execution.
+- Cases where there is no keys to deploy, such as having 0 keys or --no-keys,
+  the "PushKeyAgent" step will not be planned when it previously would have.
 
 ### Fixed
 
