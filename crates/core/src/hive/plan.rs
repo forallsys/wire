@@ -591,33 +591,45 @@ mod tests {
         );
     }
 
-    // #[tokio::test]
-    // async fn order_should_apply_locally() {
-    //     let location = location!(get_test_path!());
-    //     let mut node = Node::default();
-    //
-    //     let name = &Name(function_name!().into());
-    //     let mut context = Context::create_test_context(location, name, &mut node);
-    //
-    //     let Objective::Apply(ref mut apply_objective) = context.objective else {
-    //         unreachable!()
-    //     };
-    //     apply_objective.no_keys = true;
-    //     apply_objective.should_apply_locally = true;
-    //
-    //     let executor = GoalExecutor::new(context);
-    //     let steps = get_steps(executor);
-    //
-    //     assert_eq!(
-    //         steps,
-    //         vec![
-    //             crate::hive::steps::evaluate::Evaluate.into(),
-    //             crate::hive::steps::build::Build.into(),
-    //             SwitchToConfiguration.into(),
-    //         ]
-    //     );
-    // }
-    //
+    #[tokio::test]
+    async fn order_should_apply_locally() {
+        let location = location!(get_test_path!());
+        let node = Node::default();
+        let name = &Name(function_name!().into());
+        let should_quit = Arc::new(AtomicBool::new(false));
+        let plan = plan_for_node(
+            &node.clone(),
+            name.clone(),
+            &Goal::Apply {
+                goal: ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch),
+                should_apply_locally: true,
+                no_keys: true,
+                substitute_on_destination: true,
+                reboot: false,
+                host_platform: "x86_64-linux".into(),
+                handle_unreachable: HandleUnreachable::default(),
+            },
+            location.clone().into(),
+            &SubCommandModifiers::default(),
+            should_quit.clone(),
+        );
+
+        assert_eq!(
+            plan.steps,
+            vec![
+                Evaluate.into(),
+                Build { target: None }.into(),
+                SwitchToConfiguration {
+                    goal: SwitchToConfigurationGoal::Switch,
+                    reboot: false,
+                    target: None,
+                    privilege_escalation_command: node.privilege_escalation_command,
+                }
+                .into(),
+            ]
+        );
+    }
+
     // #[tokio::test]
     // async fn order_build_only() {
     //     let location = location!(get_test_path!());
