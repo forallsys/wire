@@ -88,14 +88,6 @@ pub fn plan_for_node(
                         | ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch)
                 )
             {
-                if !*should_apply_locally {
-                    steps.push(Step::PushKeyAgent(PushKeyAgent {
-                        substitute_on_destination: *substitute_on_destination,
-                        host_platform: host_platform.clone(),
-                        target: node.target.clone(),
-                    }));
-                }
-
                 let (pre_keys, post_keys) = match goal {
                     ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch) => node
                         .keys
@@ -105,6 +97,15 @@ pub fn plan_for_node(
                     ApplyGoal::Keys => (node.keys.clone(), Vec::new()),
                     _ => unreachable!(),
                 };
+
+                // onyl push key agent if there are any keys at all
+                if !*should_apply_locally && (!pre_keys.is_empty() || !post_keys.is_empty()) {
+                    steps.push(Step::PushKeyAgent(PushKeyAgent {
+                        substitute_on_destination: *substitute_on_destination,
+                        host_platform: host_platform.clone(),
+                        target: node.target.clone(),
+                    }));
+                }
 
                 if !pre_keys.is_empty() {
                     steps.push(Step::Keys(Keys {
@@ -517,11 +518,6 @@ mod tests {
             plan.steps,
             vec![
                 Ping {}.into(),
-                PushKeyAgent {
-                    substitute_on_destination: true,
-                    host_platform: "x86_64-linux".into(),
-                    target: node.target.clone(),
-                }.into(),
                 Evaluate.into(),
                 PushEvaluatedOutput {
                     substitute_on_destination: true,
@@ -543,34 +539,58 @@ mod tests {
         );
     }
 
-    // #[tokio::test]
-    // async fn order_nokeys() {
-    //     let location = location!(get_test_path!());
-    //     let mut node = Node::default();
-    //
-    //     let name = &Name(function_name!().into());
-    //     let mut context = Context::create_test_context(location, name, &mut node);
-    //
-    //     let Objective::Apply(ref mut apply_objective) = context.objective else {
-    //         unreachable!()
-    //     };
-    //     apply_objective.no_keys = true;
-    //
-    //     let executor = GoalExecutor::new(context);
-    //     let steps = get_steps(executor);
-    //
-    //     assert_eq!(
-    //         steps,
-    //         vec![
-    //             Ping.into(),
-    //             crate::hive::steps::evaluate::Evaluate.into(),
-    //             crate::hive::steps::build::Build.into(),
-    //             crate::hive::steps::push::PushBuildOutput.into(),
-    //             SwitchToConfiguration.into(),
-    //         ]
-    //     );
-    // }
-    //
+    #[tokio::test]
+    async fn order_nokeys() {
+        let location = location!(get_test_path!());
+        let node = Node {
+            keys: vec![Key::default().into(), Key::default().into()],
+            build_remotely: true,
+            ..Default::default()
+        };
+        let name = &Name(function_name!().into());
+        let should_quit = Arc::new(AtomicBool::new(false));
+        let plan = plan_for_node(
+            &node.clone(),
+            name.clone(),
+            &Goal::Apply {
+                goal: ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch),
+                should_apply_locally: false,
+                no_keys: true,
+                substitute_on_destination: true,
+                reboot: false,
+                host_platform: "x86_64-linux".into(),
+                handle_unreachable: HandleUnreachable::default(),
+            },
+            location.clone().into(),
+            &SubCommandModifiers::default(),
+            should_quit.clone(),
+        );
+
+        assert_eq!(
+            plan.steps,
+            vec![
+                Ping {}.into(),
+                Evaluate.into(),
+                PushEvaluatedOutput {
+                    substitute_on_destination: true,
+                    target: node.target.clone()
+                }
+                .into(),
+                Build {
+                    target: Some(node.target.clone())
+                }
+                .into(),
+                SwitchToConfiguration {
+                    goal: SwitchToConfigurationGoal::Switch,
+                    reboot: false,
+                    target: Some(node.target.clone()),
+                    privilege_escalation_command: node.privilege_escalation_command,
+                }
+                .into(),
+            ]
+        );
+    }
+
     // #[tokio::test]
     // async fn order_should_apply_locally() {
     //     let location = location!(get_test_path!());
