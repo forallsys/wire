@@ -170,9 +170,9 @@ pub fn plan_for_node(
                     goal: *goal,
                     reboot: *reboot,
                     target: if *should_apply_locally {
-                        Some(node.target.clone())
-                    } else {
                         None
+                    } else {
+                        Some(node.target.clone())
                     },
                     privilege_escalation_command: node.privilege_escalation_command.clone(),
                 }));
@@ -200,13 +200,15 @@ mod tests {
     use crate::{
         SubCommandModifiers, function_name, get_test_path,
         hive::{
-            node::{ApplyGoal, HandleUnreachable, Name, Node, Step},
+            node::{ApplyGoal, HandleUnreachable, Name, Node, Step, SwitchToConfigurationGoal},
             plan::{Goal, plan_for_node},
             steps::{
+                activate::SwitchToConfiguration,
                 build::Build,
                 evaluate::Evaluate,
                 keys::{Key, Keys, PushKeyAgent, UploadKeyAt},
-                ping::Ping, push::PushBuildOutput,
+                ping::Ping,
+                push::{PushBuildOutput, PushEvaluatedOutput},
             },
         },
         location,
@@ -448,90 +450,99 @@ mod tests {
         );
     }
 
-    // #[tokio::test]
-    // async fn order_build() {
-    //     let location = location!(get_test_path!());
-    //     let mut node = Node::default();
-    //     let name = &Name(function_name!().into());
-    //     let mut context = Context::create_test_context(location, name, &mut node);
-    //
-    //     let Objective::Apply(ref mut apply_objective) = context.objective else {
-    //         unreachable!()
-    //     };
-    //     apply_objective.goal = Goal::Build;
-    //
-    //     let executor = GoalExecutor::new(context);
-    //     let steps = get_steps(executor);
-    //
-    //     assert_eq!(
-    //         steps,
-    //         vec![
-    //             Ping.into(),
-    //             crate::hive::steps::evaluate::Evaluate.into(),
-    //             crate::hive::steps::build::Build.into(),
-    //             crate::hive::steps::push::PushBuildOutput.into(),
-    //         ]
-    //     );
-    // }
-    //
-    // #[tokio::test]
-    // async fn order_push_only() {
-    //     let location = location!(get_test_path!());
-    //     let mut node = Node::default();
-    //     let name = &Name(function_name!().into());
-    //     let mut context = Context::create_test_context(location, name, &mut node);
-    //
-    //     let Objective::Apply(ref mut apply_objective) = context.objective else {
-    //         unreachable!()
-    //     };
-    //     apply_objective.goal = Goal::Push;
-    //
-    //     let executor = GoalExecutor::new(context);
-    //     let steps = get_steps(executor);
-    //
-    //     assert_eq!(
-    //         steps,
-    //         vec![
-    //             Ping.into(),
-    //             crate::hive::steps::evaluate::Evaluate.into(),
-    //             crate::hive::steps::push::PushEvaluatedOutput.into(),
-    //         ]
-    //     );
-    // }
-    //
-    // #[tokio::test]
-    // async fn order_remote_build() {
-    //     let location = location!(get_test_path!());
-    //     let mut node = Node {
-    //         build_remotely: true,
-    //         ..Default::default()
-    //     };
-    //
-    //     let name = &Name(function_name!().into());
-    //     let executor = GoalExecutor::new(Context::create_test_context(location, name, &mut node));
-    //     let steps = get_steps(executor);
-    //
-    //     assert_eq!(
-    //         steps,
-    //         vec![
-    //             Ping.into(),
-    //             PushKeyAgent.into(),
-    //             Keys {
-    //                 filter: UploadKeyAt::PreActivation
-    //             }
-    //             .into(),
-    //             crate::hive::steps::evaluate::Evaluate.into(),
-    //             crate::hive::steps::push::PushEvaluatedOutput.into(),
-    //             crate::hive::steps::build::Build.into(),
-    //             SwitchToConfiguration.into(),
-    //             Keys {
-    //                 filter: UploadKeyAt::PostActivation
-    //             }
-    //             .into(),
-    //         ]
-    //     );
-    // }
-    //
+    #[tokio::test]
+    async fn order_push_only() {
+        let location = location!(get_test_path!());
+        let node = Node::default();
+        let name = &Name(function_name!().into());
+        let should_quit = Arc::new(AtomicBool::new(false));
+        let plan = plan_for_node(
+            &node.clone(),
+            name.clone(),
+            &Goal::Apply {
+                goal: ApplyGoal::Push,
+                should_apply_locally: false,
+                no_keys: false,
+                substitute_on_destination: true,
+                reboot: false,
+                host_platform: "x86_64-linux".into(),
+                handle_unreachable: HandleUnreachable::default(),
+            },
+            location.clone().into(),
+            &SubCommandModifiers::default(),
+            should_quit.clone(),
+        );
+
+        assert_eq!(
+            plan.steps,
+            vec![
+                Ping {}.into(),
+                Evaluate.into(),
+                PushEvaluatedOutput {
+                    substitute_on_destination: true,
+                    target: node.target.clone()
+                }
+                .into()
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn order_remote_build() {
+        let location = location!(get_test_path!());
+        let node = Node {
+            build_remotely: true,
+            ..Default::default()
+        };
+        let name = &Name(function_name!().into());
+        let should_quit = Arc::new(AtomicBool::new(false));
+        let plan = plan_for_node(
+            &node.clone(),
+            name.clone(),
+            &Goal::Apply {
+                goal: ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch),
+                should_apply_locally: false,
+                no_keys: false,
+                substitute_on_destination: true,
+                reboot: false,
+                host_platform: "x86_64-linux".into(),
+                handle_unreachable: HandleUnreachable::default(),
+            },
+            location.clone().into(),
+            &SubCommandModifiers::default(),
+            should_quit.clone(),
+        );
+
+        assert_eq!(
+            plan.steps,
+            vec![
+                Ping {}.into(),
+                PushKeyAgent {
+                    substitute_on_destination: true,
+                    host_platform: "x86_64-linux".into(),
+                    target: node.target.clone(),
+                }.into(),
+                Evaluate.into(),
+                PushEvaluatedOutput {
+                    substitute_on_destination: true,
+                    target: node.target.clone()
+                }
+                .into(),
+                Build {
+                    target: Some(node.target.clone())
+                }
+                .into(),
+                SwitchToConfiguration {
+                    goal: SwitchToConfigurationGoal::Switch,
+                    reboot: false,
+                    target: Some(node.target.clone()),
+                    privilege_escalation_command: node.privilege_escalation_command,
+                }
+                .into(),
+            ]
+        );
+    }
+
     // #[tokio::test]
     // async fn order_nokeys() {
     //     let location = location!(get_test_path!());
