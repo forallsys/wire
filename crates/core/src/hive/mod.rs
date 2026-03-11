@@ -8,7 +8,6 @@ use owo_colors::{OwoColorize, Stream};
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
-use std::collections::hash_map::OccupiedEntry;
 use std::ffi::OsStr;
 use std::fmt::Display;
 use std::fs;
@@ -33,11 +32,6 @@ pub struct Hive {
 
     #[serde(deserialize_with = "check_schema_version", rename = "_schema")]
     pub schema: u32,
-}
-
-pub enum Action<'a> {
-    Inspect,
-    EvaluateNode(OccupiedEntry<'a, String, Node>),
 }
 
 fn check_schema_version<'de, D: Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
