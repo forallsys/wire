@@ -630,28 +630,6 @@ mod tests {
         );
     }
 
-    // #[tokio::test]
-    // async fn order_build_only() {
-    //     let location = location!(get_test_path!());
-    //     let mut node = Node::default();
-    //
-    //     let name = &Name(function_name!().into());
-    //     let mut context = Context::create_test_context(location, name, &mut node);
-    //
-    //     context.objective = Objective::BuildLocally;
-    //
-    //     let executor = GoalExecutor::new(context);
-    //     let steps = get_steps(executor);
-    //
-    //     assert_eq!(
-    //         steps,
-    //         vec![
-    //             crate::hive::steps::evaluate::Evaluate.into(),
-    //             crate::hive::steps::build::Build.into()
-    //         ]
-    //     );
-    // }
-    //
     // #[test]
     // fn target_fails_increments() {
     //     let mut target = Target::from_host("localhost");
@@ -696,91 +674,6 @@ mod tests {
     //             Err(HiveLibError::NetworkError(NetworkError::HostsExhausted))
     //         );
     //     }
-    // }
-    //
-    // #[test]
-    // fn test_ssh_opts() {
-    //     let target = Target::from_host("hello-world");
-    //     let subcommand_modifiers = SubCommandModifiers {
-    //         non_interactive: false,
-    //         ..Default::default()
-    //     };
-    //     let tmp = format!(
-    //         "/tmp/{}",
-    //         rand::distr::SampleString::sample_string(&Alphabetic, &mut rand::rng(), 10)
-    //     );
-    //
-    //     std::fs::create_dir(&tmp).unwrap();
-    //
-    //     unsafe { env::set_var("XDG_RUNTIME_DIR", &tmp) }
-    //
-    //     let args = [
-    //         "-l".to_string(),
-    //         target.user.to_string(),
-    //         "-p".to_string(),
-    //         target.port.to_string(),
-    //         "-o".to_string(),
-    //         "StrictHostKeyChecking=accept-new".to_string(),
-    //         "-o".to_string(),
-    //         "PasswordAuthentication=no".to_string(),
-    //         "-o".to_string(),
-    //         "KbdInteractiveAuthentication=no".to_string(),
-    //     ];
-    //
-    //     assert_eq!(
-    //         target.create_ssh_args(subcommand_modifiers, false).unwrap(),
-    //         args
-    //     );
-    //     assert_eq!(
-    //         target.create_ssh_opts(subcommand_modifiers).unwrap(),
-    //         args.join(" ")
-    //     );
-    //
-    //     assert_eq!(
-    //         target.create_ssh_args(subcommand_modifiers, false).unwrap(),
-    //         [
-    //             "-l".to_string(),
-    //             target.user.to_string(),
-    //             "-p".to_string(),
-    //             target.port.to_string(),
-    //             "-o".to_string(),
-    //             "StrictHostKeyChecking=accept-new".to_string(),
-    //             "-o".to_string(),
-    //             "PasswordAuthentication=no".to_string(),
-    //             "-o".to_string(),
-    //             "KbdInteractiveAuthentication=no".to_string(),
-    //         ]
-    //     );
-    //
-    //     assert_eq!(
-    //         target.create_ssh_args(subcommand_modifiers, true).unwrap(),
-    //         [
-    //             "-l".to_string(),
-    //             target.user.to_string(),
-    //             "-p".to_string(),
-    //             target.port.to_string(),
-    //             "-o".to_string(),
-    //             "StrictHostKeyChecking=accept-new".to_string(),
-    //             "-o".to_string(),
-    //             "PasswordAuthentication=no".to_string(),
-    //             "-o".to_string(),
-    //             "KbdInteractiveAuthentication=no".to_string(),
-    //         ]
-    //     );
-    //
-    //     // forced non interactive is the same as --non-interactive
-    //     assert_eq!(
-    //         target.create_ssh_args(subcommand_modifiers, true).unwrap(),
-    //         target
-    //             .create_ssh_args(
-    //                 SubCommandModifiers {
-    //                     non_interactive: true,
-    //                     ..Default::default()
-    //                 },
-    //                 false
-    //             )
-    //             .unwrap()
-    //     );
     // }
     //
     // #[tokio::test]

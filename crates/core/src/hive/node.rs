@@ -311,422 +311,95 @@ impl Display for Step {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use rand::distr::Alphabetic;
-//
-//     use super::*;
-//     use crate::{
-//         function_name, get_test_path,
-//         hive::{Hive, get_hive_location},
-//         location,
-//     };
-//     use std::{assert_matches::assert_matches, path::PathBuf};
-//     use std::{collections::HashMap, env};
-//
-//     fn get_steps(goal_executor: GoalExecutor) -> std::vec::Vec<Step> {
-//         goal_executor
-//             .steps
-//             .into_iter()
-//             .filter(|step| step.should_execute(&goal_executor.context))
-//             .collect::<Vec<_>>()
-//     }
-//
-//     #[tokio::test]
-//     #[cfg_attr(feature = "no_web_tests", ignore)]
-//     async fn default_values_match() {
-//         let mut path = get_test_path!();
-//
-//         let location =
-//             get_hive_location(path.display().to_string(), SubCommandModifiers::default())
-//                 .await
-//                 .unwrap();
-//         let hive = Hive::new_from_path(&location, None, SubCommandModifiers::default())
-//             .await
-//             .unwrap();
-//
-//         let node = Node::default();
-//
-//         let mut nodes = HashMap::new();
-//         nodes.insert(Name("NAME".into()), node);
-//
-//         path.push("hive.nix");
-//
-//         assert_eq!(
-//             hive,
-//             Hive {
-//                 nodes,
-//                 schema: Hive::SCHEMA_VERSION
-//             }
-//         );
-//     }
-//
-//     #[tokio::test]
-//     async fn order_build_locally() {
-//         let location = location!(get_test_path!());
-//         let mut node = Node {
-//             build_remotely: false,
-//             ..Default::default()
-//         };
-//         let name = &Name(function_name!().into());
-//         let executor = GoalExecutor::new(Context::create_test_context(location, name, &mut node));
-//         let steps = get_steps(executor);
-//
-//         assert_eq!(
-//             steps,
-//             vec![
-//                 Ping.into(),
-//                 PushKeyAgent.into(),
-//                 Keys {
-//                     filter: UploadKeyAt::PreActivation
-//                 }
-//                 .into(),
-//                 crate::hive::steps::evaluate::Evaluate.into(),
-//                 crate::hive::steps::build::Build.into(),
-//                 crate::hive::steps::push::PushBuildOutput.into(),
-//                 SwitchToConfiguration.into(),
-//                 Keys {
-//                     filter: UploadKeyAt::PostActivation
-//                 }
-//                 .into(),
-//             ]
-//         );
-//     }
-//
-//     #[tokio::test]
-//     async fn order_keys_only() {
-//         let location = location!(get_test_path!());
-//         let mut node = Node::default();
-//         let name = &Name(function_name!().into());
-//         let mut context = Context::create_test_context(location, name, &mut node);
-//
-//         let Objective::Apply(ref mut apply_objective) = context.objective else {
-//             unreachable!()
-//         };
-//
-//         apply_objective.goal = Goal::Keys;
-//
-//         let executor = GoalExecutor::new(context);
-//         let steps = get_steps(executor);
-//
-//         assert_eq!(
-//             steps,
-//             vec![
-//                 Ping.into(),
-//                 PushKeyAgent.into(),
-//                 Keys {
-//                     filter: UploadKeyAt::NoFilter
-//                 }
-//                 .into(),
-//             ]
-//         );
-//     }
-//
-//     #[tokio::test]
-//     async fn order_build() {
-//         let location = location!(get_test_path!());
-//         let mut node = Node::default();
-//         let name = &Name(function_name!().into());
-//         let mut context = Context::create_test_context(location, name, &mut node);
-//
-//         let Objective::Apply(ref mut apply_objective) = context.objective else {
-//             unreachable!()
-//         };
-//         apply_objective.goal = Goal::Build;
-//
-//         let executor = GoalExecutor::new(context);
-//         let steps = get_steps(executor);
-//
-//         assert_eq!(
-//             steps,
-//             vec![
-//                 Ping.into(),
-//                 crate::hive::steps::evaluate::Evaluate.into(),
-//                 crate::hive::steps::build::Build.into(),
-//                 crate::hive::steps::push::PushBuildOutput.into(),
-//             ]
-//         );
-//     }
-//
-//     #[tokio::test]
-//     async fn order_push_only() {
-//         let location = location!(get_test_path!());
-//         let mut node = Node::default();
-//         let name = &Name(function_name!().into());
-//         let mut context = Context::create_test_context(location, name, &mut node);
-//
-//         let Objective::Apply(ref mut apply_objective) = context.objective else {
-//             unreachable!()
-//         };
-//         apply_objective.goal = Goal::Push;
-//
-//         let executor = GoalExecutor::new(context);
-//         let steps = get_steps(executor);
-//
-//         assert_eq!(
-//             steps,
-//             vec![
-//                 Ping.into(),
-//                 crate::hive::steps::evaluate::Evaluate.into(),
-//                 crate::hive::steps::push::PushEvaluatedOutput.into(),
-//             ]
-//         );
-//     }
-//
-//     #[tokio::test]
-//     async fn order_remote_build() {
-//         let location = location!(get_test_path!());
-//         let mut node = Node {
-//             build_remotely: true,
-//             ..Default::default()
-//         };
-//
-//         let name = &Name(function_name!().into());
-//         let executor = GoalExecutor::new(Context::create_test_context(location, name, &mut node));
-//         let steps = get_steps(executor);
-//
-//         assert_eq!(
-//             steps,
-//             vec![
-//                 Ping.into(),
-//                 PushKeyAgent.into(),
-//                 Keys {
-//                     filter: UploadKeyAt::PreActivation
-//                 }
-//                 .into(),
-//                 crate::hive::steps::evaluate::Evaluate.into(),
-//                 crate::hive::steps::push::PushEvaluatedOutput.into(),
-//                 crate::hive::steps::build::Build.into(),
-//                 SwitchToConfiguration.into(),
-//                 Keys {
-//                     filter: UploadKeyAt::PostActivation
-//                 }
-//                 .into(),
-//             ]
-//         );
-//     }
-//
-//     #[tokio::test]
-//     async fn order_nokeys() {
-//         let location = location!(get_test_path!());
-//         let mut node = Node::default();
-//
-//         let name = &Name(function_name!().into());
-//         let mut context = Context::create_test_context(location, name, &mut node);
-//
-//         let Objective::Apply(ref mut apply_objective) = context.objective else {
-//             unreachable!()
-//         };
-//         apply_objective.no_keys = true;
-//
-//         let executor = GoalExecutor::new(context);
-//         let steps = get_steps(executor);
-//
-//         assert_eq!(
-//             steps,
-//             vec![
-//                 Ping.into(),
-//                 crate::hive::steps::evaluate::Evaluate.into(),
-//                 crate::hive::steps::build::Build.into(),
-//                 crate::hive::steps::push::PushBuildOutput.into(),
-//                 SwitchToConfiguration.into(),
-//             ]
-//         );
-//     }
-//
-//     #[tokio::test]
-//     async fn order_should_apply_locally() {
-//         let location = location!(get_test_path!());
-//         let mut node = Node::default();
-//
-//         let name = &Name(function_name!().into());
-//         let mut context = Context::create_test_context(location, name, &mut node);
-//
-//         let Objective::Apply(ref mut apply_objective) = context.objective else {
-//             unreachable!()
-//         };
-//         apply_objective.no_keys = true;
-//         apply_objective.should_apply_locally = true;
-//
-//         let executor = GoalExecutor::new(context);
-//         let steps = get_steps(executor);
-//
-//         assert_eq!(
-//             steps,
-//             vec![
-//                 crate::hive::steps::evaluate::Evaluate.into(),
-//                 crate::hive::steps::build::Build.into(),
-//                 SwitchToConfiguration.into(),
-//             ]
-//         );
-//     }
-//
-//     #[tokio::test]
-//     async fn order_build_only() {
-//         let location = location!(get_test_path!());
-//         let mut node = Node::default();
-//
-//         let name = &Name(function_name!().into());
-//         let mut context = Context::create_test_context(location, name, &mut node);
-//
-//         context.objective = Objective::BuildLocally;
-//
-//         let executor = GoalExecutor::new(context);
-//         let steps = get_steps(executor);
-//
-//         assert_eq!(
-//             steps,
-//             vec![
-//                 crate::hive::steps::evaluate::Evaluate.into(),
-//                 crate::hive::steps::build::Build.into()
-//             ]
-//         );
-//     }
-//
-//     #[test]
-//     fn target_fails_increments() {
-//         let mut target = Target::from_host("localhost");
-//
-//         assert_eq!(target.current_host, 0);
-//
-//         for i in 0..100 {
-//             target.host_failed();
-//             assert_eq!(target.current_host, i + 1);
-//         }
-//     }
-//
-//     #[test]
-//     fn get_preferred_host_fails() {
-//         let mut target = Target {
-//             hosts: vec![
-//                 "un.reachable.1".into(),
-//                 "un.reachable.2".into(),
-//                 "un.reachable.3".into(),
-//                 "un.reachable.4".into(),
-//                 "un.reachable.5".into(),
-//             ],
-//             ..Default::default()
-//         };
-//
-//         assert_ne!(
-//             target.get_preferred_host().unwrap().to_string(),
-//             "un.reachable.5"
-//         );
-//
-//         for i in 1..=5 {
-//             assert_eq!(
-//                 target.get_preferred_host().unwrap().to_string(),
-//                 format!("un.reachable.{i}")
-//             );
-//             target.host_failed();
-//         }
-//
-//         for _ in 0..5 {
-//             assert_matches!(
-//                 target.get_preferred_host(),
-//                 Err(HiveLibError::NetworkError(NetworkError::HostsExhausted))
-//             );
-//         }
-//     }
-//
-//     #[test]
-//     fn test_ssh_opts() {
-//         let target = Target::from_host("hello-world");
-//         let subcommand_modifiers = SubCommandModifiers {
-//             non_interactive: false,
-//             ..Default::default()
-//         };
-//         let tmp = format!(
-//             "/tmp/{}",
-//             rand::distr::SampleString::sample_string(&Alphabetic, &mut rand::rng(), 10)
-//         );
-//
-//         std::fs::create_dir(&tmp).unwrap();
-//
-//         unsafe { env::set_var("XDG_RUNTIME_DIR", &tmp) }
-//
-//         let args = [
-//             "-l".to_string(),
-//             target.user.to_string(),
-//             "-p".to_string(),
-//             target.port.to_string(),
-//             "-o".to_string(),
-//             "StrictHostKeyChecking=accept-new".to_string(),
-//             "-o".to_string(),
-//             "PasswordAuthentication=no".to_string(),
-//             "-o".to_string(),
-//             "KbdInteractiveAuthentication=no".to_string(),
-//         ];
-//
-//         assert_eq!(
-//             target.create_ssh_args(subcommand_modifiers, false).unwrap(),
-//             args
-//         );
-//         assert_eq!(
-//             target.create_ssh_opts(subcommand_modifiers).unwrap(),
-//             args.join(" ")
-//         );
-//
-//         assert_eq!(
-//             target.create_ssh_args(subcommand_modifiers, false).unwrap(),
-//             [
-//                 "-l".to_string(),
-//                 target.user.to_string(),
-//                 "-p".to_string(),
-//                 target.port.to_string(),
-//                 "-o".to_string(),
-//                 "StrictHostKeyChecking=accept-new".to_string(),
-//                 "-o".to_string(),
-//                 "PasswordAuthentication=no".to_string(),
-//                 "-o".to_string(),
-//                 "KbdInteractiveAuthentication=no".to_string(),
-//             ]
-//         );
-//
-//         assert_eq!(
-//             target.create_ssh_args(subcommand_modifiers, true).unwrap(),
-//             [
-//                 "-l".to_string(),
-//                 target.user.to_string(),
-//                 "-p".to_string(),
-//                 target.port.to_string(),
-//                 "-o".to_string(),
-//                 "StrictHostKeyChecking=accept-new".to_string(),
-//                 "-o".to_string(),
-//                 "PasswordAuthentication=no".to_string(),
-//                 "-o".to_string(),
-//                 "KbdInteractiveAuthentication=no".to_string(),
-//             ]
-//         );
-//
-//         // forced non interactive is the same as --non-interactive
-//         assert_eq!(
-//             target.create_ssh_args(subcommand_modifiers, true).unwrap(),
-//             target
-//                 .create_ssh_args(
-//                     SubCommandModifiers {
-//                         non_interactive: true,
-//                         ..Default::default()
-//                     },
-//                     false
-//                 )
-//                 .unwrap()
-//         );
-//     }
-//
-//     #[tokio::test]
-//     async fn context_quits_sigint() {
-//         let location = location!(get_test_path!());
-//         let mut node = Node::default();
-//
-//         let name = &Name(function_name!().into());
-//         let context = Context::create_test_context(location, name, &mut node);
-//         context
-//             .should_quit
-//             .store(true, std::sync::atomic::Ordering::Relaxed);
-//         let executor = GoalExecutor::new(context);
-//         let status = executor.execute().await;
-//
-//         assert_matches!(status, Err(HiveLibError::Sigint));
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use rand::distr::Alphabetic;
+
+    use super::*;
+    use std::env;
+
+    #[test]
+    fn test_ssh_opts() {
+        let target = Target::from_host("hello-world");
+        let subcommand_modifiers = SubCommandModifiers {
+            non_interactive: false,
+            ..Default::default()
+        };
+        let tmp = format!(
+            "/tmp/{}",
+            rand::distr::SampleString::sample_string(&Alphabetic, &mut rand::rng(), 10)
+        );
+
+        std::fs::create_dir(&tmp).unwrap();
+
+        unsafe { env::set_var("XDG_RUNTIME_DIR", &tmp) }
+
+        let args = [
+            "-l".to_string(),
+            target.user.to_string(),
+            "-p".to_string(),
+            target.port.to_string(),
+            "-o".to_string(),
+            "StrictHostKeyChecking=accept-new".to_string(),
+            "-o".to_string(),
+            "PasswordAuthentication=no".to_string(),
+            "-o".to_string(),
+            "KbdInteractiveAuthentication=no".to_string(),
+        ];
+
+        assert_eq!(
+            target.create_ssh_args(subcommand_modifiers, false).unwrap(),
+            args
+        );
+        assert_eq!(
+            target.create_ssh_opts(subcommand_modifiers).unwrap(),
+            args.join(" ")
+        );
+
+        assert_eq!(
+            target.create_ssh_args(subcommand_modifiers, false).unwrap(),
+            [
+                "-l".to_string(),
+                target.user.to_string(),
+                "-p".to_string(),
+                target.port.to_string(),
+                "-o".to_string(),
+                "StrictHostKeyChecking=accept-new".to_string(),
+                "-o".to_string(),
+                "PasswordAuthentication=no".to_string(),
+                "-o".to_string(),
+                "KbdInteractiveAuthentication=no".to_string(),
+            ]
+        );
+
+        assert_eq!(
+            target.create_ssh_args(subcommand_modifiers, true).unwrap(),
+            [
+                "-l".to_string(),
+                target.user.to_string(),
+                "-p".to_string(),
+                target.port.to_string(),
+                "-o".to_string(),
+                "StrictHostKeyChecking=accept-new".to_string(),
+                "-o".to_string(),
+                "PasswordAuthentication=no".to_string(),
+                "-o".to_string(),
+                "KbdInteractiveAuthentication=no".to_string(),
+            ]
+        );
+
+        // forced non interactive is the same as --non-interactive
+        assert_eq!(
+            target.create_ssh_args(subcommand_modifiers, true).unwrap(),
+            target
+                .create_ssh_args(
+                    SubCommandModifiers {
+                        non_interactive: true,
+                        ..Default::default()
+                    },
+                    false
+                )
+                .unwrap()
+        );
+    }
+}
