@@ -100,7 +100,7 @@ pub async fn apply<F>(
     modifiers: SubCommandModifiers,
 ) -> Result<()>
 where
-    F: Fn(&Name, &Node) -> Goal + Clone,
+    F: Fn(&Name, &Node) -> Goal,
 {
     let location = Arc::new(location);
 
