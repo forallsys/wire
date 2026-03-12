@@ -11,3 +11,6 @@ Read the [The Tutorial](https://wire.forall.systems/tutorial/overview.html), [Gu
 Please use `nix develop` for access to the development environment and to ensure
 your changes are ran against the defined git hooks. For simplicity, you may wish
 to use [direnv](https://github.com/direnv/direnv).
+
+`ty check` will download the entire nixpkgs git repo. I know, its stupid. It may
+take a very long time to download on first run.
