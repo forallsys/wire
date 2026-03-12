@@ -205,6 +205,7 @@ pub fn plan_for_node(
         }
     }
 }
+
 #[cfg(test)]
 mod tests {
     use tokio::sync::RwLock;
@@ -695,66 +696,4 @@ mod tests {
             ]
         );
     }
-
-    // #[test]
-    // fn target_fails_increments() {
-    //     let mut target = Target::from_host("localhost");
-    //
-    //     assert_eq!(target.current_host, 0);
-    //
-    //     for i in 0..100 {
-    //         target.host_failed();
-    //         assert_eq!(target.current_host, i + 1);
-    //     }
-    // }
-    //
-    // #[test]
-    // fn get_preferred_host_fails() {
-    //     let mut target = Target {
-    //         hosts: vec![
-    //             "un.reachable.1".into(),
-    //             "un.reachable.2".into(),
-    //             "un.reachable.3".into(),
-    //             "un.reachable.4".into(),
-    //             "un.reachable.5".into(),
-    //         ],
-    //         ..Default::default()
-    //     };
-    //
-    //     assert_ne!(
-    //         target.get_preferred_host().unwrap().to_string(),
-    //         "un.reachable.5"
-    //     );
-    //
-    //     for i in 1..=5 {
-    //         assert_eq!(
-    //             target.get_preferred_host().unwrap().to_string(),
-    //             format!("un.reachable.{i}")
-    //         );
-    //         target.host_failed();
-    //     }
-    //
-    //     for _ in 0..5 {
-    //         assert_matches!(
-    //             target.get_preferred_host(),
-    //             Err(HiveLibError::NetworkError(NetworkError::HostsExhausted))
-    //         );
-    //     }
-    // }
-    //
-    // #[tokio::test]
-    // async fn context_quits_sigint() {
-    //     let location = location!(get_test_path!());
-    //     let mut node = Node::default();
-    //
-    //     let name = &Name(function_name!().into());
-    //     let context = Context::create_test_context(location, name, &mut node);
-    //     context
-    //         .should_quit
-    //         .store(true, std::sync::atomic::Ordering::Relaxed);
-    //     let executor = GoalExecutor::new(context);
-    //     let status = executor.execute().await;
-    //
-    //     assert_matches!(status, Err(HiveLibError::Sigint));
-    // }
 }

@@ -113,3 +113,51 @@ pub async fn execute(mut plan: NodePlan) -> Result<(), HiveLibError> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        SubCommandModifiers,
+        errors::HiveLibError,
+        function_name, get_test_path,
+        hive::{
+            executor::execute,
+            node::{ApplyGoal, HandleUnreachable, Name, Node, SwitchToConfigurationGoal},
+            plan::{Goal, plan_for_node},
+        },
+        location,
+    };
+    use std::{assert_matches::assert_matches, path::PathBuf};
+    use std::{
+        env,
+        sync::{Arc, atomic::AtomicBool},
+    };
+
+    #[tokio::test]
+    async fn plan_executor_quits_sigint() {
+        let location = location!(get_test_path!());
+        let node = Node::default();
+        let name = &Name(function_name!().into());
+        let should_quit = Arc::new(AtomicBool::new(true));
+        let plan = plan_for_node(
+            &node.clone(),
+            name.clone(),
+            &Goal::Apply {
+                goal: ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch),
+                should_apply_locally: true,
+                no_keys: true,
+                substitute_on_destination: true,
+                reboot: false,
+                host_platform: "x86_64-linux".into(),
+                handle_unreachable: HandleUnreachable::default(),
+            },
+            location.clone().into(),
+            &SubCommandModifiers::default(),
+            should_quit.clone(),
+        );
+
+        let status = execute(plan).await;
+
+        assert_matches!(status, Err(HiveLibError::Sigint));
+    }
+}
