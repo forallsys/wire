@@ -37,8 +37,12 @@ async fn evaluate_task(
 ) {
     let output = evaluate_hive_attribute(&hive_location, &EvalGoal::GetTopLevel(&name), modifiers)
         .await
-        .map(|output| {
-            serde_json::from_str::<Derivation>(&output).expect("failed to parse derivation")
+        .and_then(|output| {
+            serde_json::from_str(&output).map_err(|e| {
+                HiveLibError::HiveInitialisationError(
+                    crate::errors::HiveInitialisationError::ParseEvaluateError(e),
+                )
+            })
         });
 
     debug!(output = ?output, done = true);
