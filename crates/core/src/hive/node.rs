@@ -5,26 +5,22 @@
 use enum_dispatch::enum_dispatch;
 use gethostname::gethostname;
 use serde::{Deserialize, Serialize};
-use std::assert_matches::debug_assert_matches;
 use std::fmt::Display;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
-use tokio::sync::oneshot;
-use tracing::{Instrument, Level, Span, debug, error, event, instrument, trace};
+use tokio::sync::{RwLock, oneshot};
+use tracing::instrument;
 
 use crate::commands::builder::CommandStringBuilder;
-use crate::commands::common::evaluate_hive_attribute;
 use crate::commands::{CommandArguments, WireCommandChip, run_command};
 use crate::errors::NetworkError;
 use crate::hive::HiveLocation;
 use crate::hive::steps::build::Build;
-use crate::hive::steps::cleanup::CleanUp;
 use crate::hive::steps::evaluate::Evaluate;
-use crate::hive::steps::keys::{Key, Keys, PushKeyAgent, UploadKeyAt};
+use crate::hive::steps::keys::{Key, Keys, PushKeyAgent};
 use crate::hive::steps::ping::Ping;
 use crate::hive::steps::push::{PushBuildOutput, PushEvaluatedOutput};
-use crate::status::STATUS;
-use crate::{EvalGoal, StrictHostKeyChecking, SubCommandModifiers};
+use crate::{StrictHostKeyChecking, SubCommandModifiers};
 
 use super::HiveLibError;
 use super::steps::activate::SwitchToConfiguration;
@@ -44,17 +40,37 @@ pub struct Target {
     current_host: usize,
 }
 
+#[derive(Clone, Debug)]
+pub struct SharedTarget(pub Arc<RwLock<Target>>);
+
+// Hack specifically for testing if two steps that have the same shared target
+// are equal
+#[cfg(test)]
+impl PartialEq for SharedTarget {
+    fn eq(&self, other: &Self) -> bool {
+        let self_guard = self
+            .0
+            .try_read()
+            .expect("failed to target read in test context");
+        let other_guard = other
+            .0
+            .try_read()
+            .expect("failed to target read in test context");
+
+        *self_guard == *other_guard
+    }
+}
+
 impl Target {
     #[instrument(ret(level = tracing::Level::DEBUG), skip_all)]
     pub fn create_ssh_opts(&self, modifiers: SubCommandModifiers) -> Result<String, HiveLibError> {
-        self.create_ssh_args(modifiers, false).map(|x| x.join(" "))
+        self.create_ssh_args(modifiers).map(|x| x.join(" "))
     }
 
     #[instrument(ret(level = tracing::Level::DEBUG))]
     pub fn create_ssh_args(
         &self,
         modifiers: SubCommandModifiers,
-        non_interactive_forced: bool,
     ) -> Result<Vec<String>, HiveLibError> {
         let mut vector = vec![
             "-l".to_string(),
@@ -81,6 +97,32 @@ impl Target {
 
         Ok(vector)
     }
+
+    /// Tests the connection to a node
+    pub async fn ping(&self, modifiers: SubCommandModifiers) -> Result<(), HiveLibError> {
+        let host = self.get_preferred_host()?;
+
+        let mut command_string = CommandStringBuilder::new("ssh");
+        command_string.arg(format!("{}@{host}", self.user));
+        command_string.arg(self.create_ssh_opts(modifiers)?);
+        command_string.arg("exit");
+
+        let output = run_command(
+            &CommandArguments::new(command_string, modifiers)
+                .log_stdout()
+                .mode(crate::commands::ChildOutputMode::Interactive),
+        )
+        .await?;
+
+        output.wait_till_success().await.map_err(|source| {
+            HiveLibError::NetworkError(NetworkError::HostUnreachable {
+                host: host.to_string(),
+                source,
+            })
+        })?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -91,32 +133,6 @@ impl Default for Target {
             user: "root".into(),
             port: 22,
             current_host: 0,
-        }
-    }
-}
-
-#[cfg(test)]
-impl<'a> Context<'a> {
-    fn create_test_context(
-        hive_location: HiveLocation,
-        name: &'a Name,
-        node: &'a mut Node,
-    ) -> Self {
-        Context {
-            name,
-            node,
-            hive_location: Arc::new(hive_location),
-            modifiers: SubCommandModifiers::default(),
-            objective: Objective::Apply(ApplyObjective {
-                goal: Goal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch),
-                no_keys: false,
-                reboot: false,
-                should_apply_locally: false,
-                substitute_on_destination: false,
-                handle_unreachable: HandleUnreachable::default(),
-            }),
-            state: StepState::default(),
-            should_quit: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -171,7 +187,7 @@ pub struct Node {
     pub tags: im::HashSet<String>,
 
     #[serde(rename(deserialize = "_keys", serialize = "keys"))]
-    pub keys: im::Vector<Key>,
+    pub keys: Vec<Arc<Key>>,
 
     #[serde(rename(deserialize = "_hostPlatform", serialize = "host_platform"))]
     pub host_platform: Arc<str>,
@@ -180,7 +196,7 @@ pub struct Node {
         deserialize = "privilegeEscalationCommand",
         serialize = "privilege_escalation_command"
     ))]
-    pub privilege_escalation_command: im::Vector<Arc<str>>,
+    pub privilege_escalation_command: Arc<Vec<Arc<str>>>,
 }
 
 #[cfg(test)]
@@ -188,7 +204,7 @@ impl Default for Node {
     fn default() -> Self {
         Node {
             target: Target::default(),
-            keys: im::Vector::new(),
+            keys: Vec::new(),
             tags: im::HashSet::new(),
             privilege_escalation_command: vec!["sudo".into(), "--".into()].into(),
             allow_local_deployment: true,
@@ -206,32 +222,6 @@ impl Node {
             target: Target::from_host(host),
             ..Default::default()
         }
-    }
-
-    /// Tests the connection to a node
-    pub async fn ping(&self, modifiers: SubCommandModifiers) -> Result<(), HiveLibError> {
-        let host = self.target.get_preferred_host()?;
-
-        let mut command_string = CommandStringBuilder::new("ssh");
-        command_string.arg(format!("{}@{host}", self.target.user));
-        command_string.arg(self.target.create_ssh_opts(modifiers)?);
-        command_string.arg("exit");
-
-        let output = run_command(
-            &CommandArguments::new(command_string, modifiers)
-                .log_stdout()
-                .mode(crate::commands::ChildOutputMode::Interactive),
-        )
-        .await?;
-
-        output.wait_till_success().await.map_err(|source| {
-            HiveLibError::NetworkError(NetworkError::HostUnreachable {
-                host: host.to_string(),
-                source,
-            })
-        })?;
-
-        Ok(())
     }
 }
 
@@ -255,7 +245,7 @@ impl Display for Derivation {
     }
 }
 
-#[derive(derive_more::Display, Debug, Clone, Copy)]
+#[derive(derive_more::Display, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SwitchToConfigurationGoal {
     Switch,
     Boot,
@@ -263,37 +253,17 @@ pub enum SwitchToConfigurationGoal {
     DryActivate,
 }
 
-#[derive(derive_more::Display, Clone, Copy)]
-pub enum Goal {
+#[derive(derive_more::Display, Debug, Clone, Copy)]
+pub enum ApplyGoal {
     SwitchToConfiguration(SwitchToConfigurationGoal),
     Build,
     Push,
     Keys,
 }
 
-// TODO: Get rid of this allow and resolve it
-#[allow(clippy::struct_excessive_bools)]
-#[derive(Clone, Copy)]
-pub struct ApplyObjective {
-    pub goal: Goal,
-    pub no_keys: bool,
-    pub reboot: bool,
-    pub should_apply_locally: bool,
-    pub substitute_on_destination: bool,
-    pub handle_unreachable: HandleUnreachable,
-}
-
-#[derive(Clone, Copy)]
-pub enum Objective {
-    Apply(ApplyObjective),
-    BuildLocally,
-}
-
 #[enum_dispatch]
 pub(crate) trait ExecuteStep: Send + Sync + Display + std::fmt::Debug {
-    async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError>;
-
-    fn should_execute(&self, context: &Context) -> bool;
+    async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError>;
 }
 
 // may include other options such as FailAll in the future
@@ -313,19 +283,18 @@ pub struct StepState {
     pub key_agent_directory: Option<String>,
 }
 
-pub struct Context<'a> {
-    pub name: &'a Name,
-    pub node: &'a mut Node,
+pub struct Context {
     pub hive_location: Arc<HiveLocation>,
     pub modifiers: SubCommandModifiers,
     pub state: StepState,
     pub should_quit: Arc<AtomicBool>,
-    pub objective: Objective,
+    pub name: Name,
 }
 
 #[enum_dispatch(ExecuteStep)]
-#[derive(Debug, PartialEq)]
-enum Step {
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+pub enum Step {
     Ping,
     PushKeyAgent,
     Keys,
@@ -334,7 +303,6 @@ enum Step {
     Build,
     PushBuildOutput,
     SwitchToConfiguration,
-    CleanUp,
 }
 
 impl Display for Step {
@@ -348,158 +316,7 @@ impl Display for Step {
             Self::Build(step) => step.fmt(f),
             Self::PushBuildOutput(step) => step.fmt(f),
             Self::SwitchToConfiguration(step) => step.fmt(f),
-            Self::CleanUp(step) => step.fmt(f),
         }
-    }
-}
-
-pub struct GoalExecutor<'a> {
-    steps: Vec<Step>,
-    context: Context<'a>,
-}
-
-/// returns Err if the application should shut down.
-fn app_shutdown_guard(context: &Context) -> Result<(), HiveLibError> {
-    if context
-        .should_quit
-        .load(std::sync::atomic::Ordering::Relaxed)
-    {
-        return Err(HiveLibError::Sigint);
-    }
-
-    Ok(())
-}
-
-impl<'a> GoalExecutor<'a> {
-    #[must_use]
-    pub fn new(context: Context<'a>) -> Self {
-        Self {
-            steps: vec![
-                Step::Ping(Ping),
-                Step::PushKeyAgent(PushKeyAgent),
-                Step::Keys(Keys {
-                    filter: UploadKeyAt::NoFilter,
-                }),
-                Step::Keys(Keys {
-                    filter: UploadKeyAt::PreActivation,
-                }),
-                Step::Evaluate(super::steps::evaluate::Evaluate),
-                Step::PushEvaluatedOutput(super::steps::push::PushEvaluatedOutput),
-                Step::Build(super::steps::build::Build),
-                Step::PushBuildOutput(super::steps::push::PushBuildOutput),
-                Step::SwitchToConfiguration(SwitchToConfiguration),
-                Step::Keys(Keys {
-                    filter: UploadKeyAt::PostActivation,
-                }),
-            ],
-            context,
-        }
-    }
-
-    #[instrument(skip_all, name = "eval")]
-    async fn evaluate_task(
-        tx: oneshot::Sender<Result<Derivation, HiveLibError>>,
-        hive_location: Arc<HiveLocation>,
-        name: Name,
-        modifiers: SubCommandModifiers,
-    ) {
-        let output =
-            evaluate_hive_attribute(&hive_location, &EvalGoal::GetTopLevel(&name), modifiers)
-                .await
-                .map(|output| {
-                    serde_json::from_str::<Derivation>(&output).expect("failed to parse derivation")
-                });
-
-        debug!(output = ?output, done = true);
-
-        let _ = tx.send(output);
-    }
-
-    #[instrument(skip_all, fields(node = %self.context.name))]
-    pub async fn execute(mut self) -> Result<(), HiveLibError> {
-        app_shutdown_guard(&self.context)?;
-
-        let (tx, rx) = oneshot::channel();
-        self.context.state.evaluation_rx = Some(rx);
-
-        // The name of this span should never be changed without updating
-        // `wire/cli/tracing_setup.rs`
-        debug_assert_matches!(Span::current().metadata().unwrap().name(), "execute");
-        // This span should always have a `node` field by the same file
-        debug_assert!(
-            Span::current()
-                .metadata()
-                .unwrap()
-                .fields()
-                .field("node")
-                .is_some()
-        );
-
-        let spawn_evaluator = match self.context.objective {
-            Objective::Apply(apply_objective) => !matches!(apply_objective.goal, Goal::Keys),
-            Objective::BuildLocally => true,
-        };
-
-        if spawn_evaluator {
-            tokio::spawn(
-                GoalExecutor::evaluate_task(
-                    tx,
-                    self.context.hive_location.clone(),
-                    self.context.name.clone(),
-                    self.context.modifiers,
-                )
-                .in_current_span(),
-            );
-        }
-
-        let steps = self
-            .steps
-            .iter()
-            .filter(|step| step.should_execute(&self.context))
-            .inspect(|step| {
-                trace!("Will execute step `{step}` for {}", self.context.name);
-            })
-            .collect::<Vec<_>>();
-        let length = steps.len();
-
-        for (position, step) in steps.iter().enumerate() {
-            app_shutdown_guard(&self.context)?;
-
-            event!(
-                Level::INFO,
-                step = step.to_string(),
-                progress = format!("{}/{length}", position + 1)
-            );
-
-            STATUS
-                .lock()
-                .set_node_step(self.context.name, step.to_string());
-
-            if let Err(err) = step.execute(&mut self.context).await.inspect_err(|_| {
-                error!("Failed to execute `{step}`");
-            }) {
-                // discard error from cleanup
-                let _ = CleanUp.execute(&mut self.context).await;
-
-                if let Objective::Apply(apply_objective) = self.context.objective
-                    && matches!(step, Step::Ping(..))
-                    && matches!(
-                        apply_objective.handle_unreachable,
-                        HandleUnreachable::Ignore,
-                    )
-                {
-                    return Ok(());
-                }
-
-                STATUS.lock().mark_node_failed(self.context.name);
-
-                return Err(err);
-            }
-        }
-
-        STATUS.lock().mark_node_succeeded(self.context.name);
-
-        Ok(())
     }
 }
 
@@ -508,270 +325,84 @@ mod tests {
     use rand::distr::Alphabetic;
 
     use super::*;
-    use crate::{
-        function_name, get_test_path,
-        hive::{Hive, get_hive_location},
-        location,
-    };
-    use std::{assert_matches::assert_matches, path::PathBuf};
-    use std::{collections::HashMap, env};
+    use std::{assert_matches::assert_matches, env};
 
-    fn get_steps(goal_executor: GoalExecutor) -> std::vec::Vec<Step> {
-        goal_executor
-            .steps
-            .into_iter()
-            .filter(|step| step.should_execute(&goal_executor.context))
-            .collect::<Vec<_>>()
-    }
-
-    #[tokio::test]
-    #[cfg_attr(feature = "no_web_tests", ignore)]
-    async fn default_values_match() {
-        let mut path = get_test_path!();
-
-        let location =
-            get_hive_location(path.display().to_string(), SubCommandModifiers::default())
-                .await
-                .unwrap();
-        let hive = Hive::new_from_path(&location, None, SubCommandModifiers::default())
-            .await
-            .unwrap();
-
-        let node = Node::default();
-
-        let mut nodes = HashMap::new();
-        nodes.insert(Name("NAME".into()), node);
-
-        path.push("hive.nix");
-
-        assert_eq!(
-            hive,
-            Hive {
-                nodes,
-                schema: Hive::SCHEMA_VERSION
-            }
-        );
-    }
-
-    #[tokio::test]
-    async fn order_build_locally() {
-        let location = location!(get_test_path!());
-        let mut node = Node {
-            build_remotely: false,
+    #[test]
+    fn test_ssh_opts() {
+        let target = Target::from_host("hello-world");
+        let subcommand_modifiers = SubCommandModifiers {
+            non_interactive: false,
             ..Default::default()
         };
-        let name = &Name(function_name!().into());
-        let executor = GoalExecutor::new(Context::create_test_context(location, name, &mut node));
-        let steps = get_steps(executor);
+        let tmp = format!(
+            "/tmp/{}",
+            rand::distr::SampleString::sample_string(&Alphabetic, &mut rand::rng(), 10)
+        );
+
+        std::fs::create_dir(&tmp).unwrap();
+
+        unsafe { env::set_var("XDG_RUNTIME_DIR", &tmp) }
+
+        let args = [
+            "-l".to_string(),
+            target.user.to_string(),
+            "-p".to_string(),
+            target.port.to_string(),
+            "-o".to_string(),
+            "StrictHostKeyChecking=accept-new".to_string(),
+            "-o".to_string(),
+            "PasswordAuthentication=no".to_string(),
+            "-o".to_string(),
+            "KbdInteractiveAuthentication=no".to_string(),
+        ];
+
+        assert_eq!(target.create_ssh_args(subcommand_modifiers).unwrap(), args);
+        assert_eq!(
+            target.create_ssh_opts(subcommand_modifiers).unwrap(),
+            args.join(" ")
+        );
 
         assert_eq!(
-            steps,
-            vec![
-                Ping.into(),
-                PushKeyAgent.into(),
-                Keys {
-                    filter: UploadKeyAt::PreActivation
-                }
-                .into(),
-                crate::hive::steps::evaluate::Evaluate.into(),
-                crate::hive::steps::build::Build.into(),
-                crate::hive::steps::push::PushBuildOutput.into(),
-                SwitchToConfiguration.into(),
-                Keys {
-                    filter: UploadKeyAt::PostActivation
-                }
-                .into(),
+            target.create_ssh_args(subcommand_modifiers).unwrap(),
+            [
+                "-l".to_string(),
+                target.user.to_string(),
+                "-p".to_string(),
+                target.port.to_string(),
+                "-o".to_string(),
+                "StrictHostKeyChecking=accept-new".to_string(),
+                "-o".to_string(),
+                "PasswordAuthentication=no".to_string(),
+                "-o".to_string(),
+                "KbdInteractiveAuthentication=no".to_string(),
             ]
         );
-    }
-
-    #[tokio::test]
-    async fn order_keys_only() {
-        let location = location!(get_test_path!());
-        let mut node = Node::default();
-        let name = &Name(function_name!().into());
-        let mut context = Context::create_test_context(location, name, &mut node);
-
-        let Objective::Apply(ref mut apply_objective) = context.objective else {
-            unreachable!()
-        };
-
-        apply_objective.goal = Goal::Keys;
-
-        let executor = GoalExecutor::new(context);
-        let steps = get_steps(executor);
 
         assert_eq!(
-            steps,
-            vec![
-                Ping.into(),
-                PushKeyAgent.into(),
-                Keys {
-                    filter: UploadKeyAt::NoFilter
-                }
-                .into(),
+            target.create_ssh_args(subcommand_modifiers).unwrap(),
+            [
+                "-l".to_string(),
+                target.user.to_string(),
+                "-p".to_string(),
+                target.port.to_string(),
+                "-o".to_string(),
+                "StrictHostKeyChecking=accept-new".to_string(),
+                "-o".to_string(),
+                "PasswordAuthentication=no".to_string(),
+                "-o".to_string(),
+                "KbdInteractiveAuthentication=no".to_string(),
             ]
         );
-    }
 
-    #[tokio::test]
-    async fn order_build() {
-        let location = location!(get_test_path!());
-        let mut node = Node::default();
-        let name = &Name(function_name!().into());
-        let mut context = Context::create_test_context(location, name, &mut node);
-
-        let Objective::Apply(ref mut apply_objective) = context.objective else {
-            unreachable!()
-        };
-        apply_objective.goal = Goal::Build;
-
-        let executor = GoalExecutor::new(context);
-        let steps = get_steps(executor);
-
+        // forced non interactive is the same as --non-interactive
         assert_eq!(
-            steps,
-            vec![
-                Ping.into(),
-                crate::hive::steps::evaluate::Evaluate.into(),
-                crate::hive::steps::build::Build.into(),
-                crate::hive::steps::push::PushBuildOutput.into(),
-            ]
-        );
-    }
-
-    #[tokio::test]
-    async fn order_push_only() {
-        let location = location!(get_test_path!());
-        let mut node = Node::default();
-        let name = &Name(function_name!().into());
-        let mut context = Context::create_test_context(location, name, &mut node);
-
-        let Objective::Apply(ref mut apply_objective) = context.objective else {
-            unreachable!()
-        };
-        apply_objective.goal = Goal::Push;
-
-        let executor = GoalExecutor::new(context);
-        let steps = get_steps(executor);
-
-        assert_eq!(
-            steps,
-            vec![
-                Ping.into(),
-                crate::hive::steps::evaluate::Evaluate.into(),
-                crate::hive::steps::push::PushEvaluatedOutput.into(),
-            ]
-        );
-    }
-
-    #[tokio::test]
-    async fn order_remote_build() {
-        let location = location!(get_test_path!());
-        let mut node = Node {
-            build_remotely: true,
-            ..Default::default()
-        };
-
-        let name = &Name(function_name!().into());
-        let executor = GoalExecutor::new(Context::create_test_context(location, name, &mut node));
-        let steps = get_steps(executor);
-
-        assert_eq!(
-            steps,
-            vec![
-                Ping.into(),
-                PushKeyAgent.into(),
-                Keys {
-                    filter: UploadKeyAt::PreActivation
-                }
-                .into(),
-                crate::hive::steps::evaluate::Evaluate.into(),
-                crate::hive::steps::push::PushEvaluatedOutput.into(),
-                crate::hive::steps::build::Build.into(),
-                SwitchToConfiguration.into(),
-                Keys {
-                    filter: UploadKeyAt::PostActivation
-                }
-                .into(),
-            ]
-        );
-    }
-
-    #[tokio::test]
-    async fn order_nokeys() {
-        let location = location!(get_test_path!());
-        let mut node = Node::default();
-
-        let name = &Name(function_name!().into());
-        let mut context = Context::create_test_context(location, name, &mut node);
-
-        let Objective::Apply(ref mut apply_objective) = context.objective else {
-            unreachable!()
-        };
-        apply_objective.no_keys = true;
-
-        let executor = GoalExecutor::new(context);
-        let steps = get_steps(executor);
-
-        assert_eq!(
-            steps,
-            vec![
-                Ping.into(),
-                crate::hive::steps::evaluate::Evaluate.into(),
-                crate::hive::steps::build::Build.into(),
-                crate::hive::steps::push::PushBuildOutput.into(),
-                SwitchToConfiguration.into(),
-            ]
-        );
-    }
-
-    #[tokio::test]
-    async fn order_should_apply_locally() {
-        let location = location!(get_test_path!());
-        let mut node = Node::default();
-
-        let name = &Name(function_name!().into());
-        let mut context = Context::create_test_context(location, name, &mut node);
-
-        let Objective::Apply(ref mut apply_objective) = context.objective else {
-            unreachable!()
-        };
-        apply_objective.no_keys = true;
-        apply_objective.should_apply_locally = true;
-
-        let executor = GoalExecutor::new(context);
-        let steps = get_steps(executor);
-
-        assert_eq!(
-            steps,
-            vec![
-                crate::hive::steps::evaluate::Evaluate.into(),
-                crate::hive::steps::build::Build.into(),
-                SwitchToConfiguration.into(),
-            ]
-        );
-    }
-
-    #[tokio::test]
-    async fn order_build_only() {
-        let location = location!(get_test_path!());
-        let mut node = Node::default();
-
-        let name = &Name(function_name!().into());
-        let mut context = Context::create_test_context(location, name, &mut node);
-
-        context.objective = Objective::BuildLocally;
-
-        let executor = GoalExecutor::new(context);
-        let steps = get_steps(executor);
-
-        assert_eq!(
-            steps,
-            vec![
-                crate::hive::steps::evaluate::Evaluate.into(),
-                crate::hive::steps::build::Build.into()
-            ]
+            target.create_ssh_args(subcommand_modifiers).unwrap(),
+            target
+                .create_ssh_args(SubCommandModifiers {
+                    non_interactive: true,
+                    ..Default::default()
+                })
+                .unwrap()
         );
     }
 
@@ -819,106 +450,5 @@ mod tests {
                 Err(HiveLibError::NetworkError(NetworkError::HostsExhausted))
             );
         }
-    }
-
-    #[test]
-    fn test_ssh_opts() {
-        let target = Target::from_host("hello-world");
-        let subcommand_modifiers = SubCommandModifiers {
-            non_interactive: false,
-            ..Default::default()
-        };
-        let tmp = format!(
-            "/tmp/{}",
-            rand::distr::SampleString::sample_string(&Alphabetic, &mut rand::rng(), 10)
-        );
-
-        std::fs::create_dir(&tmp).unwrap();
-
-        unsafe { env::set_var("XDG_RUNTIME_DIR", &tmp) }
-
-        let args = [
-            "-l".to_string(),
-            target.user.to_string(),
-            "-p".to_string(),
-            target.port.to_string(),
-            "-o".to_string(),
-            "StrictHostKeyChecking=accept-new".to_string(),
-            "-o".to_string(),
-            "PasswordAuthentication=no".to_string(),
-            "-o".to_string(),
-            "KbdInteractiveAuthentication=no".to_string(),
-        ];
-
-        assert_eq!(
-            target.create_ssh_args(subcommand_modifiers, false).unwrap(),
-            args
-        );
-        assert_eq!(
-            target.create_ssh_opts(subcommand_modifiers).unwrap(),
-            args.join(" ")
-        );
-
-        assert_eq!(
-            target.create_ssh_args(subcommand_modifiers, false).unwrap(),
-            [
-                "-l".to_string(),
-                target.user.to_string(),
-                "-p".to_string(),
-                target.port.to_string(),
-                "-o".to_string(),
-                "StrictHostKeyChecking=accept-new".to_string(),
-                "-o".to_string(),
-                "PasswordAuthentication=no".to_string(),
-                "-o".to_string(),
-                "KbdInteractiveAuthentication=no".to_string(),
-            ]
-        );
-
-        assert_eq!(
-            target.create_ssh_args(subcommand_modifiers, true).unwrap(),
-            [
-                "-l".to_string(),
-                target.user.to_string(),
-                "-p".to_string(),
-                target.port.to_string(),
-                "-o".to_string(),
-                "StrictHostKeyChecking=accept-new".to_string(),
-                "-o".to_string(),
-                "PasswordAuthentication=no".to_string(),
-                "-o".to_string(),
-                "KbdInteractiveAuthentication=no".to_string(),
-            ]
-        );
-
-        // forced non interactive is the same as --non-interactive
-        assert_eq!(
-            target.create_ssh_args(subcommand_modifiers, true).unwrap(),
-            target
-                .create_ssh_args(
-                    SubCommandModifiers {
-                        non_interactive: true,
-                        ..Default::default()
-                    },
-                    false
-                )
-                .unwrap()
-        );
-    }
-
-    #[tokio::test]
-    async fn context_quits_sigint() {
-        let location = location!(get_test_path!());
-        let mut node = Node::default();
-
-        let name = &Name(function_name!().into());
-        let context = Context::create_test_context(location, name, &mut node);
-        context
-            .should_quit
-            .store(true, std::sync::atomic::Ordering::Relaxed);
-        let executor = GoalExecutor::new(context);
-        let status = executor.execute().await;
-
-        assert_matches!(status, Err(HiveLibError::Sigint));
     }
 }

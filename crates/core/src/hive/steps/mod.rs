@@ -3,7 +3,6 @@
 
 pub mod activate;
 pub mod build;
-pub mod cleanup;
 pub mod evaluate;
 pub mod keys;
 pub mod ping;

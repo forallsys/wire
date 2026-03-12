@@ -28,9 +28,9 @@ use wire_core::cache::InspectionCache;
 use wire_core::commands::common::get_hive_node_names;
 use wire_core::hive::Hive;
 use wire_core::hive::get_hive_location;
-use wire_core::hive::node::ApplyObjective;
-use wire_core::hive::node::Objective;
 use wire_core::hive::node::should_apply_locally;
+use wire_core::hive::plan::ApplyGoalArgs;
+use wire_core::hive::plan::Goal;
 
 #[macro_use]
 extern crate enum_display_derive;
@@ -86,7 +86,7 @@ async fn main() -> Result<()> {
     match args.command {
         cli::Commands::Apply(apply_args) => {
             let mut hive = Hive::new_from_path(&location, cache.clone(), modifiers).await?;
-            let goal: wire_core::hive::node::Goal = apply_args.goal.clone().try_into().unwrap();
+            let goal = apply_args.goal.clone().try_into().unwrap();
 
             // Respect user's --always-build-local arg
             hive.force_always_local(apply_args.always_build_local)?;
@@ -98,7 +98,7 @@ async fn main() -> Result<()> {
                 apply_args.common,
                 Partitions::default(),
                 |name, node| {
-                    Objective::Apply(ApplyObjective {
+                    Goal::Apply(ApplyGoalArgs {
                         goal,
                         no_keys: apply_args.no_keys,
                         reboot: apply_args.reboot,
@@ -108,6 +108,7 @@ async fn main() -> Result<()> {
                             &name.0,
                         ),
                         handle_unreachable: apply_args.handle_unreachable.clone().into(),
+                        host_platform: node.host_platform.clone(),
                     })
                 },
                 modifiers,
@@ -123,7 +124,7 @@ async fn main() -> Result<()> {
                 location,
                 build_args.common,
                 build_args.partition.unwrap_or_default(),
-                |_name, _node| Objective::BuildLocally,
+                |_name, _node| Goal::Build,
                 modifiers,
             )
             .await?;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright 2024-2025 wire Contributors
 
-use std::fmt::Display;
+use std::{fmt::Display, sync::Arc};
 
 use tracing::{error, info, instrument, warn};
 
@@ -9,11 +9,17 @@ use crate::{
     HiveLibError,
     commands::{CommandArguments, WireCommandChip, builder::CommandStringBuilder, run_command},
     errors::{ActivationError, NetworkError},
-    hive::node::{Context, ExecuteStep, Goal, Objective, SwitchToConfigurationGoal},
+    hive::node::{Context, ExecuteStep, SharedTarget, SwitchToConfigurationGoal},
 };
 
-#[derive(Debug, PartialEq)]
-pub struct SwitchToConfiguration;
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+pub struct SwitchToConfiguration {
+    pub goal: SwitchToConfigurationGoal,
+    pub reboot: bool,
+    pub target: Option<SharedTarget>,
+    pub privilege_escalation_command: Arc<Vec<Arc<str>>>,
+}
 
 impl Display for SwitchToConfiguration {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -21,98 +27,75 @@ impl Display for SwitchToConfiguration {
     }
 }
 
-async fn wait_for_ping(ctx: &Context<'_>) -> Result<(), HiveLibError> {
-    let host = ctx.node.target.get_preferred_host()?;
-    let mut result = ctx.node.ping(ctx.modifiers).await;
+async fn wait_for_ping(target: &SharedTarget, ctx: &Context) -> Result<(), HiveLibError> {
+    let target = target.0.read().await;
+    let host = target.get_preferred_host()?;
 
-    for num in 0..2 {
+    for num in 0..3 {
         warn!("Trying to ping {host} (attempt {}/3)", num + 1);
 
-        result = ctx.node.ping(ctx.modifiers).await;
+        let result = target.ping(ctx.modifiers).await;
 
         if result.is_ok() {
             info!("Regained connection to {} via {host}", ctx.name);
 
-            break;
+            return Ok(());
         }
     }
 
-    result
+    Err(HiveLibError::NetworkError(NetworkError::HostsExhausted))
 }
 
-async fn set_profile(
-    goal: SwitchToConfigurationGoal,
-    built_path: &String,
-    ctx: &Context<'_>,
-) -> Result<(), HiveLibError> {
-    info!("Setting profiles in anticipation for switch-to-configuration {goal}");
+impl SwitchToConfiguration {
+    async fn set_profile(&self, built_path: &String, ctx: &Context) -> Result<(), HiveLibError> {
+        info!(
+            "Setting profiles in anticipation for switch-to-configuration {}",
+            self.goal
+        );
 
-    let mut command_string = CommandStringBuilder::new("nix-env");
-    command_string.args(&["-p", "/nix/var/nix/profiles/system", "--set"]);
-    command_string.arg(built_path);
+        let mut command_string = CommandStringBuilder::new("nix-env");
+        command_string.args(&["-p", "/nix/var/nix/profiles/system", "--set"]);
+        command_string.arg(built_path);
 
-    let Objective::Apply(apply_objective) = ctx.objective else {
-        unreachable!()
-    };
+        let child = run_command(
+            &CommandArguments::new(command_string, ctx.modifiers)
+                .mode(crate::commands::ChildOutputMode::Nix)
+                .execute_on_remote(self.target.clone())
+                .privileged(&self.privilege_escalation_command),
+        )
+        .await?;
 
-    let child = run_command(
-        &CommandArguments::new(command_string, ctx.modifiers)
-            .mode(crate::commands::ChildOutputMode::Nix)
-            .execute_on_remote(if apply_objective.should_apply_locally {
-                None
-            } else {
-                Some(&ctx.node.target)
-            })
-            .elevated(ctx.node),
-    )
-    .await?;
+        let _ = child
+            .wait_till_success()
+            .await
+            .map_err(HiveLibError::CommandError)?;
 
-    let _ = child
-        .wait_till_success()
-        .await
-        .map_err(HiveLibError::CommandError)?;
+        info!("Set system profile");
 
-    info!("Set system profile");
-
-    Ok(())
+        Ok(())
+    }
 }
 
 impl ExecuteStep for SwitchToConfiguration {
-    fn should_execute(&self, ctx: &Context) -> bool {
-        let Objective::Apply(apply_objective) = ctx.objective else {
-            return false;
-        };
-
-        matches!(apply_objective.goal, Goal::SwitchToConfiguration(..))
-    }
-
     #[allow(clippy::too_many_lines)]
     #[instrument(skip_all, name = "activate")]
-    async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
+    async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
         let built_path = ctx.state.build.as_ref().unwrap();
 
-        let Objective::Apply(apply_objective) = ctx.objective else {
-            unreachable!()
-        };
-
-        let Goal::SwitchToConfiguration(goal) = &apply_objective.goal else {
-            unreachable!("Cannot reach as guarded by should_execute")
-        };
-
         if matches!(
-            goal,
+            self.goal,
             // switch profile if switch or boot
             // https://github.com/NixOS/nixpkgs/blob/a2c92aa34735a04010671e3378e2aa2d109b2a72/pkgs/by-name/ni/nixos-rebuild-ng/src/nixos_rebuild/services.py#L224
             SwitchToConfigurationGoal::Switch | SwitchToConfigurationGoal::Boot
         ) {
-            set_profile(*goal, built_path, ctx).await?;
+            self.set_profile(built_path, ctx).await?;
         }
 
-        info!("Running switch-to-configuration {goal}");
+        info!("Running switch-to-configuration {}", self.goal);
 
         let mut command_string =
             CommandStringBuilder::new(format!("{built_path}/bin/switch-to-configuration"));
-        command_string.arg(match goal {
+        command_string.arg(match self.goal {
             SwitchToConfigurationGoal::Switch => "switch",
             SwitchToConfigurationGoal::Boot => "boot",
             SwitchToConfigurationGoal::Test => "test",
@@ -121,12 +104,8 @@ impl ExecuteStep for SwitchToConfiguration {
 
         let child = run_command(
             &CommandArguments::new(command_string, ctx.modifiers)
-                .execute_on_remote(if apply_objective.should_apply_locally {
-                    None
-                } else {
-                    Some(&ctx.node.target)
-                })
-                .elevated(ctx.node)
+                .execute_on_remote(self.target.clone())
+                .privileged(&self.privilege_escalation_command)
                 .log_stdout(),
         )
         .await?;
@@ -135,23 +114,23 @@ impl ExecuteStep for SwitchToConfiguration {
 
         match result {
             Ok(_) => {
-                if !apply_objective.reboot {
+                if !self.reboot {
                     return Ok(());
                 }
 
-                if apply_objective.should_apply_locally {
+                let Some(ref target) = self.target else {
                     error!("Refusing to reboot local machine!");
 
                     return Ok(());
-                }
+                };
 
                 warn!("Rebooting {name}!", name = ctx.name);
 
                 let reboot = run_command(
                     &CommandArguments::new("reboot now", ctx.modifiers)
                         .log_stdout()
-                        .execute_on_remote(Some(&ctx.node.target))
-                        .elevated(ctx.node),
+                        .execute_on_remote(Some(target.clone()))
+                        .privileged(&self.privilege_escalation_command),
                 )
                 .await?;
 
@@ -164,19 +143,21 @@ impl ExecuteStep for SwitchToConfiguration {
 
                 info!("Rebooted {name}, waiting to reconnect...", name = ctx.name);
 
-                if wait_for_ping(ctx).await.is_ok() {
+                if wait_for_ping(target, ctx).await.is_ok() {
                     return Ok(());
                 }
+
+                let target = target.0.read().await;
 
                 error!(
                     "Failed to get regain connection to {name} via {host} after reboot.",
                     name = ctx.name,
-                    host = ctx.node.target.get_preferred_host()?
+                    host = target.get_preferred_host()?
                 );
 
                 return Err(HiveLibError::NetworkError(
                     NetworkError::HostUnreachableAfterReboot(
-                        ctx.node.target.get_preferred_host()?.to_string(),
+                        target.get_preferred_host()?.to_string(),
                     ),
                 ));
             }
@@ -188,29 +169,42 @@ impl ExecuteStep for SwitchToConfiguration {
 
                 // Bail if the command couldn't of broken the system
                 // and don't try to regain connection to localhost
-                if matches!(goal, SwitchToConfigurationGoal::DryActivate)
-                    || apply_objective.should_apply_locally
-                {
+                let Some(target) = self
+                    .target
+                    .as_ref()
+                    .filter(|_| !matches!(self.goal, SwitchToConfigurationGoal::DryActivate))
+                else {
                     return Err(HiveLibError::ActivationError(
-                        ActivationError::SwitchToConfigurationError(*goal, ctx.name.clone(), error),
+                        ActivationError::SwitchToConfigurationError(
+                            self.goal,
+                            ctx.name.clone(),
+                            error,
+                        ),
+                    ));
+                };
+
+                if wait_for_ping(target, ctx).await.is_ok() {
+                    return Err(HiveLibError::ActivationError(
+                        ActivationError::SwitchToConfigurationError(
+                            self.goal,
+                            ctx.name.clone(),
+                            error,
+                        ),
                     ));
                 }
 
-                if wait_for_ping(ctx).await.is_ok() {
-                    return Err(HiveLibError::ActivationError(
-                        ActivationError::SwitchToConfigurationError(*goal, ctx.name.clone(), error),
-                    ));
-                }
+                let target = target.0.read().await;
 
                 error!(
                     "Failed to get regain connection to {name} via {host} after {goal} activation.",
                     name = ctx.name,
-                    host = ctx.node.target.get_preferred_host()?
+                    host = target.get_preferred_host()?,
+                    goal = self.goal
                 );
 
                 return Err(HiveLibError::NetworkError(
                     NetworkError::HostUnreachableAfterReboot(
-                        ctx.node.target.get_preferred_host()?.to_string(),
+                        target.get_preferred_host()?.to_string(),
                     ),
                 ));
             }

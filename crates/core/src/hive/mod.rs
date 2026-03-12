@@ -22,7 +22,9 @@ use crate::commands::common::evaluate_hive_attribute;
 use crate::commands::{CommandArguments, Either, WireCommandChip, run_command};
 use crate::errors::{HiveInitialisationError, HiveLocationError};
 use crate::{EvalGoal, HiveLibError, SubCommandModifiers};
+pub mod executor;
 pub mod node;
+pub mod plan;
 pub mod steps;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -180,14 +182,14 @@ impl Display for Hive {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct FlakePrefetch {
     pub(crate) hash: String,
     #[serde(rename = "storePath")]
     pub(crate) store_path: String,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HiveLocation {
     HiveNix(PathBuf),
     Flake {
@@ -288,8 +290,6 @@ pub async fn get_hive_location(
 
 #[cfg(test)]
 mod tests {
-    use im::vector;
-
     use crate::{
         errors::CommandError,
         get_test_path,
@@ -346,17 +346,20 @@ mod tests {
 
         let node = Node {
             target: node::Target::from_host("name"),
-            keys: vector![Key {
-                name: "different-than-a".into(),
-                dest_dir: "/run/keys/".into(),
-                path: "/run/keys/different-than-a".into(),
-                group: "root".into(),
-                user: "root".into(),
-                permissions: "0600".into(),
-                source: Source::String("hi".into()),
-                upload_at: UploadKeyAt::PreActivation,
-                environment: im::HashMap::new()
-            }],
+            keys: vec![
+                Key {
+                    name: "different-than-a".into(),
+                    dest_dir: "/run/keys/".into(),
+                    path: "/run/keys/different-than-a".into(),
+                    group: "root".into(),
+                    user: "root".into(),
+                    permissions: "0600".into(),
+                    source: Source::String("hi".into()),
+                    upload_at: UploadKeyAt::PreActivation,
+                    environment: im::HashMap::new(),
+                }
+                .into(),
+            ],
             build_remotely: true,
             ..Default::default()
         };

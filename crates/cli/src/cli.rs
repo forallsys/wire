@@ -11,7 +11,9 @@ use clap_verbosity_flag::InfoLevel;
 use tokio::runtime::Handle;
 use wire_core::SubCommandModifiers;
 use wire_core::commands::common::get_hive_node_names;
-use wire_core::hive::node::{Goal as HiveGoal, HandleUnreachable, Name, SwitchToConfigurationGoal};
+use wire_core::hive::node::{
+    ApplyGoal as HiveGoal, HandleUnreachable, Name, SwitchToConfigurationGoal,
+};
 use wire_core::hive::{Hive, get_hive_location};
 
 use std::io::IsTerminal;

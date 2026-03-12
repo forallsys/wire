@@ -7,11 +7,14 @@ use tracing::{Level, event, instrument};
 
 use crate::{
     HiveLibError,
-    hive::node::{Context, ExecuteStep, Objective},
+    hive::node::{Context, ExecuteStep, SharedTarget},
 };
 
-#[derive(Debug, PartialEq)]
-pub struct Ping;
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+pub struct Ping {
+    pub target: SharedTarget,
+}
 
 impl Display for Ping {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -20,28 +23,22 @@ impl Display for Ping {
 }
 
 impl ExecuteStep for Ping {
-    fn should_execute(&self, ctx: &Context) -> bool {
-        let Objective::Apply(apply_objective) = ctx.objective else {
-            return false;
-        };
-
-        !apply_objective.should_apply_locally
-    }
-
     #[instrument(skip_all, name = "ping")]
-    async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
+    async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
         loop {
+            let target = self.target.0.read().await;
+
             event!(
                 Level::INFO,
                 status = "attempting",
-                host = ctx.node.target.get_preferred_host()?.to_string()
+                host = target.get_preferred_host()?.to_string()
             );
 
-            if ctx.node.ping(ctx.modifiers).await.is_ok() {
+            if target.ping(ctx.modifiers).await.is_ok() {
                 event!(
                     Level::INFO,
                     status = "success",
-                    host = ctx.node.target.get_preferred_host()?.to_string()
+                    host = target.get_preferred_host()?.to_string()
                 );
                 return Ok(());
             }
@@ -50,9 +47,12 @@ impl ExecuteStep for Ping {
             event!(
                 Level::WARN,
                 status = "failed to ping",
-                host = ctx.node.target.get_preferred_host()?.to_string()
+                host = target.get_preferred_host()?.to_string()
             );
-            ctx.node.target.host_failed();
+
+            drop(target);
+
+            self.target.0.write().await.host_failed();
         }
     }
 }

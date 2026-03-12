@@ -4,7 +4,6 @@
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use futures::future::join_all;
-use im::Vector;
 use itertools::{Itertools, Position};
 use owo_colors::OwoColorize;
 use prost::Message;
@@ -19,6 +18,7 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::process::Stdio;
 use std::str::from_utf8;
+use std::sync::Arc;
 use std::vec::IntoIter;
 use tokio::io::AsyncReadExt as _;
 use tokio::process::Command;
@@ -31,7 +31,7 @@ use crate::commands::builder::CommandStringBuilder;
 use crate::commands::common::push;
 use crate::commands::{CommandArguments, WireCommandChip, run_command};
 use crate::errors::KeyError;
-use crate::hive::node::{Context, ExecuteStep, Goal, Objective, Push, SwitchToConfigurationGoal};
+use crate::hive::node::{Context, ExecuteStep, Push, SharedTarget};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Hash)]
 #[serde(tag = "t", content = "c")]
@@ -179,16 +179,25 @@ async fn process_key(key: &Key) -> Result<(wire_key_agent::keys::KeySpec, Vec<u8
     ))
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct Keys {
-    pub filter: UploadKeyAt,
+    pub keys: Vec<Arc<Key>>,
+    pub target: Option<SharedTarget>,
+    pub privilege_escalation_command: Arc<Vec<Arc<str>>>,
 }
-#[derive(Debug, PartialEq)]
-pub struct PushKeyAgent;
+
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+pub struct PushKeyAgent {
+    pub substitute_on_destination: bool,
+    pub host_platform: Arc<str>,
+    pub target: Option<SharedTarget>,
+}
 
 impl Display for Keys {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Upload key @ {:?}", self.filter)
+        write!(f, "Upload {} key(s)", self.keys.len())
     }
 }
 
@@ -225,32 +234,11 @@ where
 }
 
 impl ExecuteStep for Keys {
-    fn should_execute(&self, ctx: &Context) -> bool {
-        let Objective::Apply(apply_objective) = ctx.objective else {
-            return false;
-        };
-
-        if apply_objective.no_keys {
-            return false;
-        }
-
-        // should execute if no filter, and the goal is keys.
-        // otherwise, only execute if the goal is switch and non-nofilter
-        matches!(
-            (&self.filter, &apply_objective.goal),
-            (UploadKeyAt::NoFilter, Goal::Keys)
-                | (
-                    UploadKeyAt::PreActivation | UploadKeyAt::PostActivation,
-                    Goal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch)
-                )
-        )
-    }
-
     #[instrument(skip_all, name = "keys")]
-    async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
+    async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
         let agent_directory = ctx.state.key_agent_directory.as_ref().unwrap();
 
-        let mut keys = self.select_keys(&ctx.node.keys).await?;
+        let mut keys = self.select_keys(&self.keys).await?;
 
         if keys.peek().is_none() {
             debug!("Had no keys to push, ending KeyStep early.");
@@ -260,18 +248,10 @@ impl ExecuteStep for Keys {
         let command_string =
             CommandStringBuilder::new(format!("{agent_directory}/bin/wire-key-agent"));
 
-        let Objective::Apply(apply_objective) = ctx.objective else {
-            unreachable!()
-        };
-
         let mut child = run_command(
             &CommandArguments::new(command_string, ctx.modifiers)
-                .execute_on_remote(if apply_objective.should_apply_locally {
-                    None
-                } else {
-                    Some(&ctx.node.target)
-                })
-                .elevated(ctx.node)
+                .execute_on_remote(self.target.clone())
+                .privileged(&self.privilege_escalation_command)
                 .keep_stdin_open()
                 .log_stdout(),
         )
@@ -306,17 +286,14 @@ impl ExecuteStep for Keys {
 impl Keys {
     async fn select_keys(
         &self,
-        keys: &Vector<Key>,
+        keys: &[Arc<Key>],
     ) -> Result<Peekable<IntoIter<(wire_key_agent::keys::KeySpec, std::vec::Vec<u8>)>>, HiveLibError>
     {
-        let futures = keys
-            .iter()
-            .filter(|key| self.filter == UploadKeyAt::NoFilter || (key.upload_at == self.filter))
-            .map(|key| async move {
-                process_key(key)
-                    .await
-                    .map_err(|err| HiveLibError::KeyError(key.name.clone(), err))
-            });
+        let futures = keys.iter().map(|key| async move {
+            process_key(key)
+                .await
+                .map_err(|err| HiveLibError::KeyError(key.name.clone(), err))
+        });
 
         Ok(join_all(futures)
             .await
@@ -328,26 +305,11 @@ impl Keys {
 }
 
 impl ExecuteStep for PushKeyAgent {
-    fn should_execute(&self, ctx: &Context) -> bool {
-        let Objective::Apply(apply_objective) = ctx.objective else {
-            return false;
-        };
-
-        if apply_objective.no_keys {
-            return false;
-        }
-
-        matches!(
-            &apply_objective.goal,
-            Goal::Keys | Goal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch)
-        )
-    }
-
     #[instrument(skip_all, name = "push_agent")]
-    async fn execute(&self, ctx: &mut Context<'_>) -> Result<(), HiveLibError> {
+    async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
         let arg_name = format!(
             "WIRE_KEY_AGENT_{platform}",
-            platform = ctx.node.host_platform.replace('-', "_")
+            platform = self.host_platform.replace('-', "_")
         );
 
         let agent_directory = match env::var_os(&arg_name) {
@@ -359,83 +321,18 @@ impl ExecuteStep for PushKeyAgent {
             ),
         };
 
-        let Objective::Apply(apply_objective) = ctx.objective else {
-            unreachable!()
-        };
-
-        if !apply_objective.should_apply_locally {
-            push(ctx, Push::Path(&agent_directory)).await?;
+        if let Some(ref target) = self.target {
+            push(
+                ctx,
+                target,
+                Push::Path(&agent_directory),
+                self.substitute_on_destination,
+            )
+            .await?;
         }
 
         ctx.state.key_agent_directory = Some(agent_directory);
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use im::Vector;
-
-    use crate::hive::steps::keys::{Key, Keys, UploadKeyAt, process_key};
-
-    fn new_key(upload_at: &UploadKeyAt) -> Key {
-        Key {
-            upload_at: upload_at.clone(),
-            source: super::Source::String(match upload_at {
-                UploadKeyAt::PreActivation => "pre".into(),
-                UploadKeyAt::PostActivation => "post".into(),
-                UploadKeyAt::NoFilter => "none".into(),
-            }),
-            ..Default::default()
-        }
-    }
-
-    #[tokio::test]
-    async fn key_filtering() {
-        let keys = Vector::from(vec![
-            new_key(&UploadKeyAt::PreActivation),
-            new_key(&UploadKeyAt::PostActivation),
-            new_key(&UploadKeyAt::PreActivation),
-            new_key(&UploadKeyAt::PostActivation),
-        ]);
-
-        for (_, buf) in (Keys {
-            filter: crate::hive::steps::keys::UploadKeyAt::PreActivation,
-        })
-        .select_keys(&keys)
-        .await
-        .unwrap()
-        {
-            assert_eq!(String::from_utf8_lossy(&buf), "pre");
-        }
-
-        for (_, buf) in (Keys {
-            filter: crate::hive::steps::keys::UploadKeyAt::PostActivation,
-        })
-        .select_keys(&keys)
-        .await
-        .unwrap()
-        {
-            assert_eq!(String::from_utf8_lossy(&buf), "post");
-        }
-
-        // test that NoFilter processes all keys.
-        let processed_all =
-            futures::future::join_all(keys.iter().map(async |x| process_key(x).await))
-                .await
-                .iter()
-                .flatten()
-                .cloned()
-                .collect::<Vec<_>>();
-        let no_filter = (Keys {
-            filter: crate::hive::steps::keys::UploadKeyAt::NoFilter,
-        })
-        .select_keys(&keys)
-        .await
-        .unwrap()
-        .collect::<Vec<_>>();
-
-        assert_eq!(processed_all, no_filter);
     }
 }
