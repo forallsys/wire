@@ -55,10 +55,11 @@ fn read_apply_targets_from_stdin() -> Result<(Vec<String>, Vec<Name>)> {
 fn resolve_targets(
     on: &[ApplyTarget],
     modifiers: &mut SubCommandModifiers,
-) -> (HashSet<String>, HashSet<Name>) {
-    on.iter().fold(
+) -> Result<(HashSet<String>, HashSet<Name>)> {
+    on.iter().try_fold(
         (HashSet::new(), HashSet::new()),
-        |(mut tags, mut names), target| {
+        |result, target| {
+            let (mut tags, mut names) = result;
             match target {
                 ApplyTarget::Tag(tag) => {
                     tags.insert(tag.clone());
@@ -67,15 +68,13 @@ fn resolve_targets(
                     names.insert(name.clone());
                 }
                 ApplyTarget::Stdin => {
-                    // implies non_interactive
                     modifiers.non_interactive = true;
-
-                    let (found_tags, found_names) = read_apply_targets_from_stdin().unwrap();
+                    let (found_tags, found_names) = read_apply_targets_from_stdin()?;
                     names.extend(found_names);
                     tags.extend(found_tags);
                 }
             }
-            (tags, names)
+            Ok((tags, names))
         },
     )
 }
@@ -110,7 +109,7 @@ where
 {
     let location = Arc::new(location);
 
-    let (tags, names) = resolve_targets(&args.on, &mut modifiers);
+    let (tags, names) = resolve_targets(&args.on, &mut modifiers)?;
 
     let selected_names: Vec<_> = hive
         .nodes
