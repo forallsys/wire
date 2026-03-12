@@ -50,6 +50,8 @@ impl ExecuteStep for Ping {
                 host = target.get_preferred_host()?.to_string()
             );
 
+            drop(target);
+
             self.target.0.write().await.host_failed();
         }
     }

@@ -439,7 +439,7 @@ async fn create_int_ssh_command(
 ) -> Result<portable_pty::CommandBuilder, HiveLibError> {
     let target = target.0.read().await;
     let mut command = portable_pty::CommandBuilder::new("ssh");
-    command.args(target.create_ssh_args(modifiers, false)?);
+    command.args(target.create_ssh_args(modifiers)?);
     command.arg(target.get_preferred_host()?.to_string());
     Ok(command)
 }

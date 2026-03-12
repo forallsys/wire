@@ -64,14 +64,13 @@ impl PartialEq for SharedTarget {
 impl Target {
     #[instrument(ret(level = tracing::Level::DEBUG), skip_all)]
     pub fn create_ssh_opts(&self, modifiers: SubCommandModifiers) -> Result<String, HiveLibError> {
-        self.create_ssh_args(modifiers, false).map(|x| x.join(" "))
+        self.create_ssh_args(modifiers).map(|x| x.join(" "))
     }
 
     #[instrument(ret(level = tracing::Level::DEBUG))]
     pub fn create_ssh_args(
         &self,
         modifiers: SubCommandModifiers,
-        non_interactive_forced: bool,
     ) -> Result<Vec<String>, HiveLibError> {
         let mut vector = vec![
             "-l".to_string(),
@@ -254,7 +253,7 @@ pub enum SwitchToConfigurationGoal {
     DryActivate,
 }
 
-#[derive(derive_more::Display, Clone, Copy)]
+#[derive(derive_more::Display, Debug, Clone, Copy)]
 pub enum ApplyGoal {
     SwitchToConfiguration(SwitchToConfigurationGoal),
     Build,
@@ -357,17 +356,14 @@ mod tests {
             "KbdInteractiveAuthentication=no".to_string(),
         ];
 
-        assert_eq!(
-            target.create_ssh_args(subcommand_modifiers, false).unwrap(),
-            args
-        );
+        assert_eq!(target.create_ssh_args(subcommand_modifiers).unwrap(), args);
         assert_eq!(
             target.create_ssh_opts(subcommand_modifiers).unwrap(),
             args.join(" ")
         );
 
         assert_eq!(
-            target.create_ssh_args(subcommand_modifiers, false).unwrap(),
+            target.create_ssh_args(subcommand_modifiers).unwrap(),
             [
                 "-l".to_string(),
                 target.user.to_string(),
@@ -383,7 +379,7 @@ mod tests {
         );
 
         assert_eq!(
-            target.create_ssh_args(subcommand_modifiers, true).unwrap(),
+            target.create_ssh_args(subcommand_modifiers).unwrap(),
             [
                 "-l".to_string(),
                 target.user.to_string(),
@@ -400,15 +396,12 @@ mod tests {
 
         // forced non interactive is the same as --non-interactive
         assert_eq!(
-            target.create_ssh_args(subcommand_modifiers, true).unwrap(),
+            target.create_ssh_args(subcommand_modifiers).unwrap(),
             target
-                .create_ssh_args(
-                    SubCommandModifiers {
-                        non_interactive: true,
-                        ..Default::default()
-                    },
-                    false
-                )
+                .create_ssh_args(SubCommandModifiers {
+                    non_interactive: true,
+                    ..Default::default()
+                })
                 .unwrap()
         );
     }

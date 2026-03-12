@@ -66,7 +66,9 @@ fn apply_plan_keys(
             .into_iter()
             .partition(|x| matches!(x.upload_at, UploadKeyAt::PreActivation)),
         ApplyGoal::Keys => (node.keys.clone(), Vec::new()),
-        _ => unreachable!(),
+        ApplyGoal::Build | ApplyGoal::Push | ApplyGoal::SwitchToConfiguration(_) => {
+            unreachable!("apply_plan_keys called with non-key goal: {:?}", goal)
+        }
     };
 
     // only push key agent if there are any keys at all
