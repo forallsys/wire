@@ -28,20 +28,189 @@ pub struct NodePlan {
     pub ignore_failed_ping: bool,
 }
 
+#[allow(clippy::struct_excessive_bools)]
+pub struct ApplyGoalArgs {
+    pub goal: ApplyGoal,
+    pub should_apply_locally: bool,
+    pub no_keys: bool,
+    pub substitute_on_destination: bool,
+    pub reboot: bool,
+    pub host_platform: Arc<str>,
+    pub handle_unreachable: HandleUnreachable,
+}
+
 pub enum Goal {
-    Apply {
-        goal: ApplyGoal,
-        should_apply_locally: bool,
-        no_keys: bool,
-        substitute_on_destination: bool,
-        reboot: bool,
-        host_platform: Arc<str>,
-        handle_unreachable: HandleUnreachable,
-    },
+    Apply(ApplyGoalArgs),
     Build,
 }
 
-// TODO: remove this allow
+fn apply_plan_keys(
+    args: &ApplyGoalArgs,
+    node: &Node,
+    target: &SharedTarget,
+) -> (Vec<Step>, Vec<Step>) {
+    let ApplyGoalArgs {
+        goal,
+        substitute_on_destination,
+        should_apply_locally,
+        host_platform,
+        ..
+    } = args;
+    let mut front_steps = Vec::new();
+    let mut end_steps = Vec::new();
+
+    let (pre_keys, post_keys) = match goal {
+        ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch) => node
+            .keys
+            .clone()
+            .into_iter()
+            .partition(|x| matches!(x.upload_at, UploadKeyAt::PreActivation)),
+        ApplyGoal::Keys => (node.keys.clone(), Vec::new()),
+        _ => unreachable!(),
+    };
+
+    // onyl push key agent if there are any keys at all
+    if !pre_keys.is_empty() || !post_keys.is_empty() {
+        front_steps.push(Step::PushKeyAgent(PushKeyAgent {
+            substitute_on_destination: *substitute_on_destination,
+            host_platform: host_platform.clone(),
+            target: if *should_apply_locally {
+                None
+            } else {
+                Some(target.clone())
+            },
+        }));
+    }
+
+    if !pre_keys.is_empty() {
+        front_steps.push(Step::Keys(Keys {
+            keys: pre_keys,
+            target: if *should_apply_locally {
+                None
+            } else {
+                Some(target.clone())
+            },
+            privilege_escalation_command: node.privilege_escalation_command.clone(),
+        }));
+    }
+
+    if !post_keys.is_empty() {
+        end_steps.push(Step::Keys(Keys {
+            keys: post_keys,
+            target: if *should_apply_locally {
+                None
+            } else {
+                Some(target.clone())
+            },
+            privilege_escalation_command: node.privilege_escalation_command.clone(),
+        }));
+    }
+
+    (front_steps, end_steps)
+}
+
+fn apply_plan(
+    args: &ApplyGoalArgs,
+    node: &Node,
+    name: &Name,
+    modifiers: SubCommandModifiers,
+    hive_location: Arc<HiveLocation>,
+    should_quit: Arc<AtomicBool>,
+) -> NodePlan {
+    let ApplyGoalArgs {
+        goal,
+        should_apply_locally,
+        no_keys,
+        substitute_on_destination,
+        reboot,
+        handle_unreachable,
+        ..
+    } = args;
+
+    let mut steps: Vec<Step> = Vec::new();
+    let mut end: Vec<Step> = Vec::new();
+    let target = SharedTarget(Arc::new(RwLock::new(node.target.clone())));
+
+    if !*should_apply_locally {
+        steps.push(Step::Ping(Ping {
+            target: target.clone(),
+        }));
+    }
+
+    if !*no_keys
+        && matches!(
+            &goal,
+            ApplyGoal::Keys | ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch)
+        )
+    {
+        let (pre, post) = apply_plan_keys(args, node, &target);
+        steps.extend(pre);
+        end.extend(post);
+    }
+
+    if !matches!(goal, ApplyGoal::Keys) {
+        steps.push(Step::Evaluate(Evaluate));
+    }
+
+    if !matches!(goal, ApplyGoal::Keys)
+        && !should_apply_locally
+        && (node.build_remotely || matches!(goal, ApplyGoal::Push))
+    {
+        steps.push(Step::PushEvaluatedOutput(PushEvaluatedOutput {
+            substitute_on_destination: *substitute_on_destination,
+            target: target.clone(),
+        }));
+    }
+
+    if !matches!(goal, ApplyGoal::Keys | ApplyGoal::Push) {
+        steps.push(Step::Build(Build {
+            target: if node.build_remotely && !*should_apply_locally {
+                Some(target.clone())
+            } else {
+                None
+            },
+        }));
+    }
+
+    if !node.build_remotely
+        && !should_apply_locally
+        && !matches!(goal, ApplyGoal::Keys | ApplyGoal::Push)
+    {
+        steps.push(Step::PushBuildOutput(PushBuildOutput {
+            substitute_on_destination: *substitute_on_destination,
+            target: target.clone(),
+        }));
+    }
+
+    if let ApplyGoal::SwitchToConfiguration(goal) = goal {
+        steps.push(Step::SwitchToConfiguration(SwitchToConfiguration {
+            goal: *goal,
+            reboot: *reboot,
+            target: if *should_apply_locally {
+                None
+            } else {
+                Some(target.clone())
+            },
+            privilege_escalation_command: node.privilege_escalation_command.clone(),
+        }));
+    }
+
+    steps.extend(end);
+
+    NodePlan {
+        context: Context {
+            state: StepState::default(),
+            name: name.clone(),
+            hive_location,
+            modifiers,
+            should_quit,
+        },
+        steps,
+        greedy_evaluate: !matches!(&goal, ApplyGoal::Keys),
+        ignore_failed_ping: matches!(handle_unreachable, HandleUnreachable::Ignore),
+    }
+}
+
 #[allow(clippy::too_many_lines)]
 pub fn plan_for_node(
     node: &Node,
@@ -67,142 +236,7 @@ pub fn plan_for_node(
             greedy_evaluate: true,
             ignore_failed_ping: false,
         },
-        Goal::Apply {
-            goal,
-            should_apply_locally,
-            no_keys,
-            substitute_on_destination,
-            reboot,
-            host_platform,
-            handle_unreachable,
-        } => {
-            let mut steps: Vec<Step> = Vec::new();
-            let mut end: Vec<Step> = Vec::new();
-            let target = SharedTarget(Arc::new(RwLock::new(node.target.clone())));
-
-            if !*should_apply_locally {
-                steps.push(Step::Ping(Ping {
-                    target: target.clone(),
-                }));
-            }
-
-            if !*no_keys
-                && matches!(
-                    &goal,
-                    ApplyGoal::Keys
-                        | ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch)
-                )
-            {
-                let (pre_keys, post_keys) = match goal {
-                    ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch) => node
-                        .keys
-                        .clone()
-                        .into_iter()
-                        .partition(|x| matches!(x.upload_at, UploadKeyAt::PreActivation)),
-                    ApplyGoal::Keys => (node.keys.clone(), Vec::new()),
-                    _ => unreachable!(),
-                };
-
-                // onyl push key agent if there are any keys at all
-                if !pre_keys.is_empty() || !post_keys.is_empty() {
-                    steps.push(Step::PushKeyAgent(PushKeyAgent {
-                        substitute_on_destination: *substitute_on_destination,
-                        host_platform: host_platform.clone(),
-                        target: if *should_apply_locally {
-                            None
-                        } else {
-                            Some(target.clone())
-                        },
-                    }));
-                }
-
-                if !pre_keys.is_empty() {
-                    steps.push(Step::Keys(Keys {
-                        keys: pre_keys,
-                        target: if *should_apply_locally {
-                            None
-                        } else {
-                            Some(target.clone())
-                        },
-                        privilege_escalation_command: node.privilege_escalation_command.clone(),
-                    }));
-                }
-
-                if !post_keys.is_empty() {
-                    end.push(Step::Keys(Keys {
-                        keys: post_keys,
-                        target: if *should_apply_locally {
-                            None
-                        } else {
-                            Some(target.clone())
-                        },
-                        privilege_escalation_command: node.privilege_escalation_command.clone(),
-                    }));
-                }
-            }
-
-            if !matches!(goal, ApplyGoal::Keys) {
-                steps.push(Step::Evaluate(Evaluate));
-            }
-
-            if !matches!(goal, ApplyGoal::Keys)
-                && !should_apply_locally
-                && (node.build_remotely || matches!(goal, ApplyGoal::Push))
-            {
-                steps.push(Step::PushEvaluatedOutput(PushEvaluatedOutput {
-                    substitute_on_destination: *substitute_on_destination,
-                    target: target.clone(),
-                }));
-            }
-
-            if !matches!(goal, ApplyGoal::Keys | ApplyGoal::Push) {
-                steps.push(Step::Build(Build {
-                    target: if node.build_remotely && !*should_apply_locally {
-                        Some(target.clone())
-                    } else {
-                        None
-                    },
-                }));
-            }
-
-            if !node.build_remotely
-                && !should_apply_locally
-                && !matches!(goal, ApplyGoal::Keys | ApplyGoal::Push)
-            {
-                steps.push(Step::PushBuildOutput(PushBuildOutput {
-                    substitute_on_destination: *substitute_on_destination,
-                    target: target.clone(),
-                }));
-            }
-
-            if let ApplyGoal::SwitchToConfiguration(goal) = goal {
-                steps.push(Step::SwitchToConfiguration(SwitchToConfiguration {
-                    goal: *goal,
-                    reboot: *reboot,
-                    target: if *should_apply_locally {
-                        None
-                    } else {
-                        Some(target.clone())
-                    },
-                    privilege_escalation_command: node.privilege_escalation_command.clone(),
-                }));
-            }
-
-            steps.extend(end);
-
-            NodePlan {
-                context: Context {
-                    state: StepState::default(),
-                    name: name.clone(),
-                    hive_location,
-                    modifiers: *modifiers,
-                    should_quit,
-                },
-                steps,
-                greedy_evaluate: !matches!(&goal, ApplyGoal::Keys),
-                ignore_failed_ping: matches!(handle_unreachable, HandleUnreachable::Ignore),
-            }
-        }
+        Goal::Apply(args) => apply_plan(args, node, &name, *modifiers, hive_location, should_quit),
     }
 }
 
@@ -217,7 +251,7 @@ mod tests {
                 ApplyGoal, HandleUnreachable, Name, Node, SharedTarget, Step,
                 SwitchToConfigurationGoal,
             },
-            plan::{Goal, plan_for_node},
+            plan::{ApplyGoalArgs, Goal, plan_for_node},
             steps::{
                 activate::SwitchToConfiguration,
                 build::Build,
@@ -299,7 +333,7 @@ mod tests {
         let plan = plan_for_node(
             &node,
             name.clone(),
-            &Goal::Apply {
+            &Goal::Apply(ApplyGoalArgs {
                 goal: ApplyGoal::Build,
                 should_apply_locally: false,
                 no_keys: true,
@@ -307,7 +341,7 @@ mod tests {
                 reboot: false,
                 host_platform: "x86_64-linux".into(),
                 handle_unreachable: HandleUnreachable::default(),
-            },
+            }),
             location.clone().into(),
             &SubCommandModifiers::default(),
             should_quit.clone(),
@@ -340,7 +374,7 @@ mod tests {
         let plan = plan_for_node(
             &node,
             name.clone(),
-            &Goal::Apply {
+            &Goal::Apply(ApplyGoalArgs {
                 goal: ApplyGoal::Build,
                 should_apply_locally: false,
                 no_keys: true,
@@ -348,7 +382,7 @@ mod tests {
                 reboot: false,
                 host_platform: "x86_64-linux".into(),
                 handle_unreachable: HandleUnreachable::default(),
-            },
+            }),
             location.clone().into(),
             &SubCommandModifiers::default(),
             should_quit.clone(),
@@ -390,7 +424,7 @@ mod tests {
         let plan_apply_keys = plan_for_node(
             &node.clone(),
             name.clone(),
-            &Goal::Apply {
+            &Goal::Apply(ApplyGoalArgs {
                 goal: ApplyGoal::Keys,
                 should_apply_locally: false,
                 no_keys: false,
@@ -398,7 +432,7 @@ mod tests {
                 reboot: false,
                 host_platform: "x86_64-linux".into(),
                 handle_unreachable: HandleUnreachable::default(),
-            },
+            }),
             location.clone().into(),
             &SubCommandModifiers::default(),
             should_quit.clone(),
@@ -448,7 +482,7 @@ mod tests {
         let plan_activate_with_keys = plan_for_node(
             &node,
             name.clone(),
-            &Goal::Apply {
+            &Goal::Apply(ApplyGoalArgs {
                 goal: ApplyGoal::SwitchToConfiguration(
                     crate::hive::node::SwitchToConfigurationGoal::Switch,
                 ),
@@ -458,7 +492,7 @@ mod tests {
                 reboot: false,
                 host_platform: "x86_64-linux".into(),
                 handle_unreachable: HandleUnreachable::default(),
-            },
+            }),
             location.clone().into(),
             &SubCommandModifiers::default(),
             should_quit.clone(),
@@ -516,7 +550,7 @@ mod tests {
         let plan = plan_for_node(
             &node.clone(),
             name.clone(),
-            &Goal::Apply {
+            &Goal::Apply(ApplyGoalArgs {
                 goal: ApplyGoal::Push,
                 should_apply_locally: false,
                 no_keys: false,
@@ -524,7 +558,7 @@ mod tests {
                 reboot: false,
                 host_platform: "x86_64-linux".into(),
                 handle_unreachable: HandleUnreachable::default(),
-            },
+            }),
             location.clone().into(),
             &SubCommandModifiers::default(),
             should_quit.clone(),
@@ -560,7 +594,7 @@ mod tests {
         let plan = plan_for_node(
             &node.clone(),
             name.clone(),
-            &Goal::Apply {
+            &Goal::Apply(ApplyGoalArgs {
                 goal: ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch),
                 should_apply_locally: false,
                 no_keys: false,
@@ -568,7 +602,7 @@ mod tests {
                 reboot: false,
                 host_platform: "x86_64-linux".into(),
                 handle_unreachable: HandleUnreachable::default(),
-            },
+            }),
             location.clone().into(),
             &SubCommandModifiers::default(),
             should_quit.clone(),
@@ -616,7 +650,7 @@ mod tests {
         let plan = plan_for_node(
             &node.clone(),
             name.clone(),
-            &Goal::Apply {
+            &Goal::Apply(ApplyGoalArgs {
                 goal: ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch),
                 should_apply_locally: false,
                 no_keys: true,
@@ -624,7 +658,7 @@ mod tests {
                 reboot: false,
                 host_platform: "x86_64-linux".into(),
                 handle_unreachable: HandleUnreachable::default(),
-            },
+            }),
             location.clone().into(),
             &SubCommandModifiers::default(),
             should_quit.clone(),
@@ -667,7 +701,7 @@ mod tests {
         let plan = plan_for_node(
             &node.clone(),
             name.clone(),
-            &Goal::Apply {
+            &Goal::Apply(ApplyGoalArgs {
                 goal: ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch),
                 should_apply_locally: true,
                 no_keys: true,
@@ -675,7 +709,7 @@ mod tests {
                 reboot: false,
                 host_platform: "x86_64-linux".into(),
                 handle_unreachable: HandleUnreachable::default(),
-            },
+            }),
             location.clone().into(),
             &SubCommandModifiers::default(),
             should_quit.clone(),

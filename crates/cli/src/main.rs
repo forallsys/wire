@@ -29,6 +29,7 @@ use wire_core::commands::common::get_hive_node_names;
 use wire_core::hive::Hive;
 use wire_core::hive::get_hive_location;
 use wire_core::hive::node::should_apply_locally;
+use wire_core::hive::plan::ApplyGoalArgs;
 use wire_core::hive::plan::Goal;
 
 #[macro_use]
@@ -97,7 +98,7 @@ async fn main() -> Result<()> {
                 location,
                 apply_args.common,
                 Partitions::default(),
-                |name, node| Goal::Apply {
+                |name, node| Goal::Apply(ApplyGoalArgs {
                     goal,
                     no_keys: apply_args.no_keys,
                     reboot: apply_args.reboot,
@@ -108,7 +109,7 @@ async fn main() -> Result<()> {
                     ),
                     handle_unreachable: apply_args.handle_unreachable.clone().into(),
                     host_platform: node.host_platform.clone(),
-                },
+                }),
                 modifiers,
             )
             .await?;

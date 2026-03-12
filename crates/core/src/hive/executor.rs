@@ -123,7 +123,7 @@ mod tests {
         hive::{
             executor::execute,
             node::{ApplyGoal, HandleUnreachable, Name, Node, SwitchToConfigurationGoal},
-            plan::{Goal, plan_for_node},
+            plan::{ApplyGoalArgs, Goal, plan_for_node},
         },
         location,
     };
@@ -142,7 +142,7 @@ mod tests {
         let plan = plan_for_node(
             &node.clone(),
             name.clone(),
-            &Goal::Apply {
+            &Goal::Apply(ApplyGoalArgs {
                 goal: ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch),
                 should_apply_locally: true,
                 no_keys: true,
@@ -150,7 +150,7 @@ mod tests {
                 reboot: false,
                 host_platform: "x86_64-linux".into(),
                 handle_unreachable: HandleUnreachable::default(),
-            },
+            }),
             location.clone().into(),
             &SubCommandModifiers::default(),
             should_quit.clone(),
