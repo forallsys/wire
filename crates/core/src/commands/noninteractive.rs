@@ -32,12 +32,12 @@ pub(crate) struct NonInteractiveChildChip {
 }
 
 #[instrument(skip_all, name = "run", fields(elevated = %arguments.is_elevated()))]
-pub(crate) fn non_interactive_command_with_env<S: AsRef<str>>(
+pub(crate) async fn non_interactive_command_with_env<S: AsRef<str>>(
     arguments: &CommandArguments<S>,
     envs: HashMap<String, String>,
 ) -> Result<NonInteractiveChildChip, HiveLibError> {
     let mut command = if let Some(ref target) = arguments.target {
-        create_sync_ssh_command(target, arguments.modifiers)?
+        create_sync_ssh_command(target, arguments.modifiers).await?
     } else {
         let mut command = Command::new("sh");
 
@@ -187,11 +187,11 @@ pub async fn handle_io<R>(
     debug!("io_handler: goodbye!");
 }
 
-fn create_sync_ssh_command(
+async fn create_sync_ssh_command(
     target: &SharedTarget,
     modifiers: SubCommandModifiers,
 ) -> Result<Command, HiveLibError> {
-    let target = target.0.blocking_read();
+    let target = target.0.read().await;
     let mut command = Command::new("ssh");
     command.args(target.create_ssh_args(modifiers)?);
     command.arg(target.get_preferred_host()?.to_string());

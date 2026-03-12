@@ -119,9 +119,9 @@ pub(crate) async fn run_command_with_env<S: AsRef<str>>(
     if arguments.modifiers.non_interactive
         || (arguments.target.is_none() && !arguments.is_elevated())
     {
-        return Ok(Either::Right(non_interactive_command_with_env(
-            arguments, envs,
-        )?));
+        return Ok(Either::Right(
+            non_interactive_command_with_env(arguments, envs).await?,
+        ));
     }
 
     Ok(Either::Left(
