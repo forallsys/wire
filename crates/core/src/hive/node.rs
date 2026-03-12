@@ -48,7 +48,16 @@ pub struct SharedTarget(pub Arc<RwLock<Target>>);
 #[cfg(test)]
 impl PartialEq for SharedTarget {
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.0, &other.0)
+        let self_guard = self
+            .0
+            .try_read()
+            .expect("failed to target read in test context");
+        let other_guard = other
+            .0
+            .try_read()
+            .expect("failed to target read in test context");
+
+        *self_guard == *other_guard
     }
 }
 

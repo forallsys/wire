@@ -296,8 +296,6 @@ pub async fn get_hive_location(
 
 #[cfg(test)]
 mod tests {
-    use im::vector;
-
     use crate::{
         errors::CommandError,
         get_test_path,

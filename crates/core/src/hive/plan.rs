@@ -207,10 +207,15 @@ pub fn plan_for_node(
 }
 #[cfg(test)]
 mod tests {
+    use tokio::sync::RwLock;
+
     use crate::{
         SubCommandModifiers, function_name, get_test_path,
         hive::{
-            node::{ApplyGoal, HandleUnreachable, Name, Node, Step, SwitchToConfigurationGoal},
+            node::{
+                ApplyGoal, HandleUnreachable, Name, Node, SharedTarget, Step,
+                SwitchToConfigurationGoal,
+            },
             plan::{Goal, plan_for_node},
             steps::{
                 activate::SwitchToConfiguration,
@@ -277,6 +282,7 @@ mod tests {
         };
         let name = &Name(function_name!().into());
         let should_quit = Arc::new(AtomicBool::new(false));
+        let target = SharedTarget(Arc::new(RwLock::new(node.target.clone())));
         let plan = plan_for_node(
             &node,
             name.clone(),
@@ -297,15 +303,18 @@ mod tests {
         assert_eq!(
             plan.steps,
             vec![
-                Ping {}.into(),
+                Ping {
+                    target: target.clone()
+                }
+                .into(),
                 crate::hive::steps::evaluate::Evaluate.into(),
                 crate::hive::steps::push::PushEvaluatedOutput {
                     substitute_on_destination: true,
-                    target: node.target.clone()
+                    target: target.clone()
                 }
                 .into(),
                 crate::hive::steps::build::Build {
-                    target: Some(node.target.clone())
+                    target: Some(target.clone())
                 }
                 .into(),
             ]
@@ -335,12 +344,15 @@ mod tests {
         assert_eq!(
             plan.steps,
             vec![
-                Ping {}.into(),
+                Ping {
+                    target: target.clone()
+                }
+                .into(),
                 crate::hive::steps::evaluate::Evaluate.into(),
                 crate::hive::steps::build::Build { target: None }.into(),
                 crate::hive::steps::push::PushBuildOutput {
                     substitute_on_destination: true,
-                    target: node.target.clone()
+                    target: target.clone()
                 }
                 .into(),
             ]
@@ -367,6 +379,7 @@ mod tests {
         };
         let name = &Name(function_name!().into());
         let should_quit = Arc::new(AtomicBool::new(false));
+        let target = SharedTarget(Arc::new(RwLock::new(node.target.clone())));
         let plan_apply_keys = plan_for_node(
             &node.clone(),
             name.clone(),
@@ -387,21 +400,46 @@ mod tests {
         assert_eq!(
             plan_apply_keys.steps,
             vec![
-                Ping {}.into(),
+                Ping {
+                    target: target.clone()
+                }
+                .into(),
                 PushKeyAgent {
                     substitute_on_destination: true,
-                    target: node.target.clone(),
+                    target: Some(target.clone()),
                     host_platform: node.host_platform.clone()
                 }
                 .into(),
                 Keys {
-                    target: Some(node.target.clone()),
+                    target: Some(target.clone()),
                     keys: node.keys.clone(),
                     privilege_escalation_command: node.privilege_escalation_command.clone()
                 }
                 .into(),
             ]
         );
+    }
+
+    #[tokio::test]
+    async fn order_keys_two() {
+        let location = location!(get_test_path!());
+        let node = Node {
+            keys: vec![
+                Key {
+                    upload_at: UploadKeyAt::PreActivation,
+                    ..Default::default()
+                }
+                .into(),
+                Key {
+                    upload_at: UploadKeyAt::PostActivation,
+                    ..Default::default()
+                }
+                .into(),
+            ],
+            ..Default::default()
+        };
+        let name = &Name(function_name!().into());
+        let should_quit = Arc::new(AtomicBool::new(false));
 
         // Test that keys are split by their `upload_at`, also tests that key
         // step's `target` abides by should_apply_locally
@@ -434,6 +472,12 @@ mod tests {
                 ))
                 .collect::<Vec<Step>>(),
             vec![
+                PushKeyAgent {
+                    substitute_on_destination: true,
+                    target: None,
+                    host_platform: node.host_platform.clone()
+                }
+                .into(),
                 Keys {
                     target: None,
                     keys: node
@@ -466,6 +510,7 @@ mod tests {
         let node = Node::default();
         let name = &Name(function_name!().into());
         let should_quit = Arc::new(AtomicBool::new(false));
+        let target = SharedTarget(Arc::new(RwLock::new(node.target.clone())));
         let plan = plan_for_node(
             &node.clone(),
             name.clone(),
@@ -486,11 +531,14 @@ mod tests {
         assert_eq!(
             plan.steps,
             vec![
-                Ping {}.into(),
+                Ping {
+                    target: target.clone()
+                }
+                .into(),
                 Evaluate.into(),
                 PushEvaluatedOutput {
                     substitute_on_destination: true,
-                    target: node.target.clone()
+                    target: target.clone()
                 }
                 .into()
             ]
@@ -506,6 +554,7 @@ mod tests {
         };
         let name = &Name(function_name!().into());
         let should_quit = Arc::new(AtomicBool::new(false));
+        let target = SharedTarget(Arc::new(RwLock::new(node.target.clone())));
         let plan = plan_for_node(
             &node.clone(),
             name.clone(),
@@ -526,21 +575,24 @@ mod tests {
         assert_eq!(
             plan.steps,
             vec![
-                Ping {}.into(),
+                Ping {
+                    target: target.clone()
+                }
+                .into(),
                 Evaluate.into(),
                 PushEvaluatedOutput {
                     substitute_on_destination: true,
-                    target: node.target.clone()
+                    target: target.clone()
                 }
                 .into(),
                 Build {
-                    target: Some(node.target.clone())
+                    target: Some(target.clone())
                 }
                 .into(),
                 SwitchToConfiguration {
                     goal: SwitchToConfigurationGoal::Switch,
                     reboot: false,
-                    target: Some(node.target.clone()),
+                    target: Some(target.clone()),
                     privilege_escalation_command: node.privilege_escalation_command,
                 }
                 .into(),
@@ -558,6 +610,7 @@ mod tests {
         };
         let name = &Name(function_name!().into());
         let should_quit = Arc::new(AtomicBool::new(false));
+        let target = SharedTarget(Arc::new(RwLock::new(node.target.clone())));
         let plan = plan_for_node(
             &node.clone(),
             name.clone(),
@@ -578,21 +631,24 @@ mod tests {
         assert_eq!(
             plan.steps,
             vec![
-                Ping {}.into(),
+                Ping {
+                    target: target.clone()
+                }
+                .into(),
                 Evaluate.into(),
                 PushEvaluatedOutput {
                     substitute_on_destination: true,
-                    target: node.target.clone()
+                    target: target.clone()
                 }
                 .into(),
                 Build {
-                    target: Some(node.target.clone())
+                    target: Some(target.clone())
                 }
                 .into(),
                 SwitchToConfiguration {
                     goal: SwitchToConfigurationGoal::Switch,
                     reboot: false,
-                    target: Some(node.target.clone()),
+                    target: Some(target.clone()),
                     privilege_escalation_command: node.privilege_escalation_command,
                 }
                 .into(),
