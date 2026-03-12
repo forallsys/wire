@@ -29,7 +29,7 @@ use crate::errors::CommandError;
 use crate::{SubCommandModifiers, acquire_stdin_lock};
 use crate::{
     commands::{ChildOutputMode, WireCommandChip},
-    errors::HiveLibError
+    errors::HiveLibError,
 };
 
 mod input;

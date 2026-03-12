@@ -215,7 +215,6 @@ impl Node {
             ..Default::default()
         }
     }
-
 }
 
 #[must_use]

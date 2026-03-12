@@ -7,7 +7,8 @@ use crate::{
     hive::{
         HiveLocation,
         node::{
-            ApplyGoal, Context, HandleUnreachable, Name, Node, SharedTarget, Step, StepState, SwitchToConfigurationGoal
+            ApplyGoal, Context, HandleUnreachable, Name, Node, SharedTarget, Step, StepState,
+            SwitchToConfigurationGoal,
         },
         steps::{
             activate::SwitchToConfiguration,
@@ -81,7 +82,7 @@ pub fn plan_for_node(
 
             if !*should_apply_locally {
                 steps.push(Step::Ping(Ping {
-                    target: target.clone()
+                    target: target.clone(),
                 }));
             }
 
@@ -111,7 +112,7 @@ pub fn plan_for_node(
                             None
                         } else {
                             Some(target.clone())
-                        }
+                        },
                     }));
                 }
 
@@ -150,7 +151,7 @@ pub fn plan_for_node(
             {
                 steps.push(Step::PushEvaluatedOutput(PushEvaluatedOutput {
                     substitute_on_destination: *substitute_on_destination,
-                    target: target.clone()
+                    target: target.clone(),
                 }));
             }
 
@@ -170,7 +171,7 @@ pub fn plan_for_node(
             {
                 steps.push(Step::PushBuildOutput(PushBuildOutput {
                     substitute_on_destination: *substitute_on_destination,
-                    target: target.clone()
+                    target: target.clone(),
                 }));
             }
 
@@ -217,12 +218,12 @@ mod tests {
                 evaluate::Evaluate,
                 keys::{Key, Keys, PushKeyAgent, UploadKeyAt},
                 ping::Ping,
-                push::{PushEvaluatedOutput},
+                push::PushEvaluatedOutput,
             },
         },
         location,
     };
-    use std::{path::PathBuf};
+    use std::path::PathBuf;
     use std::{
         env,
         sync::{Arc, atomic::AtomicBool},

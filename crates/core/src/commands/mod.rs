@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright 2024-2025 wire Contributors
 
-use crate::{commands::pty::{InteractiveChildChip, interactive_command_with_env}, hive::node::SharedTarget};
+use crate::{
+    commands::pty::{InteractiveChildChip, interactive_command_with_env},
+    hive::node::SharedTarget,
+};
 use std::{
     collections::HashMap,
     str::from_utf8,
@@ -18,7 +21,7 @@ use tracing::{debug, error, info, trace, warn};
 use crate::{
     SubCommandModifiers,
     commands::noninteractive::{NonInteractiveChildChip, non_interactive_command_with_env},
-    errors::{CommandError, HiveLibError}
+    errors::{CommandError, HiveLibError},
 };
 
 pub(crate) mod builder;

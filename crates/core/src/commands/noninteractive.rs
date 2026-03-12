@@ -11,7 +11,7 @@ use crate::{
     SubCommandModifiers,
     commands::{ChildOutputMode, CommandArguments, WireCommandChip},
     errors::{CommandError, HiveLibError},
-    hive::node::{SharedTarget},
+    hive::node::SharedTarget,
 };
 use itertools::Itertools;
 use tokio::{

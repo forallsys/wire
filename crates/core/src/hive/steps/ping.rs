@@ -13,7 +13,7 @@ use crate::{
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct Ping {
-    pub target: SharedTarget
+    pub target: SharedTarget,
 }
 
 impl Display for Ping {
