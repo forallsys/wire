@@ -98,18 +98,20 @@ async fn main() -> Result<()> {
                 location,
                 apply_args.common,
                 Partitions::default(),
-                |name, node| Goal::Apply(ApplyGoalArgs {
-                    goal,
-                    no_keys: apply_args.no_keys,
-                    reboot: apply_args.reboot,
-                    substitute_on_destination: apply_args.substitute_on_destination,
-                    should_apply_locally: should_apply_locally(
-                        node.allow_local_deployment,
-                        &name.0,
-                    ),
-                    handle_unreachable: apply_args.handle_unreachable.clone().into(),
-                    host_platform: node.host_platform.clone(),
-                }),
+                |name, node| {
+                    Goal::Apply(ApplyGoalArgs {
+                        goal,
+                        no_keys: apply_args.no_keys,
+                        reboot: apply_args.reboot,
+                        substitute_on_destination: apply_args.substitute_on_destination,
+                        should_apply_locally: should_apply_locally(
+                            node.allow_local_deployment,
+                            &name.0,
+                        ),
+                        handle_unreachable: apply_args.handle_unreachable.clone().into(),
+                        host_platform: node.host_platform.clone(),
+                    })
+                },
                 modifiers,
             )
             .await?;

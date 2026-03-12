@@ -69,7 +69,7 @@ fn apply_plan_keys(
         _ => unreachable!(),
     };
 
-    // onyl push key agent if there are any keys at all
+    // only push key agent if there are any keys at all
     if !pre_keys.is_empty() || !post_keys.is_empty() {
         front_steps.push(Step::PushKeyAgent(PushKeyAgent {
             substitute_on_destination: *substitute_on_destination,
