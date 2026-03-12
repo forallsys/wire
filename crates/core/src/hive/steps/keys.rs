@@ -8,7 +8,6 @@ use itertools::{Itertools, Position};
 use owo_colors::OwoColorize;
 use prost::Message;
 use prost::bytes::BytesMut;
-use rand::seq::IndexedRandom;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::env;
@@ -335,72 +334,5 @@ impl ExecuteStep for PushKeyAgent {
         ctx.state.key_agent_directory = Some(agent_directory);
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::hive::steps::keys::{Key, UploadKeyAt};
-
-    fn new_key(upload_at: &UploadKeyAt) -> Key {
-        Key {
-            upload_at: upload_at.clone(),
-            source: super::Source::String(match upload_at {
-                UploadKeyAt::PreActivation => "pre".into(),
-                UploadKeyAt::PostActivation => "post".into(),
-                UploadKeyAt::NoFilter => "none".into(),
-            }),
-            ..Default::default()
-        }
-    }
-
-    #[tokio::test]
-    async fn key_filtering() {
-        // TODO: Implement in super tests
-
-        // let keys = Vector::from(vec![
-        //     new_key(&UploadKeyAt::PreActivation),
-        //     new_key(&UploadKeyAt::PostActivation),
-        //     new_key(&UploadKeyAt::PreActivation),
-        //     new_key(&UploadKeyAt::PostActivation),
-        // ]);
-
-        // for (_, buf) in (Keys {
-        //     filter: crate::hive::steps::keys::UploadKeyAt::PreActivation,
-        // })
-        // .select_keys(&keys)
-        // .await
-        // .unwrap()
-        // {
-        //     assert_eq!(String::from_utf8_lossy(&buf), "pre");
-        // }
-        //
-        // for (_, buf) in (Keys {
-        //     filter: crate::hive::steps::keys::UploadKeyAt::PostActivation,
-        // })
-        // .select_keys(&keys)
-        // .await
-        // .unwrap()
-        // {
-        //     assert_eq!(String::from_utf8_lossy(&buf), "post");
-        // }
-        //
-        // // test that NoFilter processes all keys.
-        // let processed_all =
-        //     futures::future::join_all(keys.iter().map(async |x| process_key(x).await))
-        //         .await
-        //         .iter()
-        //         .flatten()
-        //         .cloned()
-        //         .collect::<Vec<_>>();
-        // let no_filter = (Keys {
-        //     filter: crate::hive::steps::keys::UploadKeyAt::NoFilter,
-        // })
-        // .select_keys(&keys)
-        // .await
-        // .unwrap()
-        // .collect::<Vec<_>>();
-
-        // assert_eq!(processed_all, no_filter);
     }
 }

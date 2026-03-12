@@ -221,7 +221,7 @@ mod tests {
                 activate::SwitchToConfiguration,
                 build::Build,
                 evaluate::Evaluate,
-                keys::{Key, Keys, PushKeyAgent, UploadKeyAt},
+                keys::{Key, Keys, PushKeyAgent, Source, UploadKeyAt},
                 ping::Ping,
                 push::PushEvaluatedOutput,
             },
@@ -233,6 +233,18 @@ mod tests {
         env,
         sync::{Arc, atomic::AtomicBool},
     };
+
+    fn new_key(upload_at: &UploadKeyAt) -> Key {
+        Key {
+            upload_at: upload_at.clone(),
+            source: Source::String(match upload_at {
+                UploadKeyAt::PreActivation => "pre".into(),
+                UploadKeyAt::PostActivation => "post".into(),
+                UploadKeyAt::NoFilter => "none".into(),
+            }),
+            ..Default::default()
+        }
+    }
 
     #[tokio::test]
     async fn order_build() {
@@ -364,16 +376,10 @@ mod tests {
         let location = location!(get_test_path!());
         let node = Node {
             keys: vec![
-                Key {
-                    upload_at: UploadKeyAt::PreActivation,
-                    ..Default::default()
-                }
-                .into(),
-                Key {
-                    upload_at: UploadKeyAt::PostActivation,
-                    ..Default::default()
-                }
-                .into(),
+                new_key(&UploadKeyAt::PreActivation).into(),
+                new_key(&UploadKeyAt::PostActivation).into(),
+                new_key(&UploadKeyAt::PreActivation).into(),
+                new_key(&UploadKeyAt::PostActivation).into(),
             ],
             ..Default::default()
         };
@@ -412,6 +418,7 @@ mod tests {
                 .into(),
                 Keys {
                     target: Some(target.clone()),
+                    // test that all keys are included
                     keys: node.keys.clone(),
                     privilege_escalation_command: node.privilege_escalation_command.clone()
                 }
@@ -421,20 +428,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn order_keys_two() {
+    async fn order_key_split() {
         let location = location!(get_test_path!());
         let node = Node {
             keys: vec![
-                Key {
-                    upload_at: UploadKeyAt::PreActivation,
-                    ..Default::default()
-                }
-                .into(),
-                Key {
-                    upload_at: UploadKeyAt::PostActivation,
-                    ..Default::default()
-                }
-                .into(),
+                new_key(&UploadKeyAt::PreActivation).into(),
+                new_key(&UploadKeyAt::PostActivation).into(),
+                new_key(&UploadKeyAt::PreActivation).into(),
+                new_key(&UploadKeyAt::PostActivation).into(),
             ],
             ..Default::default()
         };
