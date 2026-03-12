@@ -30,21 +30,20 @@ impl Display for SwitchToConfiguration {
 async fn wait_for_ping(target: &SharedTarget, ctx: &Context) -> Result<(), HiveLibError> {
     let target = target.0.read().await;
     let host = target.get_preferred_host()?;
-    let mut result = target.ping(ctx.modifiers).await;
 
-    for num in 0..2 {
+    for num in 0..3 {
         warn!("Trying to ping {host} (attempt {}/3)", num + 1);
 
-        result = target.ping(ctx.modifiers).await;
+        let result = target.ping(ctx.modifiers).await;
 
         if result.is_ok() {
             info!("Regained connection to {} via {host}", ctx.name);
 
-            break;
+            return Ok(());
         }
     }
 
-    result
+    Err(HiveLibError::NetworkError(NetworkError::HostsExhausted))
 }
 
 impl SwitchToConfiguration {
