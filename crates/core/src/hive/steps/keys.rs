@@ -8,6 +8,7 @@ use itertools::{Itertools, Position};
 use owo_colors::OwoColorize;
 use prost::Message;
 use prost::bytes::BytesMut;
+use rand::seq::IndexedRandom;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::env;
@@ -197,8 +198,7 @@ pub struct PushKeyAgent {
 
 impl Display for Keys {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // TODO: Fix
-        write!(f, "Upload key @ ??")
+        write!(f, "Upload {} key(s)", self.keys.len())
     }
 }
 
