@@ -1,12 +1,13 @@
 use std::sync::{Arc, atomic::AtomicBool};
 
+use tokio::sync::RwLock;
+
 use crate::{
     SubCommandModifiers,
     hive::{
         HiveLocation,
         node::{
-            ApplyGoal, Context, HandleUnreachable, Name, Node, Step, StepState,
-            SwitchToConfigurationGoal,
+            ApplyGoal, Context, HandleUnreachable, Name, Node, SharedTarget, Step, StepState, SwitchToConfigurationGoal
         },
         steps::{
             activate::SwitchToConfiguration,
@@ -76,9 +77,12 @@ pub fn plan_for_node(
         } => {
             let mut steps: Vec<Step> = Vec::new();
             let mut end: Vec<Step> = Vec::new();
+            let target = SharedTarget(Arc::new(RwLock::new(node.target.clone())));
 
             if !*should_apply_locally {
-                steps.push(Step::Ping(Ping {}));
+                steps.push(Step::Ping(Ping {
+                    target: target.clone()
+                }));
             }
 
             if !*no_keys
@@ -103,7 +107,7 @@ pub fn plan_for_node(
                     steps.push(Step::PushKeyAgent(PushKeyAgent {
                         substitute_on_destination: *substitute_on_destination,
                         host_platform: host_platform.clone(),
-                        target: node.target.clone(),
+                        target: target.clone()
                     }));
                 }
 
@@ -113,7 +117,7 @@ pub fn plan_for_node(
                         target: if *should_apply_locally {
                             None
                         } else {
-                            Some(node.target.clone())
+                            Some(target.clone())
                         },
                         privilege_escalation_command: node.privilege_escalation_command.clone(),
                     }));
@@ -125,7 +129,7 @@ pub fn plan_for_node(
                         target: if *should_apply_locally {
                             None
                         } else {
-                            Some(node.target.clone())
+                            Some(target.clone())
                         },
                         privilege_escalation_command: node.privilege_escalation_command.clone(),
                     }));
@@ -142,14 +146,14 @@ pub fn plan_for_node(
             {
                 steps.push(Step::PushEvaluatedOutput(PushEvaluatedOutput {
                     substitute_on_destination: *substitute_on_destination,
-                    target: node.target.clone(),
+                    target: target.clone()
                 }));
             }
 
             if !matches!(goal, ApplyGoal::Keys | ApplyGoal::Push) {
                 steps.push(Step::Build(Build {
                     target: if node.build_remotely && !*should_apply_locally {
-                        Some(node.target.clone())
+                        Some(target.clone())
                     } else {
                         None
                     },
@@ -162,7 +166,7 @@ pub fn plan_for_node(
             {
                 steps.push(Step::PushBuildOutput(PushBuildOutput {
                     substitute_on_destination: *substitute_on_destination,
-                    target: node.target.clone(),
+                    target: target.clone()
                 }));
             }
 
@@ -173,7 +177,7 @@ pub fn plan_for_node(
                     target: if *should_apply_locally {
                         None
                     } else {
-                        Some(node.target.clone())
+                        Some(target.clone())
                     },
                     privilege_escalation_command: node.privilege_escalation_command.clone(),
                 }));
@@ -209,12 +213,12 @@ mod tests {
                 evaluate::Evaluate,
                 keys::{Key, Keys, PushKeyAgent, UploadKeyAt},
                 ping::Ping,
-                push::{PushBuildOutput, PushEvaluatedOutput},
+                push::{PushEvaluatedOutput},
             },
         },
         location,
     };
-    use std::{assert_matches::assert_matches, path::PathBuf};
+    use std::{path::PathBuf};
     use std::{
         env,
         sync::{Arc, atomic::AtomicBool},

@@ -2,6 +2,7 @@
 // Copyright 2024-2025 wire Contributors
 
 use crate::commands::pty::output::{WatchStdoutArguments, handle_pty_stdout};
+use crate::hive::node::SharedTarget;
 use crate::status::STATUS;
 use aho_corasick::PatternID;
 use itertools::Itertools;
@@ -28,8 +29,7 @@ use crate::errors::CommandError;
 use crate::{SubCommandModifiers, acquire_stdin_lock};
 use crate::{
     commands::{ChildOutputMode, WireCommandChip},
-    errors::HiveLibError,
-    hive::node::Target,
+    errors::HiveLibError
 };
 
 mod input;
@@ -85,7 +85,7 @@ static FAILED_PATTERN: LazyLock<PatternID> = LazyLock::new(|| PatternID::must(2)
 const IO_SUBS: &str = "1> >(while IFS= read -r line; do echo \"#$line\"; done)";
 
 fn create_ending_segment<S: AsRef<str>>(
-    arguments: &CommandArguments<'_, S>,
+    arguments: &CommandArguments<S>,
     needles: &Needles,
 ) -> String {
     let Needles {
@@ -110,7 +110,7 @@ fn create_ending_segment<S: AsRef<str>>(
 }
 
 fn create_starting_segment<S: AsRef<str>>(
-    arguments: &CommandArguments<'_, S>,
+    arguments: &CommandArguments<S>,
     start_needle: &Arc<Vec<u8>>,
 ) -> String {
     if matches!(arguments.output_mode, ChildOutputMode::Interactive) {
@@ -125,10 +125,10 @@ fn create_starting_segment<S: AsRef<str>>(
 
 #[instrument(skip_all, name = "run-int", fields(elevated = %arguments.is_elevated(), mode = ?arguments.output_mode))]
 pub(crate) async fn interactive_command_with_env<S: AsRef<str>>(
-    arguments: &CommandArguments<'_, S>,
+    arguments: &CommandArguments<S>,
     envs: std::collections::HashMap<String, String>,
 ) -> Result<InteractiveChildChip, HiveLibError> {
-    print_authenticate_warning(arguments)?;
+    print_authenticate_warning(arguments).await?;
 
     let needles = create_needles();
     let pty_system = NativePtySystem::default();
@@ -148,7 +148,7 @@ pub(crate) async fn interactive_command_with_env<S: AsRef<str>>(
 
     debug!("{command_string}");
 
-    let mut command = build_command(arguments, command_string)?;
+    let mut command = build_command(arguments, command_string).await?;
 
     // give command all env vars
     for (key, value) in envs {
@@ -242,24 +242,29 @@ pub(crate) async fn interactive_command_with_env<S: AsRef<str>>(
     })
 }
 
-fn print_authenticate_warning<S: AsRef<str>>(
+async fn print_authenticate_warning<S: AsRef<str>>(
     arguments: &CommandArguments<S>,
 ) -> Result<(), HiveLibError> {
     if !arguments.is_elevated() {
         return Ok(());
     }
 
+    let target_display = if let Some(ref target) = arguments.target {
+        let target = target.0.read().await;
+
+        format!(
+            "{}@{}:{}",
+            target.user,
+            target.get_preferred_host()?,
+            target.port
+        )
+    } else {
+        "localhost (!)".to_string()
+    };
+
     let _ = STATUS.lock().write_above_status(
         &format!(
-            "{} | Authenticate for \"sudo {}\":\n",
-            arguments
-                .target
-                .map_or(Ok("localhost (!)".to_string()), |target| Ok(format!(
-                    "{}@{}:{}",
-                    target.user,
-                    target.get_preferred_host()?,
-                    target.port
-                )))?,
+            "{target_display} | Authenticate for \"sudo {}\":\n",
             arguments.command_string.as_ref()
         )
         .into_bytes(),
@@ -306,12 +311,12 @@ fn setup_master(pty_pair: &PtyPair) -> Result<(), HiveLibError> {
     Ok(())
 }
 
-fn build_command<S: AsRef<str>>(
-    arguments: &CommandArguments<'_, S>,
+async fn build_command<S: AsRef<str>>(
+    arguments: &CommandArguments<S>,
     command_string: &String,
 ) -> Result<CommandBuilder, HiveLibError> {
-    let mut command = if let Some(target) = arguments.target {
-        let mut command = create_int_ssh_command(target, arguments.modifiers)?;
+    let mut command = if let Some(ref target) = arguments.target {
+        let mut command = create_int_ssh_command(target, arguments.modifiers).await?;
 
         // force ssh to use our pseudo terminal
         command.arg("-tt");
@@ -428,10 +433,11 @@ impl Drop for StdinTermiosAttrGuard {
     }
 }
 
-fn create_int_ssh_command(
-    target: &Target,
+async fn create_int_ssh_command(
+    target: &SharedTarget,
     modifiers: SubCommandModifiers,
 ) -> Result<portable_pty::CommandBuilder, HiveLibError> {
+    let target = target.0.read().await;
     let mut command = portable_pty::CommandBuilder::new("ssh");
     command.args(target.create_ssh_args(modifiers, false)?);
     command.arg(target.get_preferred_host()?.to_string());

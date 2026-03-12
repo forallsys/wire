@@ -11,12 +11,13 @@ use crate::{
         CommandArguments, Either, WireCommandChip, builder::CommandStringBuilder,
         run_command_with_env,
     },
-    hive::node::{Context, ExecuteStep, Target},
+    hive::node::{Context, ExecuteStep, SharedTarget},
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct Build {
-    pub(crate) target: Option<Target>,
+    pub(crate) target: Option<SharedTarget>,
 }
 
 impl Display for Build {
@@ -44,7 +45,7 @@ impl ExecuteStep for Build {
         let status = run_command_with_env(
             &CommandArguments::new(command_string, ctx.modifiers)
                 // build remotely if asked for AND we arent applying locally
-                .execute_on_remote(self.target.as_ref())
+                .execute_on_remote(self.target.clone())
                 .mode(crate::commands::ChildOutputMode::Nix)
                 .log_stdout(),
             std::collections::HashMap::new(),

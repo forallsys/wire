@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright 2024-2025 wire Contributors
 
-use crate::commands::pty::{InteractiveChildChip, interactive_command_with_env};
+use crate::{commands::pty::{InteractiveChildChip, interactive_command_with_env}, hive::node::SharedTarget};
 use std::{
     collections::HashMap,
     str::from_utf8,
@@ -18,8 +18,7 @@ use tracing::{debug, error, info, trace, warn};
 use crate::{
     SubCommandModifiers,
     commands::noninteractive::{NonInteractiveChildChip, non_interactive_command_with_env},
-    errors::{CommandError, HiveLibError},
-    hive::node::Target,
+    errors::{CommandError, HiveLibError}
 };
 
 pub(crate) mod builder;
@@ -41,9 +40,9 @@ pub enum Either<L, R> {
 }
 
 #[derive(Debug)]
-pub(crate) struct CommandArguments<'t, S: AsRef<str>> {
+pub(crate) struct CommandArguments<S: AsRef<str>> {
     modifiers: SubCommandModifiers,
-    target: Option<&'t Target>,
+    target: Option<SharedTarget>,
     output_mode: ChildOutputMode,
     command_string: S,
     keep_stdin_open: bool,
@@ -59,7 +58,7 @@ static AHO_CORASICK: LazyLock<AhoCorasick> = LazyLock::new(|| {
         .unwrap()
 });
 
-impl<'a, S: AsRef<str>> CommandArguments<'a, S> {
+impl<S: AsRef<str>> CommandArguments<S> {
     pub(crate) const fn new(command_string: S, modifiers: SubCommandModifiers) -> Self {
         Self {
             command_string,
@@ -72,7 +71,7 @@ impl<'a, S: AsRef<str>> CommandArguments<'a, S> {
         }
     }
 
-    pub(crate) const fn execute_on_remote(mut self, target: Option<&'a Target>) -> Self {
+    pub(crate) fn execute_on_remote(mut self, target: Option<SharedTarget>) -> Self {
         self.target = target;
         self
     }
@@ -103,13 +102,13 @@ impl<'a, S: AsRef<str>> CommandArguments<'a, S> {
 }
 
 pub(crate) async fn run_command<S: AsRef<str>>(
-    arguments: &CommandArguments<'_, S>,
+    arguments: &CommandArguments<S>,
 ) -> Result<Either<InteractiveChildChip, NonInteractiveChildChip>, HiveLibError> {
     run_command_with_env(arguments, HashMap::new()).await
 }
 
 pub(crate) async fn run_command_with_env<S: AsRef<str>>(
-    arguments: &CommandArguments<'_, S>,
+    arguments: &CommandArguments<S>,
     envs: HashMap<String, String>,
 ) -> Result<Either<InteractiveChildChip, NonInteractiveChildChip>, HiveLibError> {
     // use the non interactive command runner when forced

@@ -31,7 +31,7 @@ use crate::commands::builder::CommandStringBuilder;
 use crate::commands::common::push;
 use crate::commands::{CommandArguments, WireCommandChip, run_command};
 use crate::errors::KeyError;
-use crate::hive::node::{Context, ExecuteStep, Push, Target};
+use crate::hive::node::{Context, ExecuteStep, Push, SharedTarget};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Hash)]
 #[serde(tag = "t", content = "c")]
@@ -179,17 +179,20 @@ async fn process_key(key: &Key) -> Result<(wire_key_agent::keys::KeySpec, Vec<u8
     ))
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct Keys {
     pub keys: Vec<Arc<Key>>,
-    pub target: Option<Target>,
+    pub target: Option<SharedTarget>,
     pub privilege_escalation_command: Arc<Vec<Arc<str>>>,
 }
-#[derive(Debug, PartialEq)]
+
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct PushKeyAgent {
     pub substitute_on_destination: bool,
     pub host_platform: Arc<str>,
-    pub target: Target,
+    pub target: SharedTarget,
 }
 
 impl Display for Keys {
@@ -248,7 +251,7 @@ impl ExecuteStep for Keys {
 
         let mut child = run_command(
             &CommandArguments::new(command_string, ctx.modifiers)
-                .execute_on_remote(self.target.as_ref())
+                .execute_on_remote(self.target.clone())
                 .privileged(&self.privilege_escalation_command)
                 .keep_stdin_open()
                 .log_stdout(),

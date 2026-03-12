@@ -3,16 +3,17 @@
 
 use std::fmt::Display;
 
-use tracing::instrument;
+use tracing::{Level, event, instrument};
 
 use crate::{
     HiveLibError,
-    hive::node::{Context, ExecuteStep},
+    hive::node::{Context, ExecuteStep, SharedTarget},
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct Ping {
-    // target: Target
+    pub target: SharedTarget
 }
 
 impl Display for Ping {
@@ -23,31 +24,33 @@ impl Display for Ping {
 
 impl ExecuteStep for Ping {
     #[instrument(skip_all, name = "ping")]
-    async fn execute(&self, _ctx: &mut Context) -> Result<(), HiveLibError> {
+    async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
         loop {
-            todo!()
-            // event!(
-            //     Level::INFO,
-            //     status = "attempting",
-            //     host = self.target.get_preferred_host()?.to_string()
-            // );
+            let target = self.target.0.read().await;
 
-            // if ctx.node.ping(ctx.modifiers).await.is_ok() {
-            //     event!(
-            //         Level::INFO,
-            //         status = "success",
-            //         host = self.target.get_preferred_host()?.to_string()
-            //     );
-            //     return Ok(());
-            // }
+            event!(
+                Level::INFO,
+                status = "attempting",
+                host = target.get_preferred_host()?.to_string()
+            );
+
+            if target.ping(ctx.modifiers).await.is_ok() {
+                event!(
+                    Level::INFO,
+                    status = "success",
+                    host = target.get_preferred_host()?.to_string()
+                );
+                return Ok(());
+            }
 
             // ? will take us out if we ran out of hosts
-            // event!(
-            //     Level::WARN,
-            //     status = "failed to ping",
-            //     host = self.target.get_preferred_host()?.to_string()
-            // );
-            // self.target.host_failed();
+            event!(
+                Level::WARN,
+                status = "failed to ping",
+                host = target.get_preferred_host()?.to_string()
+            );
+
+            self.target.0.write().await.host_failed();
         }
     }
 }

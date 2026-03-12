@@ -8,18 +8,21 @@ use tracing::instrument;
 use crate::{
     HiveLibError,
     commands::common::push,
-    hive::node::{Context, ExecuteStep, Target},
+    hive::node::{Context, ExecuteStep, SharedTarget},
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct PushEvaluatedOutput {
     pub substitute_on_destination: bool,
-    pub target: Target,
+    pub target: SharedTarget,
 }
-#[derive(Debug, PartialEq)]
+
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct PushBuildOutput {
     pub substitute_on_destination: bool,
-    pub target: Target,
+    pub target: SharedTarget,
 }
 
 impl Display for PushEvaluatedOutput {

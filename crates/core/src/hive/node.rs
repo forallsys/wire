@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
-use tokio::sync::oneshot;
+use tokio::sync::{RwLock, oneshot};
 use tracing::instrument;
 
 use crate::commands::builder::CommandStringBuilder;
@@ -38,6 +38,18 @@ pub struct Target {
 
     #[serde(skip)]
     current_host: usize,
+}
+
+#[derive(Clone, Debug)]
+pub struct SharedTarget(pub Arc<RwLock<Target>>);
+
+// Hack specifically for testing if two steps that have the same shared target
+// are equal
+#[cfg(test)]
+impl PartialEq for SharedTarget {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
 }
 
 impl Target {
@@ -76,6 +88,32 @@ impl Target {
         vector.extend(options.into_iter().intersperse("-o".to_string()));
 
         Ok(vector)
+    }
+
+    /// Tests the connection to a node
+    pub async fn ping(&self, modifiers: SubCommandModifiers) -> Result<(), HiveLibError> {
+        let host = self.get_preferred_host()?;
+
+        let mut command_string = CommandStringBuilder::new("ssh");
+        command_string.arg(format!("{}@{host}", self.user));
+        command_string.arg(self.create_ssh_opts(modifiers)?);
+        command_string.arg("exit");
+
+        let output = run_command(
+            &CommandArguments::new(command_string, modifiers)
+                .log_stdout()
+                .mode(crate::commands::ChildOutputMode::Interactive),
+        )
+        .await?;
+
+        output.wait_till_success().await.map_err(|source| {
+            HiveLibError::NetworkError(NetworkError::HostUnreachable {
+                host: host.to_string(),
+                source,
+            })
+        })?;
+
+        Ok(())
     }
 }
 
@@ -178,31 +216,6 @@ impl Node {
         }
     }
 
-    /// Tests the connection to a node
-    pub async fn ping(&self, modifiers: SubCommandModifiers) -> Result<(), HiveLibError> {
-        let host = self.target.get_preferred_host()?;
-
-        let mut command_string = CommandStringBuilder::new("ssh");
-        command_string.arg(format!("{}@{host}", self.target.user));
-        command_string.arg(self.target.create_ssh_opts(modifiers)?);
-        command_string.arg("exit");
-
-        let output = run_command(
-            &CommandArguments::new(command_string, modifiers)
-                .log_stdout()
-                .mode(crate::commands::ChildOutputMode::Interactive),
-        )
-        .await?;
-
-        output.wait_till_success().await.map_err(|source| {
-            HiveLibError::NetworkError(NetworkError::HostUnreachable {
-                host: host.to_string(),
-                source,
-            })
-        })?;
-
-        Ok(())
-    }
 }
 
 #[must_use]
@@ -272,7 +285,8 @@ pub struct Context {
 }
 
 #[enum_dispatch(ExecuteStep)]
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub enum Step {
     Ping,
     PushKeyAgent,

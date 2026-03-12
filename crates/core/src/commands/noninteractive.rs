@@ -11,7 +11,7 @@ use crate::{
     SubCommandModifiers,
     commands::{ChildOutputMode, CommandArguments, WireCommandChip},
     errors::{CommandError, HiveLibError},
-    hive::node::Target,
+    hive::node::{SharedTarget},
 };
 use itertools::Itertools;
 use tokio::{
@@ -36,7 +36,7 @@ pub(crate) fn non_interactive_command_with_env<S: AsRef<str>>(
     arguments: &CommandArguments<S>,
     envs: HashMap<String, String>,
 ) -> Result<NonInteractiveChildChip, HiveLibError> {
-    let mut command = if let Some(target) = arguments.target {
+    let mut command = if let Some(ref target) = arguments.target {
         create_sync_ssh_command(target, arguments.modifiers)?
     } else {
         let mut command = Command::new("sh");
@@ -188,9 +188,10 @@ pub async fn handle_io<R>(
 }
 
 fn create_sync_ssh_command(
-    target: &Target,
+    target: &SharedTarget,
     modifiers: SubCommandModifiers,
 ) -> Result<Command, HiveLibError> {
+    let target = target.0.blocking_read();
     let mut command = Command::new("ssh");
     command.args(target.create_ssh_args(modifiers, true)?);
     command.arg(target.get_preferred_host()?.to_string());

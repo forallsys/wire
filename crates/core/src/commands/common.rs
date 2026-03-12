@@ -14,7 +14,7 @@ use crate::{
     errors::{CommandError, HiveInitialisationError, HiveLibError},
     hive::{
         HiveLocation,
-        node::{Context, Push, Target},
+        node::{Context, Push, SharedTarget},
     },
 };
 
@@ -30,10 +30,12 @@ fn get_common_copy_path_help(error: &CommandError) -> Option<String> {
 
 pub async fn push(
     context: &Context,
-    target: &Target,
+    target: &SharedTarget,
     push: Push<'_>,
     substitute_on_destination: bool,
 ) -> Result<(), HiveLibError> {
+    let target = target.0.read().await;
+
     let mut command_string = CommandStringBuilder::nix();
 
     command_string.args(&["--extra-experimental-features", "nix-command", "copy"]);

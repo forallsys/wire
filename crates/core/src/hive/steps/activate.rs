@@ -9,14 +9,15 @@ use crate::{
     HiveLibError,
     commands::{CommandArguments, WireCommandChip, builder::CommandStringBuilder, run_command},
     errors::{ActivationError, NetworkError},
-    hive::node::{Context, ExecuteStep, SwitchToConfigurationGoal, Target},
+    hive::node::{Context, ExecuteStep, SharedTarget, SwitchToConfigurationGoal},
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct SwitchToConfiguration {
     pub goal: SwitchToConfigurationGoal,
     pub reboot: bool,
-    pub target: Option<Target>,
+    pub target: Option<SharedTarget>,
     pub privilege_escalation_command: Arc<Vec<Arc<str>>>,
 }
 
@@ -26,25 +27,24 @@ impl Display for SwitchToConfiguration {
     }
 }
 
-async fn wait_for_ping(_ctx: &Context) -> Result<(), HiveLibError> {
-    todo!();
+async fn wait_for_ping(target: &SharedTarget, ctx: &Context) -> Result<(), HiveLibError> {
+    let target = target.0.read().await;
+    let host = target.get_preferred_host()?;
+    let mut result = target.ping(ctx.modifiers).await;
 
-    // let host = ctx.node.target.get_preferred_host()?;
-    // let mut result = ctx.node.ping(ctx.modifiers).await;
-    //
-    // for num in 0..2 {
-    //     warn!("Trying to ping {host} (attempt {}/3)", num + 1);
-    //
-    //     result = ctx.node.ping(ctx.modifiers).await;
-    //
-    //     if result.is_ok() {
-    //         info!("Regained connection to {} via {host}", ctx.name);
-    //
-    //         break;
-    //     }
-    // }
+    for num in 0..2 {
+        warn!("Trying to ping {host} (attempt {}/3)", num + 1);
 
-    // result
+        result = target.ping(ctx.modifiers).await;
+
+        if result.is_ok() {
+            info!("Regained connection to {} via {host}", ctx.name);
+
+            break;
+        }
+    }
+
+    result
 }
 
 impl SwitchToConfiguration {
@@ -61,7 +61,7 @@ impl SwitchToConfiguration {
         let child = run_command(
             &CommandArguments::new(command_string, ctx.modifiers)
                 .mode(crate::commands::ChildOutputMode::Nix)
-                .execute_on_remote(self.target.as_ref())
+                .execute_on_remote(self.target.clone())
                 .privileged(&self.privilege_escalation_command),
         )
         .await?;
@@ -105,7 +105,7 @@ impl ExecuteStep for SwitchToConfiguration {
 
         let child = run_command(
             &CommandArguments::new(command_string, ctx.modifiers)
-                .execute_on_remote(self.target.as_ref())
+                .execute_on_remote(self.target.clone())
                 .privileged(&self.privilege_escalation_command)
                 .log_stdout(),
         )
@@ -130,7 +130,7 @@ impl ExecuteStep for SwitchToConfiguration {
                 let reboot = run_command(
                     &CommandArguments::new("reboot now", ctx.modifiers)
                         .log_stdout()
-                        .execute_on_remote(Some(target))
+                        .execute_on_remote(Some(target.clone()))
                         .privileged(&self.privilege_escalation_command),
                 )
                 .await?;
@@ -144,9 +144,11 @@ impl ExecuteStep for SwitchToConfiguration {
 
                 info!("Rebooted {name}, waiting to reconnect...", name = ctx.name);
 
-                if wait_for_ping(ctx).await.is_ok() {
+                if wait_for_ping(target, ctx).await.is_ok() {
                     return Ok(());
                 }
+
+                let target = target.0.read().await;
 
                 error!(
                     "Failed to get regain connection to {name} via {host} after reboot.",
@@ -182,7 +184,7 @@ impl ExecuteStep for SwitchToConfiguration {
                     ));
                 };
 
-                if wait_for_ping(ctx).await.is_ok() {
+                if wait_for_ping(target, ctx).await.is_ok() {
                     return Err(HiveLibError::ActivationError(
                         ActivationError::SwitchToConfigurationError(
                             self.goal,
@@ -191,6 +193,8 @@ impl ExecuteStep for SwitchToConfiguration {
                         ),
                     ));
                 }
+
+                let target = target.0.read().await;
 
                 error!(
                     "Failed to get regain connection to {name} via {host} after {goal} activation.",
