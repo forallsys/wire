@@ -56,9 +56,8 @@ fn resolve_targets(
     on: &[ApplyTarget],
     modifiers: &mut SubCommandModifiers,
 ) -> Result<(HashSet<String>, HashSet<Name>)> {
-    on.iter().try_fold(
-        (HashSet::new(), HashSet::new()),
-        |result, target| {
+    on.iter()
+        .try_fold((HashSet::new(), HashSet::new()), |result, target| {
             let (mut tags, mut names) = result;
             match target {
                 ApplyTarget::Tag(tag) => {
@@ -75,8 +74,7 @@ fn resolve_targets(
                 }
             }
             Ok((tags, names))
-        },
-    )
+        })
 }
 
 fn partition_arr<T>(arr: Vec<T>, partition: &Partitions) -> Vec<T>
