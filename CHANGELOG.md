@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Refactored node execution to be in two distinct phases, "planning" and
   "execution". Previously, picking what steps would be run was done on the fly
   during execution.
-- Cases where there is no keys to deploy, such as having 0 keys or filtered
+- Cases where there are no keys to deploy, such as having 0 keys or filtered
   keys, the "Key" step will not be planned when it previously would have.
 
 ### Fixed
