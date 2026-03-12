@@ -52,10 +52,7 @@ fn read_apply_targets_from_stdin() -> Result<(Vec<String>, Vec<Name>)> {
         }))
 }
 
-fn resolve_targets(
-    on: &[ApplyTarget],
-    modifiers: &mut SubCommandModifiers,
-) -> Result<(HashSet<String>, HashSet<Name>)> {
+fn resolve_targets(on: &[ApplyTarget]) -> Result<(HashSet<String>, HashSet<Name>)> {
     on.iter()
         .try_fold((HashSet::new(), HashSet::new()), |result, target| {
             let (mut tags, mut names) = result;
@@ -67,8 +64,8 @@ fn resolve_targets(
                     names.insert(name.clone());
                 }
                 ApplyTarget::Stdin => {
-                    modifiers.non_interactive = true;
                     let (found_tags, found_names) = read_apply_targets_from_stdin()?;
+
                     names.extend(found_names);
                     tags.extend(found_tags);
                 }
@@ -100,14 +97,20 @@ pub async fn apply<F>(
     args: CommonVerbArgs,
     partition: Partitions,
     make_goal: F,
-    mut modifiers: SubCommandModifiers,
+    modifiers: SubCommandModifiers,
 ) -> Result<()>
 where
-    F: Fn(&Name, &Node) -> Goal,
+    F: Fn(&Name, &Node) -> Goal + Clone,
 {
     let location = Arc::new(location);
 
-    let (tags, names) = resolve_targets(&args.on, &mut modifiers)?;
+    // stdin implies non_interactive
+    let mut modifiers = modifiers;
+    if args.on.iter().any(|t| matches!(t, ApplyTarget::Stdin)) {
+        modifiers.non_interactive = true;
+    }
+
+    let (tags, names) = resolve_targets(&args.on)?;
 
     let selected_names: Vec<_> = hive
         .nodes
@@ -121,28 +124,93 @@ where
         .map(|(name, _)| name.clone())
         .collect();
 
-    let num_selected = selected_names.len();
-
     let partitioned_names = partition_arr(selected_names, &partition);
-
-    if num_selected != partitioned_names.len() {
-        info!(
-            "Partitioning reduced selected number of nodes from {num_selected} to {}",
-            partitioned_names.len()
-        );
-    }
 
     STATUS
         .lock()
         .add_many(&partitioned_names.iter().collect::<Vec<_>>());
 
+    if args.dry_run {
+        dry_activate_nodes(
+            hive,
+            &partitioned_names,
+            make_goal,
+            &location,
+            &should_quit,
+            modifiers,
+        );
+
+        return Ok(());
+    }
+
+    apply_nodes(
+        hive,
+        &partitioned_names,
+        make_goal,
+        location,
+        should_quit,
+        args.parallel,
+        modifiers,
+    )
+    .await
+}
+
+fn dry_activate_nodes<F>(
+    hive: &Hive,
+    names: &[Name],
+    make_goal: F,
+    location: &Arc<HiveLocation>,
+    should_quit: &Arc<AtomicBool>,
+    modifiers: SubCommandModifiers,
+) where
+    F: Fn(&Name, &Node) -> Goal,
+{
+    for name in names {
+        let node = hive.nodes.get(name).unwrap();
+
+        let goal = make_goal(name, node);
+        let plan = plan_for_node(
+            node,
+            name.clone(),
+            &goal,
+            location.clone(),
+            &modifiers,
+            should_quit.clone(),
+        );
+
+        let goal_str = match &goal {
+            Goal::Build => "Build".to_string(),
+            Goal::Apply(args) => format!("Apply {:?}", args.goal),
+        };
+
+        println!("Node: {name}");
+        println!("Goal: {goal_str}");
+        println!("Steps:");
+        for step in &plan.steps {
+            println!("  - {step}");
+        }
+        println!();
+    }
+}
+
+async fn apply_nodes<F>(
+    hive: &mut Hive,
+    names: &[Name],
+    make_goal: F,
+    location: Arc<HiveLocation>,
+    should_quit: Arc<AtomicBool>,
+    parallel: usize,
+    modifiers: SubCommandModifiers,
+) -> Result<()>
+where
+    F: Fn(&Name, &Node) -> Goal,
+{
     let mut set = hive
         .nodes
         .iter_mut()
-        .filter(|(name, _)| partitioned_names.contains(name))
+        .filter(|(name, _)| names.contains(name))
         .map(|(name, node)| {
             let goal = make_goal(name, node);
-
             let plan = plan_for_node(
                 node,
                 name.clone(),
@@ -159,7 +227,7 @@ where
         error!("There are no nodes selected for deployment");
     }
 
-    let futures = futures::stream::iter(set).buffer_unordered(args.parallel);
+    let futures = futures::stream::iter(set).buffer_unordered(parallel);
     let result = futures.collect::<Vec<_>>().await;
 
     let (successful, errors): (Vec<_>, Vec<_>) =
@@ -179,9 +247,7 @@ where
     }
 
     if !errors.is_empty() {
-        // clear the status bar if we are about to print error messages
         STATUS.lock().clear(&mut stderr());
-
         return Err(NodeErrors(
             errors
                 .into_iter()

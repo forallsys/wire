@@ -173,6 +173,10 @@ pub struct CommonVerbArgs {
 
     #[arg(short, long, default_value_t = 10, value_parser=more_than_zero)]
     pub parallel: usize,
+
+    /// Print the plan for each node without executing it.
+    #[arg(long, default_value_t = false)]
+    pub dry_run: bool,
 }
 
 #[allow(clippy::struct_excessive_bools)]
