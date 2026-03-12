@@ -103,11 +103,15 @@ pub fn plan_for_node(
                 };
 
                 // onyl push key agent if there are any keys at all
-                if !*should_apply_locally && (!pre_keys.is_empty() || !post_keys.is_empty()) {
+                if !pre_keys.is_empty() || !post_keys.is_empty() {
                     steps.push(Step::PushKeyAgent(PushKeyAgent {
                         substitute_on_destination: *substitute_on_destination,
                         host_platform: host_platform.clone(),
-                        target: target.clone()
+                        target: if *should_apply_locally {
+                            None
+                        } else {
+                            Some(target.clone())
+                        }
                     }));
                 }
 

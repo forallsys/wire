@@ -192,7 +192,7 @@ pub struct Keys {
 pub struct PushKeyAgent {
     pub substitute_on_destination: bool,
     pub host_platform: Arc<str>,
-    pub target: SharedTarget,
+    pub target: Option<SharedTarget>,
 }
 
 impl Display for Keys {
@@ -322,13 +322,15 @@ impl ExecuteStep for PushKeyAgent {
             ),
         };
 
-        push(
-            ctx,
-            &self.target,
-            Push::Path(&agent_directory),
-            self.substitute_on_destination,
-        )
-        .await?;
+        if let Some(ref target) = self.target {
+            push(
+                ctx,
+                target,
+                Push::Path(&agent_directory),
+                self.substitute_on_destination,
+            )
+            .await?;
+        }
 
         ctx.state.key_agent_directory = Some(agent_directory);
 
