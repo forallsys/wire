@@ -2,15 +2,21 @@
 // Copyright 2024-2025 wire Contributors
 
 use owo_colors::OwoColorize;
-use std::{fmt::Write, time::Instant};
+use std::{
+    collections::VecDeque,
+    fmt::Write,
+    sync::OnceLock,
+    time::{Duration, Instant},
+};
 use termion::{clear, cursor};
+use tokio::sync::{
+    mpsc::{self, UnboundedReceiver},
+    oneshot,
+};
 
 use crate::{STDIN_CLOBBER_LOCK, hive::node::Name};
 
-use std::{
-    collections::HashMap,
-    sync::{LazyLock, nonpoison::Mutex},
-};
+use std::collections::HashMap;
 
 #[derive(Default)]
 pub enum NodeStatus {
@@ -21,14 +27,31 @@ pub enum NodeStatus {
     Failed,
 }
 
+pub enum UiMessage {
+    /// Initialize the status bar with many nodes at once.
+    AddMany(Vec<Name>),
+    SetStatus(Name, NodeStatus),
+    /// Takeover the terminal, blocking new messages from being printed until
+    /// `Release` is sent.
+    ///
+    /// Once the takeover request is completed, the oneshot channel will be
+    /// consumed.
+    Takeover(oneshot::Sender<()>),
+    /// Indicate that the takeover is no longer necessary
+    Release,
+    /// Clear the status line, mostly for when the program is about to end
+    Clear,
+    /// Writes above the status line
+    LogLine(Vec<u8>),
+}
+
 pub struct Status {
     statuses: HashMap<String, NodeStatus>,
     began: Instant,
     show_progress: bool,
 }
 
-/// global status used for the progress bar in the cli crate
-pub static STATUS: LazyLock<Mutex<Status>> = LazyLock::new(|| Mutex::new(Status::new()));
+pub static UI_SENDER: OnceLock<mpsc::UnboundedSender<UiMessage>> = OnceLock::new();
 
 impl Status {
     fn new() -> Self {
@@ -41,14 +64,6 @@ impl Status {
 
     pub const fn show_progress(&mut self, show_progress: bool) {
         self.show_progress = show_progress;
-    }
-
-    pub fn add_many(&mut self, names: &[&Name]) {
-        self.statuses.extend(
-            names
-                .iter()
-                .map(|name| (name.0.to_string(), NodeStatus::Pending)),
-        );
     }
 
     pub fn set_node_step(&mut self, node: &Name, step: String) {
@@ -169,5 +184,77 @@ impl Status {
         self.write_status(writer);
 
         Ok(written)
+    }
+}
+
+pub async fn status_tick_worker(mut rx: UnboundedReceiver<UiMessage>, show_progress: bool) {
+    let mut status = Status::new();
+
+    status.show_progress(show_progress);
+
+    let mut ticker = tokio::time::interval(Duration::from_secs(1));
+    let mut stderr = std::io::stderr();
+    let mut log_queue: VecDeque<Vec<u8>> = VecDeque::with_capacity(100);
+
+    let mut is_suspended = false;
+
+    loop {
+        tokio::select! {
+            Some(msg) = rx.recv() => {
+                match msg {
+                    UiMessage::AddMany(names) => {
+                        status.statuses.extend(
+                            names
+                                .iter()
+                                .map(|name| (name.0.to_string(), NodeStatus::Pending)),
+                        );
+                    },
+                    UiMessage::SetStatus(name, value) => {
+                        status.statuses.insert(name.0.to_string(), value);
+                    },
+                    UiMessage::Takeover(tx) => {
+                        is_suspended = true;
+                        status.wipe_out(&mut stderr);
+                        let _ = tx.send(());
+                    },
+                    UiMessage::Release => {
+                        is_suspended = false;
+
+                        for buf in log_queue.iter().rev() {
+                            let _ = std::io::Write::write(&mut stderr, buf).map(|_| ());
+                        }
+
+                        status.write_status(&mut stderr);
+                    },
+                    UiMessage::Clear => {
+                        status.clear(&mut stderr);
+                    },
+                    UiMessage::LogLine(line) => {
+                        if is_suspended {
+                            log_queue.push_back(line);
+                            continue;
+                        }
+
+                        status.clear(&mut stderr);
+
+                        for buf in log_queue.iter().rev() {
+                            let _ = std::io::Write::write(&mut stderr, buf).map(|_| ());
+                        }
+
+                        let _ = std::io::Write::write(&mut stderr, &line);
+                        let _ = status.write_above_status(&line, &mut stderr);
+                    },
+                }
+            }
+
+            _ = ticker.tick() => {
+                if STDIN_CLOBBER_LOCK.available_permits() < 1 {
+                    continue;
+                }
+
+                status.clear(&mut stderr);
+                status.write_status(&mut stderr);
+            }
+        }
     }
 }

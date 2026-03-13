@@ -6,14 +6,15 @@
 #![feature(sync_nonpoison)]
 #![feature(nonpoison_mutex)]
 
-use std::{
-    io::{IsTerminal, stderr},
-    sync::LazyLock,
+use std::{io::IsTerminal, sync::LazyLock};
+
+use tokio::sync::{AcquireError, Semaphore, SemaphorePermit, oneshot};
+
+use crate::{
+    errors::HiveLibError,
+    hive::node::Name,
+    status::{UI_SENDER, UiMessage},
 };
-
-use tokio::sync::{AcquireError, Semaphore, SemaphorePermit};
-
-use crate::{errors::HiveLibError, hive::node::Name, status::STATUS};
 
 pub mod cache;
 pub mod commands;
@@ -65,7 +66,14 @@ pub static STDIN_CLOBBER_LOCK: LazyLock<Semaphore> = LazyLock::new(|| Semaphore:
 
 pub async fn acquire_stdin_lock<'a>() -> Result<SemaphorePermit<'a>, AcquireError> {
     let result = STDIN_CLOBBER_LOCK.acquire().await?;
-    STATUS.lock().wipe_out(&mut stderr());
+    let (sender, rx) = oneshot::channel();
+
+    if let Some(tx) = UI_SENDER.get() {
+        let _ = tx.send(UiMessage::Takeover(sender));
+
+        // wait until takeover is confirmed
+        let _ = rx.await;
+    }
 
     Ok(result)
 }

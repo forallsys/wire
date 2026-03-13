@@ -6,7 +6,7 @@ use itertools::{Either, Itertools};
 use miette::{Diagnostic, IntoDiagnostic, Result};
 use std::any::Any;
 use std::collections::HashSet;
-use std::io::{Read, stderr};
+use std::io::Read;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use thiserror::Error;
@@ -15,7 +15,7 @@ use wire_core::hive::executor::execute;
 use wire_core::hive::node::{Name, Node};
 use wire_core::hive::plan::{Goal, plan_for_node};
 use wire_core::hive::{Hive, HiveLocation};
-use wire_core::status::STATUS;
+use wire_core::status::{UI_SENDER, UiMessage};
 use wire_core::{SubCommandModifiers, errors::HiveLibError};
 
 use crate::cli::{ApplyTarget, CommonVerbArgs, Partitions};
@@ -132,9 +132,9 @@ where
         );
     }
 
-    STATUS
-        .lock()
-        .add_many(&partitioned_names.iter().collect::<Vec<_>>());
+    if let Some(tx) = UI_SENDER.get() {
+        let _ = tx.send(UiMessage::AddMany(partitioned_names.clone()));
+    }
 
     let mut set = hive
         .nodes
@@ -180,7 +180,9 @@ where
 
     if !errors.is_empty() {
         // clear the status bar if we are about to print error messages
-        STATUS.lock().clear(&mut stderr());
+        if let Some(tx) = UI_SENDER.get() {
+            let _ = tx.send(UiMessage::Clear);
+        }
 
         return Err(NodeErrors(
             errors
