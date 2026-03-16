@@ -7,9 +7,9 @@ use std::{
     time::Duration,
 };
 
-use clap_verbosity_flag::{LogLevel, Verbosity};
+use clap_verbosity_flag::{InfoLevel, LogLevel, Verbosity, VerbosityFilter};
 use owo_colors::{OwoColorize, Stream, Style};
-use tracing::{Level, Subscriber};
+use tracing::{Level, Subscriber, level_filters::LevelFilter};
 use tracing_log::AsTrace;
 use tracing_subscriber::{
     Layer,
@@ -262,7 +262,8 @@ pub fn setup_logging<L: LogLevel>(verbosity: &Verbosity<L>, show_progress: bool)
         tokio::spawn(status_tick_worker());
     }
 
-    if verbosity.is_present() {
+    // don't use wire trace formatting, show tracing formatting instead
+    if filter > LevelFilter::INFO {
         let layer = tracing_subscriber::fmt::layer()
             .without_time()
             .with_target(false)

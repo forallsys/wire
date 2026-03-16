@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   during execution.
 - Cases where there are no keys to deploy, such as having 0 keys or filtered
   keys, the "Key" step will not be planned when it previously would have.
+- Fixed `--quiet` disabling wire's tracing event formatter, which actually
+  increased verbosity / noise.
 
 ### Fixed
 

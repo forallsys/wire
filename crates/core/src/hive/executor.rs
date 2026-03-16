@@ -60,18 +60,18 @@ pub async fn execute(mut plan: NodePlan) -> Result<(), HiveLibError> {
     let (tx, rx) = tokio::sync::oneshot::channel();
     plan.context.state.evaluation_rx = Some(rx);
 
-    // The name of this span should never be changed without updating
-    // `wire/cli/tracing_setup.rs`
-    debug_assert_matches!(Span::current().metadata().unwrap().name(), "execute");
-    // This span should always have a `node` field by the same file
-    debug_assert!(
-        Span::current()
-            .metadata()
-            .unwrap()
-            .fields()
-            .field("node")
-            .is_some()
-    );
+    if let Some(metadata) = Span::current().metadata() {
+        // The name of this span should never be changed without updating
+        // `wire/cli/tracing_setup.rs`
+        debug_assert_matches!(metadata.name(), "execute");
+        // This span should always have a `node` field by the same file
+        debug_assert!(
+            metadata
+                .fields()
+                .field("node")
+                .is_some()
+        );
+    }
 
     if plan.greedy_evaluate {
         tokio::spawn(
