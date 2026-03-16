@@ -332,6 +332,7 @@ impl ToSubCommandModifiers for Cli {
                 }
                 _ => wire_core::StrictHostKeyChecking::default(),
             },
+            verbose: self.verbose.is_present()
         }
     }
 }

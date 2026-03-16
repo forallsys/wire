@@ -91,6 +91,10 @@ impl Target {
 
         options.extend(["BatchMode=yes".to_string()]);
 
+        if modifiers.verbose {
+            vector.push("-v".to_string());
+        }
+
         vector.push("-o".to_string());
         vector.extend(options.into_iter().intersperse("-o".to_string()));
 
@@ -396,6 +400,45 @@ mod tests {
                     ..Default::default()
                 })
                 .unwrap()
+        );
+
+        // check --verbose
+        assert_eq!(
+            target
+                .create_ssh_args(SubCommandModifiers {
+                    verbose: true,
+                    ..Default::default()
+                })
+                .unwrap(),
+            [
+                "-l".to_string(),
+                target.user.to_string(),
+                "-p".to_string(),
+                target.port.to_string(),
+                "-v".to_string(),
+            ]
+        );
+        assert_eq!(
+            target
+                .create_ssh_args(SubCommandModifiers {
+                    verbose: true,
+                    non_interactive: true,
+                    ..Default::default()
+                })
+                .unwrap(),
+            [
+                "-l".to_string(),
+                target.user.to_string(),
+                "-p".to_string(),
+                target.port.to_string(),
+                "-v".to_string(),
+                "-o".to_string(),
+                "StrictHostKeyChecking=accept-new".to_string(),
+                "-o".to_string(),
+                "PasswordAuthentication=no".to_string(),
+                "-o".to_string(),
+                "KbdInteractiveAuthentication=no".to_string(),
+            ]
         );
     }
 
