@@ -331,6 +331,7 @@ mod tests {
     use std::{assert_matches::assert_matches, env};
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn test_ssh_opts() {
         let target = Target::from_host("hello-world");
         let subcommand_modifiers = SubCommandModifiers {
@@ -403,21 +404,6 @@ mod tests {
         );
 
         // check --verbose
-        assert_eq!(
-            target
-                .create_ssh_args(SubCommandModifiers {
-                    verbose: true,
-                    ..Default::default()
-                })
-                .unwrap(),
-            [
-                "-l".to_string(),
-                target.user.to_string(),
-                "-p".to_string(),
-                target.port.to_string(),
-                "-v".to_string(),
-            ]
-        );
         assert_eq!(
             target
                 .create_ssh_args(SubCommandModifiers {

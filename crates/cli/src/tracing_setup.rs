@@ -10,7 +10,6 @@ use std::{
 use clap_verbosity_flag::{LogLevel, Verbosity};
 use owo_colors::{OwoColorize, Stream, Style};
 use tracing::{Level, Subscriber};
-use tracing_log::AsTrace;
 use tracing_subscriber::{
     Layer,
     field::{RecordFields, VisitFmt},
@@ -252,7 +251,7 @@ async fn status_tick_worker() {
 /// Set up logging for the application
 /// Uses `WireFieldFormat` if -v was never passed
 pub fn setup_logging<L: LogLevel>(verbosity: &Verbosity<L>, show_progress: bool) {
-    let filter = verbosity.log_level_filter().as_trace();
+    let filter = verbosity.tracing_level_filter();
     let registry = tracing_subscriber::registry();
 
     STATUS.lock().show_progress(show_progress);
