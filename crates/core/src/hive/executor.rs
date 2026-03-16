@@ -65,12 +65,7 @@ pub async fn execute(mut plan: NodePlan) -> Result<(), HiveLibError> {
         // `wire/cli/tracing_setup.rs`
         debug_assert_matches!(metadata.name(), "execute");
         // This span should always have a `node` field by the same file
-        debug_assert!(
-            metadata
-                .fields()
-                .field("node")
-                .is_some()
-        );
+        debug_assert!(metadata.fields().field("node").is_some());
     }
 
     if plan.greedy_evaluate {

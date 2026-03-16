@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use clap_verbosity_flag::{InfoLevel, LogLevel, Verbosity, VerbosityFilter};
+use clap_verbosity_flag::{LogLevel, Verbosity};
 use owo_colors::{OwoColorize, Stream, Style};
 use tracing::{Level, Subscriber, level_filters::LevelFilter};
 use tracing_log::AsTrace;
