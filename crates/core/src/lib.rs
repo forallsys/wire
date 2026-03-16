@@ -43,7 +43,7 @@ pub struct SubCommandModifiers {
     pub show_trace: bool,
     pub non_interactive: bool,
     pub ssh_accept_host: StrictHostKeyChecking,
-    pub verbose: bool
+    pub verbose: bool,
 }
 
 impl Default for SubCommandModifiers {
