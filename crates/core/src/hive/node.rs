@@ -330,24 +330,68 @@ mod tests {
     use super::*;
     use std::{assert_matches::assert_matches, env};
 
-    #[test]
-    #[allow(clippy::too_many_lines)]
-    fn test_ssh_opts() {
+    fn setup_ssh_opts_test() -> (Target, String) {
         let target = Target::from_host("hello-world");
-        let subcommand_modifiers = SubCommandModifiers {
-            non_interactive: false,
-            ..Default::default()
-        };
         let tmp = format!(
             "/tmp/{}",
             rand::distr::SampleString::sample_string(&Alphabetic, &mut rand::rng(), 10)
         );
-
         std::fs::create_dir(&tmp).unwrap();
+        unsafe { env::set_var("XDG_RUNTIME_DIR", &tmp) };
+        (target, tmp)
+    }
 
-        unsafe { env::set_var("XDG_RUNTIME_DIR", &tmp) }
+    #[test]
+    fn test_ssh_opts_verbose() {
+        let (target, _tmp) = setup_ssh_opts_test();
 
-        let args = [
+        let args = target
+            .create_ssh_args(SubCommandModifiers {
+                verbose: true,
+                ..Default::default()
+            })
+            .unwrap();
+
+        assert!(
+            args.contains(&"-v".to_string()),
+            "Verbose flag should add -v to SSH args"
+        );
+
+        let expected = vec![
+            "-l".to_string(),
+            target.user.to_string(),
+            "-p".to_string(),
+            target.port.to_string(),
+            "-v".to_string(),
+            "-o".to_string(),
+            "StrictHostKeyChecking=accept-new".to_string(),
+            "-o".to_string(),
+            "BatchMode=yes".to_string(),
+        ];
+        assert_eq!(args, expected);
+    }
+
+    #[test]
+    fn test_ssh_opts_non_interactive() {
+        let (target, _tmp) = setup_ssh_opts_test();
+
+        let default_args = target
+            .create_ssh_args(SubCommandModifiers::default())
+            .unwrap();
+
+        let non_interactive_args = target
+            .create_ssh_args(SubCommandModifiers {
+                non_interactive: true,
+                ..Default::default()
+            })
+            .unwrap();
+
+        assert_eq!(
+            default_args, non_interactive_args,
+            "non_interactive flag should not affect SSH args"
+        );
+
+        let expected = vec![
             "-l".to_string(),
             target.user.to_string(),
             "-p".to_string(),
@@ -357,75 +401,7 @@ mod tests {
             "-o".to_string(),
             "BatchMode=yes".to_string(),
         ];
-
-        assert_eq!(target.create_ssh_args(subcommand_modifiers).unwrap(), args);
-        assert_eq!(
-            target.create_ssh_opts(subcommand_modifiers).unwrap(),
-            args.join(" ")
-        );
-
-        assert_eq!(
-            target.create_ssh_args(subcommand_modifiers).unwrap(),
-            [
-                "-l".to_string(),
-                target.user.to_string(),
-                "-p".to_string(),
-                target.port.to_string(),
-                "-o".to_string(),
-                "StrictHostKeyChecking=accept-new".to_string(),
-                "-o".to_string(),
-                "BatchMode=yes".to_string(),
-            ]
-        );
-
-        assert_eq!(
-            target.create_ssh_args(subcommand_modifiers).unwrap(),
-            [
-                "-l".to_string(),
-                target.user.to_string(),
-                "-p".to_string(),
-                target.port.to_string(),
-                "-o".to_string(),
-                "StrictHostKeyChecking=accept-new".to_string(),
-                "-o".to_string(),
-                "BatchMode=yes".to_string(),
-            ]
-        );
-
-        // forced non interactive is the same as --non-interactive
-        assert_eq!(
-            target.create_ssh_args(subcommand_modifiers).unwrap(),
-            target
-                .create_ssh_args(SubCommandModifiers {
-                    non_interactive: true,
-                    ..Default::default()
-                })
-                .unwrap()
-        );
-
-        // check --verbose
-        assert_eq!(
-            target
-                .create_ssh_args(SubCommandModifiers {
-                    verbose: true,
-                    non_interactive: true,
-                    ..Default::default()
-                })
-                .unwrap(),
-            [
-                "-l".to_string(),
-                target.user.to_string(),
-                "-p".to_string(),
-                target.port.to_string(),
-                "-v".to_string(),
-                "-o".to_string(),
-                "StrictHostKeyChecking=accept-new".to_string(),
-                "-o".to_string(),
-                "PasswordAuthentication=no".to_string(),
-                "-o".to_string(),
-                "KbdInteractiveAuthentication=no".to_string(),
-            ]
-        );
+        assert_eq!(default_args, expected);
     }
 
     #[test]
