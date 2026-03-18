@@ -9,7 +9,6 @@ use clap_complete::engine::ArgValueCompleter;
 use clap_num::number_range;
 use clap_verbosity_flag::InfoLevel;
 use tokio::runtime::Handle;
-use tracing::level_filters::LevelFilter;
 use wire_core::SubCommandModifiers;
 use wire_core::commands::common::get_hive_node_names;
 use wire_core::hive::node::{
@@ -333,7 +332,6 @@ impl ToSubCommandModifiers for Cli {
                 }
                 _ => wire_core::StrictHostKeyChecking::default(),
             },
-            verbose: self.verbose.tracing_level_filter() > LevelFilter::INFO,
         }
     }
 }
