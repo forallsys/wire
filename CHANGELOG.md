@@ -7,10 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - yyyy-mm-dd
 
-### Added
-
-- `--verbose` will pass `-v` to SSH commands.
-
 ## [v1.2.0] - 2026-03-18
 
 ### Added

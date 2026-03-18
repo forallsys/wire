@@ -18,9 +18,7 @@ missing_panics_doc = "allow"
 [workspace.dependencies]
 futures-util = { version = "0.3.31", features = ["sink", "std"] }
 clap = { version = "4.5.51", features = ["derive", "string", "cargo"] }
-clap-verbosity-flag = { version = "3.0.4", features = [
-  "tracing",
-], default-features = false }
+clap-verbosity-flag = "3.0.4"
 serde = { version = "1.0.228", features = ["derive", "rc"] }
 tokio = { version = "1.48.0", features = ["full"] }
 tracing = { version = "0.1.41", features = ["release_max_level_debug"] }
