@@ -89,8 +89,7 @@ impl Target {
             .to_string(),
         ];
 
-        options.extend(["PasswordAuthentication=no".to_string()]);
-        options.extend(["KbdInteractiveAuthentication=no".to_string()]);
+        options.extend(["BatchMode=yes".to_string()]);
 
         vector.push("-o".to_string());
         vector.extend(options.into_iter().intersperse("-o".to_string()));
@@ -351,9 +350,7 @@ mod tests {
             "-o".to_string(),
             "StrictHostKeyChecking=accept-new".to_string(),
             "-o".to_string(),
-            "PasswordAuthentication=no".to_string(),
-            "-o".to_string(),
-            "KbdInteractiveAuthentication=no".to_string(),
+            "BatchMode=yes".to_string(),
         ];
 
         assert_eq!(target.create_ssh_args(subcommand_modifiers).unwrap(), args);
@@ -372,9 +369,7 @@ mod tests {
                 "-o".to_string(),
                 "StrictHostKeyChecking=accept-new".to_string(),
                 "-o".to_string(),
-                "PasswordAuthentication=no".to_string(),
-                "-o".to_string(),
-                "KbdInteractiveAuthentication=no".to_string(),
+                "BatchMode=yes".to_string(),
             ]
         );
 
@@ -388,9 +383,7 @@ mod tests {
                 "-o".to_string(),
                 "StrictHostKeyChecking=accept-new".to_string(),
                 "-o".to_string(),
-                "PasswordAuthentication=no".to_string(),
-                "-o".to_string(),
-                "KbdInteractiveAuthentication=no".to_string(),
+                "BatchMode=yes".to_string(),
             ]
         );
 

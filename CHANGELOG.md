@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Status bar is cleaned every time after execution is completed.
 
-## [v1.2.0] - 2025-01-05
+## [v1.2.0] - 2026-03-18
 
 ### Added
 
@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   during execution.
 - Cases where there are no keys to deploy, such as having 0 keys or filtered
   keys, the "Key" step will not be planned when it previously would have.
+- Changed non-interactive SSH executed commands to use `BatchMode=yes` instead
+  of using `PasswordAuthentication=no` and `KbdInteractiveAuthentication=no`.
 
 ### Fixed
 
