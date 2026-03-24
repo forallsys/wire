@@ -178,12 +178,12 @@ where
         );
     }
 
-    if !errors.is_empty() {
-        // clear the status bar if we are about to print error messages
-        if let Some(tx) = UI_SENDER.get() {
-            let _ = tx.send(UiMessage::Clear);
-        }
+    // clear the status bar at the end of execution.
+    if let Some(tx) = UI_SENDER.get() {
+        let _ = tx.send(UiMessage::Clear);
+    }
 
+    if !errors.is_empty() {
         return Err(NodeErrors(
             errors
                 .into_iter()

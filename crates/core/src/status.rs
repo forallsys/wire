@@ -14,7 +14,7 @@ use tokio::sync::{
     oneshot,
 };
 
-use crate::{STDIN_CLOBBER_LOCK, hive::node::Name};
+use crate::hive::node::Name;
 
 use std::collections::HashMap;
 
@@ -28,7 +28,7 @@ pub enum NodeStatus {
 }
 
 pub enum UiMessage {
-    /// Initialize the status bar with many nodes at once.
+    /// Initialise the status bar with many nodes at once.
     AddMany(Vec<Name>),
     SetStatus(Name, NodeStatus),
     /// Takeover the terminal, blocking new messages from being printed until
@@ -168,23 +168,6 @@ impl Status {
             let _ = write!(writer, "{}", self.get_msg());
         }
     }
-
-    pub fn write_above_status<T: std::io::Write>(
-        &mut self,
-        buf: &[u8],
-        writer: &mut T,
-    ) -> std::io::Result<usize> {
-        if STDIN_CLOBBER_LOCK.available_permits() != 1 {
-            // skip
-            return Ok(0);
-        }
-
-        self.clear(writer);
-        let written = writer.write(buf)?;
-        self.write_status(writer);
-
-        Ok(written)
-    }
 }
 
 pub async fn status_tick_worker(mut rx: UnboundedReceiver<UiMessage>, show_progress: bool) {
@@ -195,8 +178,7 @@ pub async fn status_tick_worker(mut rx: UnboundedReceiver<UiMessage>, show_progr
     let mut ticker = tokio::time::interval(Duration::from_secs(1));
     let mut stderr = std::io::stderr();
     let mut log_queue: VecDeque<Vec<u8>> = VecDeque::with_capacity(100);
-
-    let mut is_suspended = false;
+    let mut taken_over = false;
 
     loop {
         tokio::select! {
@@ -213,42 +195,37 @@ pub async fn status_tick_worker(mut rx: UnboundedReceiver<UiMessage>, show_progr
                         status.statuses.insert(name.0.to_string(), value);
                     },
                     UiMessage::Takeover(tx) => {
-                        is_suspended = true;
+                        taken_over = true;
                         status.wipe_out(&mut stderr);
                         let _ = tx.send(());
                     },
                     UiMessage::Release => {
-                        is_suspended = false;
-
-                        for buf in log_queue.iter().rev() {
-                            let _ = std::io::Write::write(&mut stderr, buf).map(|_| ());
+                        taken_over = false;
+                        for buf in log_queue.drain(..) {
+                            let _ = std::io::Write::write(&mut stderr, &buf).map(|_| ());
                         }
-
                         status.write_status(&mut stderr);
                     },
                     UiMessage::Clear => {
                         status.clear(&mut stderr);
                     },
                     UiMessage::LogLine(line) => {
-                        if is_suspended {
+                        if taken_over {
                             log_queue.push_back(line);
-                            continue;
+                        } else {
+                            status.clear(&mut stderr);
+                            for buf in log_queue.drain(..) {
+                                let _ = std::io::Write::write(&mut stderr, &buf).map(|_| ());
+                            }
+                            let _ = std::io::Write::write(&mut stderr, &line);
+                            status.write_status(&mut stderr);
                         }
-
-                        status.clear(&mut stderr);
-
-                        for buf in log_queue.iter().rev() {
-                            let _ = std::io::Write::write(&mut stderr, buf).map(|_| ());
-                        }
-
-                        let _ = std::io::Write::write(&mut stderr, &line);
-                        let _ = status.write_above_status(&line, &mut stderr);
                     },
                 }
             }
 
             _ = ticker.tick() => {
-                if STDIN_CLOBBER_LOCK.available_permits() < 1 {
+                if taken_over {
                     continue;
                 }
 
