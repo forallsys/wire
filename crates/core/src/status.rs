@@ -66,20 +66,6 @@ impl Status {
         self.show_progress = show_progress;
     }
 
-    pub fn set_node_step(&mut self, node: &Name, step: String) {
-        self.statuses
-            .insert(node.0.to_string(), NodeStatus::Running(step));
-    }
-
-    pub fn mark_node_failed(&mut self, node: &Name) {
-        self.statuses.insert(node.0.to_string(), NodeStatus::Failed);
-    }
-
-    pub fn mark_node_succeeded(&mut self, node: &Name) {
-        self.statuses
-            .insert(node.0.to_string(), NodeStatus::Succeeded);
-    }
-
     #[must_use]
     fn num_finished(&self) -> usize {
         self.statuses
