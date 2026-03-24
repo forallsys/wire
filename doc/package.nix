@@ -3,6 +3,8 @@
   wire-small-dev,
   nix,
   nodejs,
+  pnpmConfigHook,
+  fetchPnpmDeps,
   pnpm,
   stdenv,
   mode ? "unstable",
@@ -18,11 +20,12 @@ stdenv.mkDerivation (finalAttrs: {
   nativeBuildInputs = [
     wire-small-dev
     nodejs
-    pnpm.configHook
+    pnpmConfigHook
+    pnpm
     nix
   ];
   src = ./.;
-  pnpmDeps = pnpm.fetchDeps {
+  pnpmDeps = fetchPnpmDeps {
     inherit (finalAttrs) pname version src;
     fetcherVersion = 1;
     hash = "sha256-ydgb5NCFsYaDbmLjBqu91MqKj/I3TKpNLjOvyP+aY8o=";
