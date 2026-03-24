@@ -188,7 +188,7 @@ pub async fn status_tick_worker(mut rx: UnboundedReceiver<UiMessage>, show_progr
                     UiMessage::Release => {
                         taken_over = false;
                         for buf in log_queue.drain(..) {
-                            let _ = std::io::Write::write(&mut stderr, &buf).map(|_| ());
+                            let _ = std::io::Write::write_all(&mut stderr, &buf);
                         }
                         status.write_status(&mut stderr);
                     },
@@ -201,9 +201,9 @@ pub async fn status_tick_worker(mut rx: UnboundedReceiver<UiMessage>, show_progr
                         } else {
                             status.clear(&mut stderr);
                             for buf in log_queue.drain(..) {
-                                let _ = std::io::Write::write(&mut stderr, &buf).map(|_| ());
+                                let _ = std::io::Write::write_all(&mut stderr, &buf);
                             }
-                            let _ = std::io::Write::write(&mut stderr, &line);
+                            let _ = std::io::Write::write_all(&mut stderr, &line);
                             status.write_status(&mut stderr);
                         }
                     },
