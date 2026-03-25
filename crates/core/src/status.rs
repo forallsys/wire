@@ -164,6 +164,13 @@ pub async fn status_tick_worker(mut rx: UnboundedReceiver<UiMessage>, show_progr
     let mut ticker = tokio::time::interval(Duration::from_secs(1));
     let mut stderr = std::io::stderr();
     let mut log_queue: VecDeque<Vec<u8>> = VecDeque::with_capacity(100);
+
+    // A single boolean represents the "taken over" state, where stdin is being
+    // accepted from the user. A "depth" is not used as it is expected the
+    // callers of `Takeover` respect the Semaphore.
+    //
+    // If there was ever multiple take overs at once (unlikely), this code would
+    // need to be updated to track multiple takeovers at once.
     let mut taken_over = false;
 
     loop {
