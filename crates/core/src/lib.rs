@@ -6,14 +6,15 @@
 #![feature(sync_nonpoison)]
 #![feature(nonpoison_mutex)]
 
-use std::{
-    io::{IsTerminal, stderr},
-    sync::LazyLock,
+use std::{io::IsTerminal, sync::LazyLock};
+
+use tokio::sync::{AcquireError, Semaphore, SemaphorePermit, mpsc::UnboundedSender, oneshot};
+
+use crate::{
+    errors::HiveLibError,
+    hive::node::Name,
+    status::{UI_SENDER, UiMessage},
 };
-
-use tokio::sync::{AcquireError, Semaphore, SemaphorePermit};
-
-use crate::{errors::HiveLibError, hive::node::Name, status::STATUS};
 
 pub mod cache;
 pub mod commands;
@@ -63,9 +64,33 @@ pub enum EvalGoal<'a> {
 
 pub static STDIN_CLOBBER_LOCK: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(1));
 
-pub async fn acquire_stdin_lock<'a>() -> Result<SemaphorePermit<'a>, AcquireError> {
+/// `SemaphorePermit` that sends a `UiMessage::Release` on drop
+pub struct ClobberGuard<'a>(
+    #[allow(unused)] SemaphorePermit<'a>,
+    Option<&'a UnboundedSender<UiMessage>>,
+);
+
+impl Drop for ClobberGuard<'_> {
+    fn drop(&mut self) {
+        if let Some(tx) = self.1 {
+            let _ = tx.send(UiMessage::Release);
+        }
+    }
+}
+
+pub async fn acquire_stdin_lock<'a>() -> Result<ClobberGuard<'a>, AcquireError> {
     let result = STDIN_CLOBBER_LOCK.acquire().await?;
-    STATUS.lock().wipe_out(&mut stderr());
+    let (sender, rx) = oneshot::channel();
+    let tx = UI_SENDER.get();
+
+    if let Some(tx) = tx {
+        let _ = tx.send(UiMessage::Takeover(sender));
+
+        // wait until takeover is confirmed
+        let _ = rx.await;
+    }
+
+    let result = ClobberGuard(result, tx);
 
     Ok(result)
 }

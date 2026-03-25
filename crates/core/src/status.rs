@@ -2,15 +2,21 @@
 // Copyright 2024-2025 wire Contributors
 
 use owo_colors::OwoColorize;
-use std::{fmt::Write, time::Instant};
-use termion::{clear, cursor};
-
-use crate::{STDIN_CLOBBER_LOCK, hive::node::Name};
-
 use std::{
-    collections::HashMap,
-    sync::{LazyLock, nonpoison::Mutex},
+    collections::VecDeque,
+    fmt::Write,
+    sync::OnceLock,
+    time::{Duration, Instant},
 };
+use termion::{clear, cursor};
+use tokio::sync::{
+    mpsc::{self, UnboundedReceiver},
+    oneshot,
+};
+
+use crate::hive::node::Name;
+
+use std::collections::HashMap;
 
 #[derive(Default)]
 pub enum NodeStatus {
@@ -21,14 +27,31 @@ pub enum NodeStatus {
     Failed,
 }
 
+pub enum UiMessage {
+    /// Initialise the status bar with many nodes at once.
+    AddMany(Vec<Name>),
+    SetStatus(Name, NodeStatus),
+    /// Takeover the terminal, blocking new messages from being printed until
+    /// `Release` is sent.
+    ///
+    /// Once the takeover request is completed, the oneshot channel will be
+    /// consumed.
+    Takeover(oneshot::Sender<()>),
+    /// Indicate that the takeover is no longer necessary
+    Release,
+    /// Clear the status line, mostly for when the program is about to end
+    Clear,
+    /// Writes above the status line
+    LogLine(Vec<u8>),
+}
+
 pub struct Status {
     statuses: HashMap<String, NodeStatus>,
     began: Instant,
     show_progress: bool,
 }
 
-/// global status used for the progress bar in the cli crate
-pub static STATUS: LazyLock<Mutex<Status>> = LazyLock::new(|| Mutex::new(Status::new()));
+pub static UI_SENDER: OnceLock<mpsc::UnboundedSender<UiMessage>> = OnceLock::new();
 
 impl Status {
     fn new() -> Self {
@@ -41,28 +64,6 @@ impl Status {
 
     pub const fn show_progress(&mut self, show_progress: bool) {
         self.show_progress = show_progress;
-    }
-
-    pub fn add_many(&mut self, names: &[&Name]) {
-        self.statuses.extend(
-            names
-                .iter()
-                .map(|name| (name.0.to_string(), NodeStatus::Pending)),
-        );
-    }
-
-    pub fn set_node_step(&mut self, node: &Name, step: String) {
-        self.statuses
-            .insert(node.0.to_string(), NodeStatus::Running(step));
-    }
-
-    pub fn mark_node_failed(&mut self, node: &Name) {
-        self.statuses.insert(node.0.to_string(), NodeStatus::Failed);
-    }
-
-    pub fn mark_node_succeeded(&mut self, node: &Name) {
-        self.statuses
-            .insert(node.0.to_string(), NodeStatus::Succeeded);
     }
 
     #[must_use]
@@ -153,21 +154,77 @@ impl Status {
             let _ = write!(writer, "{}", self.get_msg());
         }
     }
+}
 
-    pub fn write_above_status<T: std::io::Write>(
-        &mut self,
-        buf: &[u8],
-        writer: &mut T,
-    ) -> std::io::Result<usize> {
-        if STDIN_CLOBBER_LOCK.available_permits() != 1 {
-            // skip
-            return Ok(0);
+pub async fn status_tick_worker(mut rx: UnboundedReceiver<UiMessage>, show_progress: bool) {
+    let mut status = Status::new();
+
+    status.show_progress(show_progress);
+
+    let mut ticker = tokio::time::interval(Duration::from_secs(1));
+    let mut stderr = std::io::stderr();
+    let mut log_queue: VecDeque<Vec<u8>> = VecDeque::with_capacity(100);
+
+    // A single boolean represents the "taken over" state, where stdin is being
+    // accepted from the user. A "depth" is not used as it is expected the
+    // callers of `Takeover` respect the Semaphore.
+    //
+    // If there was ever multiple take overs at once (unlikely), this code would
+    // need to be updated to track multiple takeovers at once.
+    let mut taken_over = false;
+
+    loop {
+        tokio::select! {
+            Some(msg) = rx.recv() => {
+                match msg {
+                    UiMessage::AddMany(names) => {
+                        status.statuses.extend(
+                            names
+                                .iter()
+                                .map(|name| (name.0.to_string(), NodeStatus::Pending)),
+                        );
+                    },
+                    UiMessage::SetStatus(name, value) => {
+                        status.statuses.insert(name.0.to_string(), value);
+                    },
+                    UiMessage::Takeover(tx) => {
+                        taken_over = true;
+                        status.wipe_out(&mut stderr);
+                        let _ = tx.send(());
+                    },
+                    UiMessage::Release => {
+                        taken_over = false;
+                        for buf in log_queue.drain(..) {
+                            let _ = std::io::Write::write_all(&mut stderr, &buf);
+                        }
+                        status.write_status(&mut stderr);
+                    },
+                    UiMessage::Clear => {
+                        status.clear(&mut stderr);
+                    },
+                    UiMessage::LogLine(line) => {
+                        if taken_over {
+                            log_queue.push_back(line);
+                        } else {
+                            status.clear(&mut stderr);
+                            for buf in log_queue.drain(..) {
+                                let _ = std::io::Write::write_all(&mut stderr, &buf);
+                            }
+                            let _ = std::io::Write::write_all(&mut stderr, &line);
+                            status.write_status(&mut stderr);
+                        }
+                    },
+                }
+            }
+
+            _ = ticker.tick() => {
+                if taken_over {
+                    continue;
+                }
+
+                status.clear(&mut stderr);
+                status.write_status(&mut stderr);
+            }
         }
-
-        self.clear(writer);
-        let written = writer.write(buf)?;
-        self.write_status(writer);
-
-        Ok(written)
     }
 }

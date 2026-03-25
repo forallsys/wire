@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright 2024-2025 wire Contributors
 
-use std::{
-    collections::VecDeque,
-    io::{self, Stderr, Write, stderr},
-    time::Duration,
-};
+use std::io::{self, Write};
 
 use clap_verbosity_flag::{LogLevel, Verbosity};
 use owo_colors::{OwoColorize, Stream, Style};
+use tokio::sync::mpsc;
 use tracing::{Level, Subscriber};
 use tracing_log::AsTrace;
 use tracing_subscriber::{
@@ -22,54 +19,28 @@ use tracing_subscriber::{
     registry::LookupSpan,
     util::SubscriberInitExt,
 };
-use wire_core::{STDIN_CLOBBER_LOCK, status::STATUS};
+use wire_core::status::{UI_SENDER, UiMessage};
 
-/// The non-clobbering writer ensures that log lines are held while interactive
-/// prompts are shown to the user. If logs where shown, they would "clobber" the
-/// sudo / ssh prompt.
-///
-/// Additionally, the `STDIN_CLOBBER_LOCK` is used to ensure that no two
-/// interactive prompts are shown at the same time.
-struct NonClobberingWriter {
-    queue: VecDeque<Vec<u8>>,
-    stderr: Stderr,
-}
+/// Forwards log lines to the UI worker over `UI_SENDER`.
+struct NonClobberingWriter;
 
 impl NonClobberingWriter {
-    fn new() -> Self {
-        NonClobberingWriter {
-            queue: VecDeque::with_capacity(100),
-            stderr: stderr(),
-        }
-    }
-
-    /// expects the caller to write the status line
-    fn dump_previous(&mut self) -> Result<(), io::Error> {
-        STATUS.lock().clear(&mut self.stderr);
-
-        for buf in self.queue.iter().rev() {
-            self.stderr.write(buf).map(|_| ())?;
-        }
-
-        Ok(())
+    const fn new() -> Self {
+        NonClobberingWriter
     }
 }
 
 impl Write for NonClobberingWriter {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        if let 1.. = STDIN_CLOBBER_LOCK.available_permits() {
-            self.dump_previous().map(|()| 0)?;
-
-            STATUS.lock().write_above_status(buf, &mut self.stderr)
-        } else {
-            self.queue.push_front(buf.to_vec());
-
-            Ok(buf.len())
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        if let Some(tx) = UI_SENDER.get() {
+            let _ = tx.send(UiMessage::LogLine(buf.to_vec()));
         }
+
+        Ok(buf.len())
     }
 
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.stderr.flush()
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
     }
 }
 
@@ -231,36 +202,19 @@ where
     }
 }
 
-async fn status_tick_worker() {
-    let mut interval = tokio::time::interval(Duration::from_secs(1));
-    let mut stderr = stderr();
-
-    loop {
-        interval.tick().await;
-
-        if STDIN_CLOBBER_LOCK.available_permits() < 1 {
-            continue;
-        }
-
-        let mut status = STATUS.lock();
-
-        status.clear(&mut stderr);
-        status.write_status(&mut stderr);
-    }
-}
-
 /// Set up logging for the application
 /// Uses `WireFieldFormat` if -v was never passed
 pub fn setup_logging<L: LogLevel>(verbosity: &Verbosity<L>, show_progress: bool) {
     let filter = verbosity.log_level_filter().as_trace();
     let registry = tracing_subscriber::registry();
 
-    STATUS.lock().show_progress(show_progress);
+    let (tx, rx) = mpsc::unbounded_channel();
+    UI_SENDER
+        .set(tx)
+        .expect("expected setup_logging to the first and only .set() of `UI_SENDER`");
 
     // spawn worker to tick the status bar
-    if show_progress {
-        tokio::spawn(status_tick_worker());
-    }
+    tokio::spawn(wire_core::status::status_tick_worker(rx, show_progress));
 
     if verbosity.is_present() {
         let layer = tracing_subscriber::fmt::layer()

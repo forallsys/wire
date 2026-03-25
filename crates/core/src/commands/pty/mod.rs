@@ -3,7 +3,7 @@
 
 use crate::commands::pty::output::{WatchStdoutArguments, handle_pty_stdout};
 use crate::hive::node::SharedTarget;
-use crate::status::STATUS;
+use crate::status::{UI_SENDER, UiMessage};
 use aho_corasick::PatternID;
 use itertools::Itertools;
 use nix::sys::termios::{LocalFlags, SetArg, Termios, tcgetattr, tcsetattr};
@@ -12,7 +12,6 @@ use nix::unistd::write as posix_write;
 use portable_pty::{CommandBuilder, NativePtySystem, PtyPair, PtySize};
 use rand::distr::Alphabetic;
 use std::collections::VecDeque;
-use std::io::stderr;
 use std::sync::{LazyLock, Mutex};
 use std::{
     io::{Read, Write},
@@ -262,14 +261,15 @@ async fn print_authenticate_warning<S: AsRef<str>>(
         "localhost (!)".to_string()
     };
 
-    let _ = STATUS.lock().write_above_status(
-        &format!(
-            "{target_display} | Authenticate for \"sudo {}\":\n",
-            arguments.command_string.as_ref()
-        )
-        .into_bytes(),
-        &mut stderr(),
-    );
+    if let Some(tx) = UI_SENDER.get() {
+        let _ = tx.send(UiMessage::LogLine(
+            format!(
+                "{target_display} | Authenticate for \"sudo {}\":\n",
+                arguments.command_string.as_ref()
+            )
+            .into_bytes(),
+        ));
+    }
 
     Ok(())
 }

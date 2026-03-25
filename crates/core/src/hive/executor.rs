@@ -1,4 +1,7 @@
-use crate::hive::node::Step;
+use crate::{
+    hive::node::Step,
+    status::{NodeStatus, UI_SENDER, UiMessage},
+};
 use std::{assert_matches::debug_assert_matches, sync::Arc};
 
 use tracing::{Instrument, Span, debug, error, event, instrument};
@@ -12,7 +15,6 @@ use crate::{
         node::{Context, Derivation, ExecuteStep, Name},
         plan::NodePlan,
     },
-    status::STATUS,
 };
 
 /// returns Err if the application should shut down.
@@ -96,9 +98,12 @@ pub async fn execute(mut plan: NodePlan) -> Result<(), HiveLibError> {
             progress = format!("{}/{length}", position + 1)
         );
 
-        STATUS
-            .lock()
-            .set_node_step(&plan.context.name, step.to_string());
+        if let Some(tx) = UI_SENDER.get() {
+            let _ = tx.send(UiMessage::SetStatus(
+                plan.context.name.clone(),
+                NodeStatus::Running(step.to_string()),
+            ));
+        }
 
         if let Err(err) = step.execute(&mut plan.context).await.inspect_err(|_| {
             error!("Failed to execute `{step}`");
@@ -107,13 +112,23 @@ pub async fn execute(mut plan: NodePlan) -> Result<(), HiveLibError> {
                 return Ok(());
             }
 
-            STATUS.lock().mark_node_failed(&plan.context.name);
+            if let Some(tx) = UI_SENDER.get() {
+                let _ = tx.send(UiMessage::SetStatus(
+                    plan.context.name.clone(),
+                    NodeStatus::Failed,
+                ));
+            }
 
             return Err(err);
         }
     }
 
-    STATUS.lock().mark_node_succeeded(&plan.context.name);
+    if let Some(tx) = UI_SENDER.get() {
+        let _ = tx.send(UiMessage::SetStatus(
+            plan.context.name.clone(),
+            NodeStatus::Succeeded,
+        ));
+    }
 
     Ok(())
 }
