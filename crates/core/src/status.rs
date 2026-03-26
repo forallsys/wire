@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright 2024-2025 wire Contributors
 
+use crate::hive::node::Name;
 use nix_compat::log::{ActivityType, ResultType};
 use owo_colors::OwoColorize;
 use std::{
@@ -14,8 +15,6 @@ use tokio::sync::{
     mpsc::{self, UnboundedReceiver},
     oneshot,
 };
-
-use crate::hive::node::Name;
 
 use std::collections::HashMap;
 
@@ -50,9 +49,75 @@ pub enum UiMessage {
     ActivityEnd(Option<Name>, u64, Option<ResultType>),
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ActivityCategory {
+    Download,
+    Build,
+    Other,
+}
+
+impl From<ActivityType> for ActivityCategory {
+    fn from(activity_type: ActivityType) -> Self {
+        match activity_type {
+            ActivityType::CopyPath
+            | ActivityType::FileTransfer
+            | ActivityType::Substitute
+            | ActivityType::QueryPathInfo
+            | ActivityType::FetchTree
+            | ActivityType::CopyPaths => Self::Download,
+
+            ActivityType::Build | ActivityType::Builds | ActivityType::BuildWaiting => Self::Build,
+
+            _ => Self::Other,
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct ActivityTracker {
+    active_by_id: HashMap<u64, ActivityCategory>,
+
+    pub active_downloads: usize,
+    pub completed_downloads: usize,
+    pub active_builds: usize,
+    pub completed_builds: usize,
+    pub active_other: usize,
+    pub completed_other: usize,
+}
+
+impl ActivityTracker {
+    pub fn begin(&mut self, id: u64, category: ActivityCategory) {
+        self.active_by_id.insert(id, category);
+        match category {
+            ActivityCategory::Download => self.active_downloads += 1,
+            ActivityCategory::Build => self.active_builds += 1,
+            ActivityCategory::Other => self.active_other += 1,
+        }
+    }
+
+    pub fn end(&mut self, id: u64) {
+        if let Some(category) = self.active_by_id.remove(&id) {
+            match category {
+                ActivityCategory::Download => {
+                    self.active_downloads = self.active_downloads.saturating_sub(1);
+                    self.completed_downloads += 1;
+                }
+                ActivityCategory::Build => {
+                    self.active_builds = self.active_builds.saturating_sub(1);
+                    self.completed_builds += 1;
+                }
+                ActivityCategory::Other => {
+                    self.active_other = self.active_other.saturating_sub(1);
+                    self.completed_other += 1;
+                }
+            }
+        }
+    }
+}
+
 pub struct Status {
     node_statuses: HashMap<String, NodeStatus>,
-    nix_activities: HashMap<Option<Name>, HashMap<u64, bool>>,
+    nix_activities: HashMap<Option<Name>, ActivityTracker>,
 
     began: Instant,
     show_progress: bool,
@@ -104,7 +169,16 @@ impl Status {
             return String::new();
         }
 
-        let mut msg = format!("[{} / {}", self.num_finished(), self.node_statuses.len(),);
+        let mut msg = String::new();
+
+        let _ = write!(&mut msg, "{}s Elapsed ", self.began.elapsed().as_secs());
+
+        let _ = write!(
+            &mut msg,
+            "[Nodes {} / {}",
+            self.num_finished(),
+            self.node_statuses.len()
+        );
 
         let num_failed = self.num_failed();
         let num_running = self.num_running();
@@ -129,16 +203,64 @@ impl Status {
 
         let _ = write!(&mut msg, "]");
 
-        let sum_running = self.nix_activities.iter().fold(0, |curr, (_, activities)| {
-            curr + activities.iter().filter(|(_, ended)| !**ended).count()
-        });
-        let sum_total = self.nix_activities.iter().fold(0, |curr, (_, activities)| {
-            curr + activities.iter().count()
-        });
+        let (total_active_downloads, total_completed_downloads) =
+            self.nix_activities
+                .iter()
+                .fold((0, 0), |acc, (_, tracker)| {
+                    (
+                        acc.0 + tracker.active_downloads,
+                        acc.1 + tracker.completed_downloads,
+                    )
+                });
 
-        let _ = write!(&mut msg, " {}s", self.began.elapsed().as_secs());
+        let (total_active_builds, total_completed_builds) =
+            self.nix_activities
+                .iter()
+                .fold((0, 0), |acc, (_, tracker)| {
+                    (
+                        acc.0 + tracker.active_builds,
+                        acc.1 + tracker.completed_builds,
+                    )
+                });
 
-        let _ = write!(&mut msg, " Σ {sum_running} / {sum_total}");
+        let (total_active_other, total_completed_other) =
+            self.nix_activities
+                .iter()
+                .fold((0, 0), |acc, (_, tracker)| {
+                    (
+                        acc.0 + tracker.active_other,
+                        acc.1 + tracker.completed_other,
+                    )
+                });
+
+        if total_active_downloads > 0 || total_completed_downloads > 0 {
+            let _ = write!(
+                &mut msg,
+                " [DL Jobs: {total_active_downloads} active, {total_completed_downloads} done]",
+            );
+        }
+
+        if total_active_builds > 0 || total_completed_builds > 0 {
+            let _ = write!(
+                &mut msg,
+                " [Build Jobs: {total_active_builds} active, {total_completed_builds} done]",
+            );
+        }
+
+        if total_active_other > 0 || total_completed_other > 0 {
+            let _ = write!(
+                &mut msg,
+                " [Other Jobs: {total_active_other} active, {total_completed_other} done]"
+            );
+        }
+
+        for (name, _tracker) in &self.nix_activities {
+            let _ = write!(
+                &mut msg,
+                "\n  {}",
+                name.clone().unwrap_or(Name("wire tasks".into()))
+            );
+        }
 
         msg
     }
@@ -231,15 +353,13 @@ pub async fn status_tick_worker(mut rx: UnboundedReceiver<UiMessage>, show_progr
                             status.write_status(&mut stderr);
                         }
                     },
-                    UiMessage::ActivityBegin(name, id, _activity_type) => {
-                        let activities = status.nix_activities.entry(name).or_default();
-
-                        activities.insert(id, false);
+                    UiMessage::ActivityBegin(name, id, activity_type) => {
+                        let tracker = status.nix_activities.entry(name).or_default();
+                        tracker.begin(id, activity_type.into());
                     }
                     UiMessage::ActivityEnd(name, id, _activity_type) => {
-                        let activities = status.nix_activities.entry(name).or_default();
-
-                        activities.insert(id, true);
+                        let tracker = status.nix_activities.entry(name).or_default();
+                        tracker.end(id);
                     }
                 }
             }
