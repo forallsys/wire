@@ -262,7 +262,7 @@ impl Status {
                 "\n  {}",
                 match name {
                     Some(name) => name.on_default_color().into_styled(),
-                    None => wire_tasks.italic().into_styled()
+                    None => wire_tasks.italic().into_styled(),
                 }
             );
         }
