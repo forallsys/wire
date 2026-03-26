@@ -168,7 +168,7 @@ impl ChildOutputMode {
                 let position = AHO_CORASICK.find(&line).map(|x| &mut line[x.end()..]);
 
                 if let Some(json_buf) = position {
-                    json_buf
+                    (json_buf, task_name)
                 } else {
                     // usually happens when ssh is outputting something
                     warn!("{}", String::from_utf8_lossy(line));
@@ -189,6 +189,12 @@ impl ChildOutputMode {
             _ => return None,
         };
 
+        if msg.is_empty() {
+            return None;
+        }
+
+        let msg = strip_ansi_escapes::strip_str(msg);
+
         match level {
             VerbosityLevel::Info => info!("{msg}"),
             VerbosityLevel::Warn | VerbosityLevel::Notice => warn!("{msg}"),
@@ -203,7 +209,7 @@ impl ChildOutputMode {
             level,
             VerbosityLevel::Error | VerbosityLevel::Warn | VerbosityLevel::Notice
         ) {
-            return Some(msg.to_string());
+            return Some(msg);
         }
 
         None
