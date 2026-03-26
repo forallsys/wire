@@ -18,7 +18,7 @@ The `source` of your key can be a literal string (unencrypted), a path
 work well with wire keys include:
 
 - GPG
-- [sops](https://github.com/getsops/sops) ([Example](#with-sops))
+- [sops](https://github.com/getsops/sops) ([Example](#encrypting-with-sops))
 - [Age](https://github.com/FiloSottile/age)
 - Anything that non-interactively decrypts to `stdout`.
 
