@@ -18,6 +18,7 @@ The `source` of your key can be a literal string (unencrypted), a path
 work well with wire keys include:
 
 - GPG
+- [sops](https://github.com/getsops/sops) ([Example](#encrypting-with-sops))
 - [Age](https://github.com/FiloSottile/age)
 - Anything that non-interactively decrypts to `stdout`.
 
@@ -93,6 +94,21 @@ in wire.makeHive {
 [user@node-1]$ cat /run/keys/file.txt
 Hello World!
 ```
+
+### Encrypting with Sops
+
+With some sops file:
+
+```yaml:line-numbers [secret.yaml]
+hive:
+    some_secret: XXXXXXXXXXXXXXXXXXXXXXX
+something:
+    another_secret: XXXXXXXXXXXXXXXXXXXXXXX
+```
+
+You can easily create a function to grab values out of your encrypted sops file:
+
+<<< @/snippets/guides/sops-example.nix [hive.nix]
 
 ### Encrypting with KeepassXC
 
