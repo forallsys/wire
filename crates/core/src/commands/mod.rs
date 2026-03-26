@@ -7,15 +7,12 @@ use crate::{
 };
 use std::{
     collections::HashMap,
-    str::from_utf8,
     sync::{Arc, LazyLock},
 };
 
 use aho_corasick::AhoCorasick;
-use gjson::Value;
 use itertools::Itertools;
-use nix_compat::log::{AT_NIX_PREFIX, VerbosityLevel};
-use num_enum::TryFromPrimitive;
+use nix_compat::log::{AT_NIX_PREFIX, LogMessage, VerbosityLevel};
 use tracing::{debug, error, info, trace, warn};
 
 use crate::{
@@ -156,47 +153,6 @@ impl WireCommandChip for Either<InteractiveChildChip, NonInteractiveChildChip> {
     }
 }
 
-fn trace_gjson_str<'a>(log: &'a Value<'a>, msg: &'a str) -> Option<String> {
-    if msg.is_empty() {
-        return None;
-    }
-
-    let level = log.get("level");
-
-    if !level.exists() {
-        return None;
-    }
-
-    let level = match VerbosityLevel::try_from_primitive(level.u64()) {
-        Ok(level) => level,
-        Err(err) => {
-            error!("nix log `level` did not match to a VerbosityLevel: {err:?}");
-            return None;
-        }
-    };
-
-    let msg = strip_ansi_escapes::strip_str(msg);
-
-    match level {
-        VerbosityLevel::Info => info!("{msg}"),
-        VerbosityLevel::Warn | VerbosityLevel::Notice => warn!("{msg}"),
-        VerbosityLevel::Error => error!("{msg}"),
-        VerbosityLevel::Debug => debug!("{msg}"),
-        VerbosityLevel::Vomit | VerbosityLevel::Talkative | VerbosityLevel::Chatty => {
-            trace!("{msg}");
-        }
-    }
-
-    if matches!(
-        level,
-        VerbosityLevel::Error | VerbosityLevel::Warn | VerbosityLevel::Notice
-    ) {
-        return Some(msg);
-    }
-
-    None
-}
-
 impl ChildOutputMode {
     /// this function is by far the biggest hotspot in the whole tree
     /// Returns a string if this log is notable to be stored as an error message
@@ -221,23 +177,33 @@ impl ChildOutputMode {
             }
         };
 
-        let Ok(str) = from_utf8(slice) else {
-            error!("nix log was not valid utf8!");
+        let Ok(log_message) = serde_json::from_slice::<LogMessage>(slice) else {
+            // failed to parse, print the string regardless as a backup
+            warn!("{}", String::from_utf8_lossy(slice));
             return None;
         };
 
-        let log = gjson::parse(str);
+        let (msg, level) = match log_message {
+            LogMessage::Start { text, level, .. } => (text, level),
+            LogMessage::Msg { msg, level, .. } => (msg, level),
+            _ => return None
+        };
 
-        let text = log.get("text");
-
-        if text.exists() {
-            return trace_gjson_str(&log, text.str());
+        match level {
+            VerbosityLevel::Info => info!("{msg}"),
+            VerbosityLevel::Warn | VerbosityLevel::Notice => warn!("{msg}"),
+            VerbosityLevel::Error => error!("{msg}"),
+            VerbosityLevel::Debug => debug!("{msg}"),
+            VerbosityLevel::Vomit | VerbosityLevel::Talkative | VerbosityLevel::Chatty => {
+                trace!("{msg}");
+            }
         }
 
-        let text = log.get("msg");
-
-        if text.exists() {
-            return trace_gjson_str(&log, text.str());
+        if matches!(
+            level,
+            VerbosityLevel::Error | VerbosityLevel::Warn | VerbosityLevel::Notice
+        ) {
+            return Some(msg.to_string());
         }
 
         None
