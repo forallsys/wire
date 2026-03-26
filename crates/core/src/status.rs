@@ -7,7 +7,7 @@ use owo_colors::OwoColorize;
 use std::{
     collections::VecDeque,
     fmt::Write,
-    sync::OnceLock,
+    sync::{Arc, OnceLock},
     time::{Duration, Instant},
 };
 use termion::{clear, cursor};
@@ -254,11 +254,16 @@ impl Status {
             );
         }
 
-        for (name, _tracker) in &self.nix_activities {
+        let wire_tasks = Name(Arc::from("wire tasks"));
+
+        for name in self.nix_activities.keys() {
             let _ = write!(
                 &mut msg,
                 "\n  {}",
-                name.clone().unwrap_or(Name("wire tasks".into()))
+                match name {
+                    Some(name) => name.on_default_color().into_styled(),
+                    None => wire_tasks.italic().into_styled()
+                }
             );
         }
 
