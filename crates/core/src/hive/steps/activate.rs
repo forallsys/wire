@@ -59,7 +59,9 @@ impl SwitchToConfiguration {
 
         let child = run_command(
             &CommandArguments::new(command_string, ctx.modifiers)
-                .mode(crate::commands::ChildOutputMode::Nix)
+                .mode(crate::commands::ChildOutputMode::Nix(Some(
+                    ctx.name.clone(),
+                )))
                 .execute_on_remote(self.target.clone())
                 .privileged(&self.privilege_escalation_command),
         )

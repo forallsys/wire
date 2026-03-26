@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright 2024-2025 wire Contributors
 
+use nix_compat::log::{ActivityType, ResultType};
 use owo_colors::OwoColorize;
 use std::{
     collections::VecDeque,
@@ -43,10 +44,16 @@ pub enum UiMessage {
     Clear,
     /// Writes above the status line
     LogLine(Vec<u8>),
+    /// Notes that a nix activity has begun
+    ActivityBegin(Option<Name>, u64, ActivityType),
+    /// Notes that a nix activity has ended
+    ActivityEnd(Option<Name>, u64, Option<ResultType>),
 }
 
 pub struct Status {
-    statuses: HashMap<String, NodeStatus>,
+    node_statuses: HashMap<String, NodeStatus>,
+    nix_activities: HashMap<Option<Name>, HashMap<u64, bool>>,
+
     began: Instant,
     show_progress: bool,
 }
@@ -56,7 +63,8 @@ pub static UI_SENDER: OnceLock<mpsc::UnboundedSender<UiMessage>> = OnceLock::new
 impl Status {
     fn new() -> Self {
         Self {
-            statuses: HashMap::default(),
+            node_statuses: HashMap::default(),
+            nix_activities: HashMap::default(),
             began: Instant::now(),
             show_progress: false,
         }
@@ -68,7 +76,7 @@ impl Status {
 
     #[must_use]
     fn num_finished(&self) -> usize {
-        self.statuses
+        self.node_statuses
             .iter()
             .filter(|(_, status)| matches!(status, NodeStatus::Succeeded | NodeStatus::Failed))
             .count()
@@ -76,7 +84,7 @@ impl Status {
 
     #[must_use]
     fn num_running(&self) -> usize {
-        self.statuses
+        self.node_statuses
             .iter()
             .filter(|(_, status)| matches!(status, NodeStatus::Running(..)))
             .count()
@@ -84,7 +92,7 @@ impl Status {
 
     #[must_use]
     fn num_failed(&self) -> usize {
-        self.statuses
+        self.node_statuses
             .iter()
             .filter(|(_, status)| matches!(status, NodeStatus::Failed))
             .count()
@@ -92,11 +100,11 @@ impl Status {
 
     #[must_use]
     pub fn get_msg(&self) -> String {
-        if self.statuses.is_empty() {
+        if self.node_statuses.is_empty() {
             return String::new();
         }
 
-        let mut msg = format!("[{} / {}", self.num_finished(), self.statuses.len(),);
+        let mut msg = format!("[{} / {}", self.num_finished(), self.node_statuses.len(),);
 
         let num_failed = self.num_failed();
         let num_running = self.num_running();
@@ -121,7 +129,16 @@ impl Status {
 
         let _ = write!(&mut msg, "]");
 
+        let sum_running = self.nix_activities.iter().fold(0, |curr, (_, activities)| {
+            curr + activities.iter().filter(|(_, ended)| !**ended).count()
+        });
+        let sum_total = self.nix_activities.iter().fold(0, |curr, (_, activities)| {
+            curr + activities.iter().count()
+        });
+
         let _ = write!(&mut msg, " {}s", self.began.elapsed().as_secs());
+
+        let _ = write!(&mut msg, " Σ {sum_running} / {sum_total}");
 
         msg
     }
@@ -178,14 +195,14 @@ pub async fn status_tick_worker(mut rx: UnboundedReceiver<UiMessage>, show_progr
             Some(msg) = rx.recv() => {
                 match msg {
                     UiMessage::AddMany(names) => {
-                        status.statuses.extend(
+                        status.node_statuses.extend(
                             names
                                 .iter()
                                 .map(|name| (name.0.to_string(), NodeStatus::Pending)),
                         );
                     },
                     UiMessage::SetStatus(name, value) => {
-                        status.statuses.insert(name.0.to_string(), value);
+                        status.node_statuses.insert(name.0.to_string(), value);
                     },
                     UiMessage::Takeover(tx) => {
                         taken_over = true;
@@ -214,6 +231,16 @@ pub async fn status_tick_worker(mut rx: UnboundedReceiver<UiMessage>, show_progr
                             status.write_status(&mut stderr);
                         }
                     },
+                    UiMessage::ActivityBegin(name, id, _activity_type) => {
+                        let activities = status.nix_activities.entry(name).or_default();
+
+                        activities.insert(id, false);
+                    }
+                    UiMessage::ActivityEnd(name, id, _activity_type) => {
+                        let activities = status.nix_activities.entry(name).or_default();
+
+                        activities.insert(id, true);
+                    }
                 }
             }
 

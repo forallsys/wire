@@ -46,7 +46,9 @@ impl ExecuteStep for Build {
             &CommandArguments::new(command_string, ctx.modifiers)
                 // build remotely if asked for AND we arent applying locally
                 .execute_on_remote(self.target.clone())
-                .mode(crate::commands::ChildOutputMode::Nix)
+                .mode(crate::commands::ChildOutputMode::Nix(Some(
+                    ctx.name.clone(),
+                )))
                 .log_stdout(),
             std::collections::HashMap::new(),
         )
