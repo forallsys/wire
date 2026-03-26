@@ -11,7 +11,7 @@ in
         "-d"
         "--extract"
         (lib.concatMapStrings (segment: ''["${segment}"]'') key)
-        "${../secrets.yaml}"
+        "${./secrets.yaml}"
       ];
     in {
       deployment.key = {
