@@ -168,7 +168,7 @@ impl ChildOutputMode {
                 let position = AHO_CORASICK.find(&line).map(|x| &mut line[x.end()..]);
 
                 if let Some(json_buf) = position {
-                    (json_buf, task_name)
+                    json_buf
                 } else {
                     // usually happens when ssh is outputting something
                     warn!("{}", String::from_utf8_lossy(line));
