@@ -186,7 +186,7 @@ impl ChildOutputMode {
         let (msg, level) = match log_message {
             LogMessage::Start { text, level, .. } => (text, level),
             LogMessage::Msg { msg, level, .. } => (msg, level),
-            _ => return None
+            _ => return None,
         };
 
         match level {
