@@ -95,6 +95,21 @@ in wire.makeHive {
 Hello World!
 ```
 
+### Encrypting with Sops
+
+With some sops file:
+
+```yaml:line-numbers [secret.yaml]
+hive:
+    some_secret: XXXXXXXXXXXXXXXXXXXXXXX
+something:
+    another_secret: XXXXXXXXXXXXXXXXXXXXXXX
+```
+
+You can easily create a function to grab values out of your encrypted sops file:
+
+<<< @/snippets/guides/sops-example.nix [hive.nix]
+
 ### Encrypting with KeepassXC
 
 A simple example of extracting a KeepassXC attachment into a wire key.
@@ -186,21 +201,6 @@ in wire.makeHive {
 ```
 
 ## Further Examples
-
-### With Sops
-
-With some sops file:
-
-```yaml:line-numbers [secret.yaml]
-hive:
-    some_secret: XXXXXXXXXXXXXXXXXXXXXXX
-something:
-    another_secret: XXXXXXXXXXXXXXXXXXXXXXX
-```
-
-You can easily create a function to grab values out of your encrypted sops file:
-
-<<< @/snippets/guides/sops-example.nix [hive.nix]
 
 ### Using Keys With Services
 
