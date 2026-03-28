@@ -41,7 +41,7 @@ jobs:
         run: echo "date=$(date +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
       - name: Create Pull Request
         id: cpr
-        uses: peter-evans/create-pull-request@0979079bc20c05bbbb590a56c21c4e2b1d1f1bbe
+        uses: peter-evans/create-pull-request@8170bccad11c0df62542c04dcaefe36d342dfd39
         with:
           title: Update flake.lock ${{ steps.date.outputs.date }}
           labels: flake-lock-update
