@@ -178,10 +178,16 @@ impl ChildOutputMode {
             }
         };
 
-        let Ok(log_message) = serde_json::from_slice::<LogMessage>(slice) else {
-            // failed to parse, print the string regardless as a backup
-            warn!("{}", String::from_utf8_lossy(slice));
-            return None;
+        let log_message = match serde_json::from_slice::<LogMessage>(slice) {
+            Ok(log_message) => log_message,
+            Err(err) => {
+                // failed to parse, print the string regardless as a backup
+                warn!(
+                    "failed to parse log `{}`: {err}",
+                    String::from_utf8_lossy(slice)
+                );
+                return None;
+            }
         };
 
         let (msg, level) = match log_message {
@@ -193,33 +199,33 @@ impl ChildOutputMode {
                 ..
             } => {
                 if let Some(tx) = UI_SENDER.get() {
-                    let _ = tx.send(crate::status::UiMessage::ActivityBegin(
-                        task_name.clone(),
+                    let _ = tx.send(crate::status::UiMessage::ActivityBegin {
+                        node: task_name.clone(),
                         id,
-                        r#type,
-                    ));
+                        activity_type: r#type,
+                    });
                 }
 
                 (text, level)
             }
             LogMessage::Stop { id } => {
                 if let Some(tx) = UI_SENDER.get() {
-                    let _ = tx.send(crate::status::UiMessage::ActivityEnd(
-                        task_name.clone(),
+                    let _ = tx.send(crate::status::UiMessage::ActivityEnd {
+                        node: task_name.clone(),
                         id,
-                        None,
-                    ));
+                        result: None,
+                    });
                 }
 
                 return None;
             }
             LogMessage::Result { id, r#type, .. } => {
                 if let Some(tx) = UI_SENDER.get() {
-                    let _ = tx.send(crate::status::UiMessage::ActivityEnd(
-                        task_name.clone(),
+                    let _ = tx.send(crate::status::UiMessage::ActivityEnd {
+                        node: task_name.clone(),
                         id,
-                        Some(r#type),
-                    ));
+                        result: Some(r#type),
+                    });
                 }
 
                 return None;

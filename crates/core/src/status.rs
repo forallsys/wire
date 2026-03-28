@@ -7,7 +7,7 @@ use owo_colors::OwoColorize;
 use std::{
     collections::VecDeque,
     fmt::Write,
-    sync::{Arc, OnceLock},
+    sync::OnceLock,
     time::{Duration, Instant},
 };
 use termion::{clear, cursor};
@@ -44,21 +44,31 @@ pub enum UiMessage {
     /// Writes above the status line
     LogLine(Vec<u8>),
     /// Notes that a nix activity has begun
-    ActivityBegin(Option<Name>, u64, ActivityType),
+    ActivityBegin {
+        node: Option<Name>,
+        id: u64,
+        activity_type: ActivityType,
+    },
     /// Notes that a nix activity has ended
-    ActivityEnd(Option<Name>, u64, Option<ResultType>),
+    ActivityEnd {
+        node: Option<Name>,
+        id: u64,
+        result: Option<ResultType>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ActivityCategory {
     Download,
     Build,
-    Other,
+    BuildPending,
 }
 
-impl From<ActivityType> for ActivityCategory {
-    fn from(activity_type: ActivityType) -> Self {
-        match activity_type {
+impl TryFrom<ActivityType> for ActivityCategory {
+    type Error = ();
+
+    fn try_from(activity_type: ActivityType) -> Result<Self, Self::Error> {
+        Ok(match activity_type {
             ActivityType::CopyPath
             | ActivityType::FileTransfer
             | ActivityType::Substitute
@@ -66,32 +76,39 @@ impl From<ActivityType> for ActivityCategory {
             | ActivityType::FetchTree
             | ActivityType::CopyPaths => Self::Download,
 
-            ActivityType::Build | ActivityType::Builds | ActivityType::BuildWaiting => Self::Build,
+            ActivityType::Build | ActivityType::Builds => Self::Build,
 
-            _ => Self::Other,
-        }
+            ActivityType::BuildWaiting => Self::BuildPending,
+
+            _ => return Err(()),
+        })
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct ActivityTracker {
     active_by_id: HashMap<u64, ActivityCategory>,
 
     pub active_downloads: usize,
     pub completed_downloads: usize,
+
     pub active_builds: usize,
+    pub pending_builds: usize,
     pub completed_builds: usize,
-    pub active_other: usize,
-    pub completed_other: usize,
 }
 
 impl ActivityTracker {
-    pub fn begin(&mut self, id: u64, category: ActivityCategory) {
+    pub fn begin(&mut self, id: u64, category: ActivityType) {
+        let Ok(category) = category.try_into() else {
+            return;
+        };
+
         self.active_by_id.insert(id, category);
+
         match category {
             ActivityCategory::Download => self.active_downloads += 1,
             ActivityCategory::Build => self.active_builds += 1,
-            ActivityCategory::Other => self.active_other += 1,
+            ActivityCategory::BuildPending => self.pending_builds += 1,
         }
     }
 
@@ -106,9 +123,8 @@ impl ActivityTracker {
                     self.active_builds = self.active_builds.saturating_sub(1);
                     self.completed_builds += 1;
                 }
-                ActivityCategory::Other => {
-                    self.active_other = self.active_other.saturating_sub(1);
-                    self.completed_other += 1;
+                ActivityCategory::BuildPending => {
+                    self.pending_builds = self.pending_builds.saturating_sub(1);
                 }
             }
         }
@@ -116,11 +132,12 @@ impl ActivityTracker {
 }
 
 pub struct Status {
-    node_statuses: HashMap<String, NodeStatus>,
+    node_statuses: HashMap<Name, NodeStatus>,
     nix_activities: HashMap<Option<Name>, ActivityTracker>,
 
     began: Instant,
     show_progress: bool,
+    previous_number_of_lines: usize,
 }
 
 pub static UI_SENDER: OnceLock<mpsc::UnboundedSender<UiMessage>> = OnceLock::new();
@@ -132,6 +149,7 @@ impl Status {
             nix_activities: HashMap::default(),
             began: Instant::now(),
             show_progress: false,
+            previous_number_of_lines: 0,
         }
     }
 
@@ -203,66 +221,94 @@ impl Status {
 
         let _ = write!(&mut msg, "]");
 
-        let (total_active_downloads, total_completed_downloads) =
-            self.nix_activities
-                .iter()
-                .fold((0, 0), |acc, (_, tracker)| {
-                    (
-                        acc.0 + tracker.active_downloads,
-                        acc.1 + tracker.completed_downloads,
+        // let (total_active_downloads, total_completed_downloads) =
+        //     self.nix_activities
+        //         .iter()
+        //         .fold((0, 0), |acc, (_, tracker)| {
+        //             (
+        //                 acc.0 + tracker.active_downloads,
+        //                 acc.1 + tracker.completed_downloads,
+        //             )
+        //         });
+        //
+        // let (total_active_builds, total_completed_builds, total_pending_builds) =
+        //     self.nix_activities
+        //         .iter()
+        //         .fold((0, 0, 0), |acc, (_, tracker)| {
+        //             (
+        //                 acc.0 + tracker.active_builds,
+        //                 acc.1 + tracker.completed_builds,
+        //                 acc.2 + tracker.pending_builds,
+        //             )
+        //         });
+        //
+        // if total_active_downloads > 0 || total_completed_downloads > 0 {
+        //     let _ = write!(
+        //         &mut msg,
+        //         " [DL Jobs: {total_active_downloads} active, {total_completed_downloads} done]",
+        //     );
+        // }
+        //
+        // if total_active_builds > 0 || total_completed_builds > 0 {
+        //     let _ = write!(
+        //         &mut msg,
+        //         " [Build Jobs: {total_pending_builds} pending, {total_active_builds} active, {total_completed_builds} done]",
+        //     );
+        // }
+
+        let node_name_strings = self
+            .node_statuses
+            .iter()
+            .map(|(name, status)| {
+                (
+                    name,
+                    format!(
+                        "\n  {} {}",
+                        name.bold(),
+                        match status {
+                            NodeStatus::Pending => "Waiting".to_string().dimmed().to_string(),
+                            NodeStatus::Running(task) => format!("Running {}", task.blue())
+                                .on_default_color()
+                                .to_string(),
+                            NodeStatus::Succeeded => "Finished".to_string().green().to_string(),
+                            NodeStatus::Failed => "Failed".to_string().red().to_string(),
+                        },
                     )
-                });
+                    .to_string(),
+                )
+            })
+            .collect::<HashMap<_, _>>();
 
-        let (total_active_builds, total_completed_builds) =
-            self.nix_activities
-                .iter()
-                .fold((0, 0), |acc, (_, tracker)| {
+        let node_status_strings = self
+            .nix_activities
+            .iter()
+            .filter_map(|(name, tracker)| {
+                name.as_ref().map(|name| {
                     (
-                        acc.0 + tracker.active_builds,
-                        acc.1 + tracker.completed_builds,
+                        name,
+                        format!(
+                            " {} ❘ {} ❘ {} ❘ {} ❘ {}",
+                            tracker.active_builds.yellow(),
+                            tracker.completed_builds,
+                            tracker.pending_builds.blue(),
+                            tracker.active_downloads.yellow(),
+                            tracker.completed_downloads.green()
+                        )
+                        .to_string(),
                     )
-                });
+                })
+            })
+            .collect::<HashMap<_, _>>();
 
-        let (total_active_other, total_completed_other) =
-            self.nix_activities
-                .iter()
-                .fold((0, 0), |acc, (_, tracker)| {
-                    (
-                        acc.0 + tracker.active_other,
-                        acc.1 + tracker.completed_other,
-                    )
-                });
+        for (name, name_string) in node_name_strings {
+            let status_string = node_status_strings.get(&name.clone());
 
-        if total_active_downloads > 0 || total_completed_downloads > 0 {
             let _ = write!(
                 &mut msg,
-                " [DL Jobs: {total_active_downloads} active, {total_completed_downloads} done]",
-            );
-        }
-
-        if total_active_builds > 0 || total_completed_builds > 0 {
-            let _ = write!(
-                &mut msg,
-                " [Build Jobs: {total_active_builds} active, {total_completed_builds} done]",
-            );
-        }
-
-        if total_active_other > 0 || total_completed_other > 0 {
-            let _ = write!(
-                &mut msg,
-                " [Other Jobs: {total_active_other} active, {total_completed_other} done]"
-            );
-        }
-
-        let wire_tasks = Name(Arc::from("wire tasks"));
-
-        for name in self.nix_activities.keys() {
-            let _ = write!(
-                &mut msg,
-                "\n  {}",
-                match name {
-                    Some(name) => name.on_default_color().into_styled(),
-                    None => wire_tasks.italic().into_styled(),
+                "{name_string}{}",
+                match status_string {
+                    Some(string) => string.as_str(),
+                    None => "",
                 }
             );
         }
@@ -275,28 +321,35 @@ impl Status {
             return;
         }
 
-        let _ = write!(writer, "{}", cursor::Save);
-        // let _ = write!(writer, "{}", cursor::Down(1));
-        let _ = write!(writer, "{}", cursor::Left(999));
-        let _ = write!(writer, "{}", clear::CurrentLine);
+        for _ in 0..self.previous_number_of_lines {
+            let _ = write!(writer, "\r{}{}", clear::CurrentLine, cursor::Up(1));
+        }
+
+        let _ = write!(writer, "\r{}", clear::CurrentLine);
+        let _ = writer.flush();
     }
 
     /// used when there is an interactive prompt
-    pub fn wipe_out<T: std::io::Write>(&self, writer: &mut T) {
+    pub fn wipe_out<T: std::io::Write>(&mut self, writer: &mut T) {
         if !self.show_progress {
             return;
         }
 
-        let _ = write!(writer, "{}", cursor::Save);
-        let _ = write!(writer, "{}", cursor::Left(999));
-        let _ = write!(writer, "{}", clear::CurrentLine);
-        let _ = writer.flush();
+        self.clear(writer);
     }
 
     pub fn write_status<T: std::io::Write>(&mut self, writer: &mut T) {
-        if self.show_progress {
-            let _ = write!(writer, "{}", self.get_msg());
+        if !self.show_progress {
+            return;
         }
+
+        let msg = self.get_msg();
+
+        let _ = write!(writer, "{msg}");
+        let _ = writer.flush();
+
+        // track how many lines we're about to draw
+        self.previous_number_of_lines = msg.lines().count().saturating_sub(1);
     }
 }
 
@@ -325,11 +378,11 @@ pub async fn status_tick_worker(mut rx: UnboundedReceiver<UiMessage>, show_progr
                         status.node_statuses.extend(
                             names
                                 .iter()
-                                .map(|name| (name.0.to_string(), NodeStatus::Pending)),
+                                .map(|name| (name.clone(), NodeStatus::Pending)),
                         );
                     },
                     UiMessage::SetStatus(name, value) => {
-                        status.node_statuses.insert(name.0.to_string(), value);
+                        status.node_statuses.insert(name.clone(), value);
                     },
                     UiMessage::Takeover(tx) => {
                         taken_over = true;
@@ -358,12 +411,12 @@ pub async fn status_tick_worker(mut rx: UnboundedReceiver<UiMessage>, show_progr
                             status.write_status(&mut stderr);
                         }
                     },
-                    UiMessage::ActivityBegin(name, id, activity_type) => {
-                        let tracker = status.nix_activities.entry(name).or_default();
-                        tracker.begin(id, activity_type.into());
+                    UiMessage::ActivityBegin { node, id, activity_type } => {
+                        let tracker = status.nix_activities.entry(node).or_default();
+                        tracker.begin(id, activity_type);
                     }
-                    UiMessage::ActivityEnd(name, id, _activity_type) => {
-                        let tracker = status.nix_activities.entry(name).or_default();
+                    UiMessage::ActivityEnd { node, id, .. } => {
+                        let tracker = status.nix_activities.entry(node).or_default();
                         tracker.end(id);
                     }
                 }

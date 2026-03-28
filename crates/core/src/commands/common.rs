@@ -14,7 +14,7 @@ use crate::{
     errors::{CommandError, HiveInitialisationError, HiveLibError},
     hive::{
         HiveLocation,
-        node::{Context, Push, SharedTarget},
+        node::{Context, Name, Push, SharedTarget},
     },
 };
 
@@ -99,9 +99,10 @@ fn get_common_command_help(error: &CommandError) -> Option<String> {
 
 pub async fn get_hive_node_names(
     location: &HiveLocation,
+    under_name: Option<&Name>,
     modifiers: SubCommandModifiers,
 ) -> Result<Vec<String>, HiveLibError> {
-    let output = evaluate_hive_attribute(location, &EvalGoal::Names, modifiers).await?;
+    let output = evaluate_hive_attribute(location, &EvalGoal::Names, under_name, modifiers).await?;
     serde_json::from_str(&output).map_err(|err| {
         HiveLibError::HiveInitialisationError(HiveInitialisationError::ParseEvaluateError(err))
     })
@@ -113,6 +114,7 @@ pub async fn get_hive_node_names(
 pub async fn evaluate_hive_attribute(
     location: &HiveLocation,
     goal: &EvalGoal<'_>,
+    under_name: Option<&Name>,
     modifiers: SubCommandModifiers,
 ) -> Result<String, HiveLibError> {
     let attribute = match location {
@@ -153,7 +155,7 @@ pub async fn evaluate_hive_attribute(
 
     let child = run_command(
         &CommandArguments::new(command_string, modifiers)
-            .mode(crate::commands::ChildOutputMode::Nix(None)),
+            .mode(crate::commands::ChildOutputMode::Nix(under_name.cloned())),
     )
     .await?;
 
