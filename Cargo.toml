@@ -27,7 +27,7 @@ tracing-subscriber = "0.3.20"
 im = { version = "15.1.0", features = ["serde"] }
 anyhow = "1.0.100"
 prost = "0.14.1"
-nix = { version = "0.30.1", features = ["user", "poll", "term"] }
+nix = { version = "0.31.0", features = ["user", "poll", "term"] }
 miette = { version = "7.6.0", features = ["fancy"] }
 thiserror = "2.0.17"
 sha2 = "0.10.9"
