@@ -30,7 +30,7 @@ prost = "0.14.1"
 nix = { version = "0.30.1", features = ["user", "poll", "term"] }
 miette = { version = "7.6.0", features = ["fancy"] }
 thiserror = "2.0.17"
-sha2 = "0.10.9"
+sha2 = "0.11.0"
 tokio-util = { version = "0.7.17", features = ["codec"] }
 base64 = "0.22.1"
 nix-compat = { git = "https://git.snix.dev/snix/snix.git", features = [
