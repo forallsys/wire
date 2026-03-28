@@ -13,7 +13,7 @@ jobs:
     outputs:
       docs-pnpm: ${{ steps.filter.outputs.docs-pnpm }}
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+      - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
           persist-credentials: false
       - uses: dorny/paths-filter@668c092af3649c4b664c54e4b704aa46782f6f7c
@@ -28,7 +28,7 @@ jobs:
     env:
       UV_CACHE_DIR: /tmp/.uv-cache
     steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8
+      - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-nix
