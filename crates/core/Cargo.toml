@@ -34,7 +34,6 @@ base64 = { workspace = true }
 nix-compat = { workspace = true }
 strip-ansi-escapes = "0.2.1"
 aho-corasick = "1.1.4"
-num_enum = "0.7.5"
 owo-colors = { workspace = true }
 termion = "4.0.6"
 sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }

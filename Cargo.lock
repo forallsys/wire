@@ -3208,7 +3208,6 @@ dependencies = [
  "miette",
  "nix 0.30.1",
  "nix-compat",
- "num_enum",
  "owo-colors",
  "portable-pty",
  "proc-macro2",
