@@ -18,7 +18,7 @@ pub struct Ping {
 
 impl Display for Ping {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Ping node")
+        write!(f, "Ping")
     }
 }
 
