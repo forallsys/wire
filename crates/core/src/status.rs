@@ -2,14 +2,16 @@
 // Copyright 2024-2025 wire Contributors
 
 use crate::hive::node::Name;
+use itertools::Itertools;
 use nix_compat::log::{ActivityType, ResultType};
-use owo_colors::OwoColorize;
+use owo_colors::{FgColorDisplay, OwoColorize};
 use std::{
     collections::VecDeque,
     fmt::Write,
     sync::OnceLock,
     time::{Duration, Instant},
 };
+use strip_ansi_escapes::strip_str;
 use termion::{clear, cursor};
 use tokio::sync::{
     mpsc::{self, UnboundedReceiver},
@@ -141,6 +143,13 @@ pub struct Status {
 }
 
 pub static UI_SENDER: OnceLock<mpsc::UnboundedSender<UiMessage>> = OnceLock::new();
+const MAX_NODE_NAME_LENGTH: usize = 20;
+
+const ACTIVE_BUILDS_ICON: FgColorDisplay::<owo_colors::colors::Yellow, str>  = FgColorDisplay::new("⏵");
+const COMPLETED_BUILDS_ICON: FgColorDisplay::<owo_colors::colors::Green, str>  = FgColorDisplay::new("✔");
+const PENDING_BUILDS_ICON: FgColorDisplay::<owo_colors::colors::Blue, str>  = FgColorDisplay::new("⏸");
+const ACTIVE_DOWNLOAD_ICON: FgColorDisplay<owo_colors::colors::Yellow, str> = FgColorDisplay::new("↓ ⏵");
+const COMPLETED_DOWNLOAD_ICON: FgColorDisplay<owo_colors::colors::Green, str> = FgColorDisplay::new("↓ ✔");
 
 impl Status {
     fn new() -> Self {
@@ -221,50 +230,25 @@ impl Status {
 
         let _ = write!(&mut msg, "]");
 
-        // let (total_active_downloads, total_completed_downloads) =
-        //     self.nix_activities
-        //         .iter()
-        //         .fold((0, 0), |acc, (_, tracker)| {
-        //             (
-        //                 acc.0 + tracker.active_downloads,
-        //                 acc.1 + tracker.completed_downloads,
-        //             )
-        //         });
-        //
-        // let (total_active_builds, total_completed_builds, total_pending_builds) =
-        //     self.nix_activities
-        //         .iter()
-        //         .fold((0, 0, 0), |acc, (_, tracker)| {
-        //             (
-        //                 acc.0 + tracker.active_builds,
-        //                 acc.1 + tracker.completed_builds,
-        //                 acc.2 + tracker.pending_builds,
-        //             )
-        //         });
-        //
-        // if total_active_downloads > 0 || total_completed_downloads > 0 {
-        //     let _ = write!(
-        //         &mut msg,
-        //         " [DL Jobs: {total_active_downloads} active, {total_completed_downloads} done]",
-        //     );
-        // }
-        //
-        // if total_active_builds > 0 || total_completed_builds > 0 {
-        //     let _ = write!(
-        //         &mut msg,
-        //         " [Build Jobs: {total_pending_builds} pending, {total_active_builds} active, {total_completed_builds} done]",
-        //     );
-        // }
+        // truncate name to under 20 characters appending ... to longer ones
+        let truncated_names = self.node_statuses.iter().map(|(name, value)| match name.0.len() {
+            ..=MAX_NODE_NAME_LENGTH => {
+                (name.0.to_string(), value)
+            },
+            _ => {
+                (format!("{}...", &name.0.chars().take(MAX_NODE_NAME_LENGTH).collect::<String>()), value)
+            }
+        }).collect::<HashMap<_, _>>();
 
-        let node_name_strings = self
-            .node_statuses
-            .iter()
-            .map(|(name, status)| {
+        let max_name_length = truncated_names.keys().max_by_key(|x| x.len()).map_or(0, std::string::String::len);
+
+        let node_name_strings = truncated_names.iter().map(|(name, status)| {
                 (
                     name,
                     format!(
-                        "\n  {} {}",
+                        "\n  {}{} {}",
                         name.bold(),
+                        " ".repeat(max_name_length.saturating_sub(name.len())),
                         match status {
                             NodeStatus::Pending => "Waiting".to_string().dimmed().to_string(),
                             NodeStatus::Running(task) => format!("Running {}", task.blue())
@@ -279,33 +263,57 @@ impl Status {
             })
             .collect::<HashMap<_, _>>();
 
-        let node_status_strings = self
-            .nix_activities
-            .iter()
-            .filter_map(|(name, tracker)| {
-                name.as_ref().map(|name| {
-                    (
-                        name,
-                        format!(
-                            " {} ❘ {} ❘ {} ❘ {} ❘ {}",
-                            tracker.active_builds.yellow(),
-                            tracker.completed_builds,
-                            tracker.pending_builds.blue(),
-                            tracker.active_downloads.yellow(),
-                            tracker.completed_downloads.green()
-                        )
-                        .to_string(),
-                    )
-                })
-            })
-            .collect::<HashMap<_, _>>();
+        let max_name_status_length = node_name_strings
+            .values()
+            .map(|x| strip_str(x).len())
+            .max()
+            .unwrap_or(0);
 
-        for (name, name_string) in node_name_strings {
-            let status_string = node_status_strings.get(&name.clone());
+        let columns = self.nix_activities.iter().map(|(name, tracker)| {
+            (name, (
+                tracker.active_builds.to_string(),
+                tracker.completed_builds.to_string(),
+                tracker.pending_builds.to_string(),
+                tracker.active_downloads.to_string(),
+                tracker.completed_downloads.to_string(),
+            ))
+        }).collect::<HashMap<_, _>>();
+
+        let column_maximums = columns.values().fold((0, 0, 0, 0, 0), |mut acc, value| {
+            acc.0 = acc.0.max(value.0.len());
+            acc.1 = acc.1.max(value.1.len());
+            acc.2 = acc.2.max(value.2.len());
+            acc.3 = acc.3.max(value.3.len());
+            acc.4 = acc.4.max(value.4.len());
+            acc
+        });
+
+        let column_strings = columns.iter().filter_map(|(name, columns)| {
+            name.as_ref().map(|name| {
+                (name.0.to_string(), format!(
+                    "{ACTIVE_BUILDS_ICON} {}{} ❘ {COMPLETED_BUILDS_ICON} {}{} ❘ {PENDING_BUILDS_ICON} {}{} ❘ {ACTIVE_DOWNLOAD_ICON} {}{} ❘ {COMPLETED_DOWNLOAD_ICON} {}{}",
+                    columns.0.yellow(),
+                    " ".repeat(column_maximums.0.saturating_sub(columns.0.len())),
+                    columns.1,
+                    " ".repeat(column_maximums.1.saturating_sub(columns.1.len())),
+                    columns.2.blue(),
+                    " ".repeat(column_maximums.2.saturating_sub(columns.2.len())),
+                    columns.3.yellow(),
+                    " ".repeat(column_maximums.3.saturating_sub(columns.3.len())),
+                    columns.4.green(),
+                    " ".repeat(column_maximums.4.saturating_sub(columns.4.len())),
+                ))
+            })
+        }).collect::<HashMap<_, _>>();
+
+        for (name, name_string) in node_name_strings.into_iter().sorted() {
+            let status_string = column_strings.get(name);
+            let name_padding =
+                " ".repeat(max_name_status_length.saturating_sub(strip_str(&name_string).len()));
 
             let _ = write!(
                 &mut msg,
-                "{name_string}{}",
+                "{name_string}{name_padding} {}",
                 match status_string {
                     Some(string) => string.as_str(),
                     None => "",
