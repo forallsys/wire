@@ -39,7 +39,7 @@ jobs:
         run: echo "packages=$(nix eval .#hydraJobs.packages.aarch64-linux --apply "builtins.attrNames" --json)" >> "$GITHUB_OUTPUT"
       - name: Find test Jobs
         id: tests
-        run: echo "tests=$(nix eval .#hydraJobs.packages.tests --apply "builtins.attrNames" --json)" >> "$GITHUB_OUTPUT"
+        run: echo "tests=$(nix eval .#hydraJobs.tests --apply "builtins.attrNames" --json)" >> "$GITHUB_OUTPUT"
   build-x86_64:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     needs: find-jobs
