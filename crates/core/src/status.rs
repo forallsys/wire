@@ -145,11 +145,15 @@ pub struct Status {
 pub static UI_SENDER: OnceLock<mpsc::UnboundedSender<UiMessage>> = OnceLock::new();
 const MAX_NODE_NAME_LENGTH: usize = 20;
 
-const ACTIVE_BUILDS_ICON: FgColorDisplay::<owo_colors::colors::Yellow, str>  = FgColorDisplay::new("⏵");
-const COMPLETED_BUILDS_ICON: FgColorDisplay::<owo_colors::colors::Green, str>  = FgColorDisplay::new("✔");
-const PENDING_BUILDS_ICON: FgColorDisplay::<owo_colors::colors::Blue, str>  = FgColorDisplay::new("⏸");
-const ACTIVE_DOWNLOAD_ICON: FgColorDisplay<owo_colors::colors::Yellow, str> = FgColorDisplay::new("↓ ⏵");
-const COMPLETED_DOWNLOAD_ICON: FgColorDisplay<owo_colors::colors::Green, str> = FgColorDisplay::new("↓ ✔");
+const ACTIVE_BUILDS_ICON: FgColorDisplay<owo_colors::colors::Yellow, str> =
+    FgColorDisplay::new("⏵");
+const COMPLETED_BUILDS_ICON: FgColorDisplay<owo_colors::colors::Green, str> =
+    FgColorDisplay::new("✔");
+const PENDING_BUILDS_ICON: FgColorDisplay<owo_colors::colors::Blue, str> = FgColorDisplay::new("⏸");
+const ACTIVE_DOWNLOAD_ICON: FgColorDisplay<owo_colors::colors::Yellow, str> =
+    FgColorDisplay::new("↓ ⏵");
+const COMPLETED_DOWNLOAD_ICON: FgColorDisplay<owo_colors::colors::Green, str> =
+    FgColorDisplay::new("↓ ✔");
 
 impl Status {
     fn new() -> Self {
@@ -231,18 +235,33 @@ impl Status {
         let _ = write!(&mut msg, "]");
 
         // truncate name to under 20 characters appending ... to longer ones
-        let truncated_names = self.node_statuses.iter().map(|(name, value)| match name.0.len() {
-            ..=MAX_NODE_NAME_LENGTH => {
-                (name.0.to_string(), value)
-            },
-            _ => {
-                (format!("{}...", &name.0.chars().take(MAX_NODE_NAME_LENGTH).collect::<String>()), value)
-            }
-        }).collect::<HashMap<_, _>>();
+        let truncated_names = self
+            .node_statuses
+            .iter()
+            .map(|(name, value)| match name.0.len() {
+                ..=MAX_NODE_NAME_LENGTH => (name.0.to_string(), value),
+                _ => (
+                    format!(
+                        "{}...",
+                        &name
+                            .0
+                            .chars()
+                            .take(MAX_NODE_NAME_LENGTH)
+                            .collect::<String>()
+                    ),
+                    value,
+                ),
+            })
+            .collect::<HashMap<_, _>>();
 
-        let max_name_length = truncated_names.keys().max_by_key(|x| x.len()).map_or(0, std::string::String::len);
+        let max_name_length = truncated_names
+            .keys()
+            .max_by_key(|x| x.len())
+            .map_or(0, std::string::String::len);
 
-        let node_name_strings = truncated_names.iter().map(|(name, status)| {
+        let node_name_strings = truncated_names
+            .iter()
+            .map(|(name, status)| {
                 (
                     name,
                     format!(
@@ -269,15 +288,22 @@ impl Status {
             .max()
             .unwrap_or(0);
 
-        let columns = self.nix_activities.iter().map(|(name, tracker)| {
-            (name, (
-                tracker.active_builds.to_string(),
-                tracker.completed_builds.to_string(),
-                tracker.pending_builds.to_string(),
-                tracker.active_downloads.to_string(),
-                tracker.completed_downloads.to_string(),
-            ))
-        }).collect::<HashMap<_, _>>();
+        let columns = self
+            .nix_activities
+            .iter()
+            .map(|(name, tracker)| {
+                (
+                    name,
+                    (
+                        tracker.active_builds.to_string(),
+                        tracker.completed_builds.to_string(),
+                        tracker.pending_builds.to_string(),
+                        tracker.active_downloads.to_string(),
+                        tracker.completed_downloads.to_string(),
+                    ),
+                )
+            })
+            .collect::<HashMap<_, _>>();
 
         let column_maximums = columns.values().fold((0, 0, 0, 0, 0), |mut acc, value| {
             acc.0 = acc.0.max(value.0.len());
