@@ -23,60 +23,42 @@ jobs:
       contents: read
     if: needs.pre-job.outputs.should_skip != 'true'
     outputs:
-      x86_64-linux: ${{ steps.x86_64.outputs.packages }}
-      aarch64-linux: ${{ steps.aarch64.outputs.packages }}
+      packages: ${{ steps.x86_64.outputs.packages }}
       tests: ${{ steps.tests.outputs.tests }}
     steps:
       - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-nix
-      - name: Find x86 Jobs
+      - name: Find package jobs
         id: x86_64
         run: echo "packages=$(nix eval .#hydraJobs.packages.x86_64-linux --apply "builtins.attrNames" --json)" >> "$GITHUB_OUTPUT"
-      - name: Find aarch64 Jobs
-        id: aarch64
-        run: echo "packages=$(nix eval .#hydraJobs.packages.aarch64-linux --apply "builtins.attrNames" --json)" >> "$GITHUB_OUTPUT"
       - name: Find test Jobs
         id: tests
         run: echo "tests=$(nix eval .#hydraJobs.tests --apply "builtins.attrNames" --json)" >> "$GITHUB_OUTPUT"
-  build-x86_64:
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+  build:
+    runs-on: ${{ matrix.arch.runner }}
     needs: find-jobs
     permissions: {}
     strategy:
       matrix:
-        package: ${{ fromJSON(needs.find-jobs.outputs.x86_64-linux) }}
+        package: ${{ fromJSON(needs.find-jobs.outputs.packages) }}
+        arch:
+          - id: x86_64-linux
+            runner: blacksmith-8vcpu-ubuntu-2404
+          - id: aarch64-linux
+            runner: blacksmith-8vcpu-ubuntu-2404-arm
     steps:
       - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-nix
-      - name: Cargo Tests
+      - name: Build
         run: |
           nix build \
             --print-build-logs \
             -v \
-            .#hydraJobs.packages.x86_64-linux.${MATRIX_PACKAGE}
+            .#hydraJobs.packages.${ARCH}.${MATRIX_PACKAGE}
         env:
           MATRIX_PACKAGE: ${{ matrix.package }}
-  build-aarch64:
-    runs-on: blacksmith-8vcpu-ubuntu-2404-arm
-    needs: find-jobs
-    permissions: {}
-    strategy:
-      matrix:
-        package: ${{ fromJSON(needs.find-jobs.outputs.aarch64-linux) }}
-    steps:
-      - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup-nix
-      - name: Cargo Tests
-        run: |
-          nix build \
-            --print-build-logs \
-            -v \
-            .#hydraJobs.packages.aarch64-linux.${MATRIX_PACKAGE}
-        env:
-          MATRIX_PACKAGE: ${{ matrix.package }}
+          ARCH: ${{ matrix.arch.id }}
