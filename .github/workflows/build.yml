@@ -49,7 +49,6 @@ jobs:
       - name: Build
         run: nix build --print-build-logs --print-out-paths .#packages.aarch64-linux.agent > out.paths
       - name: Push
-        if: github.ref == 'refs/heads/trunk' || github.ref == 'refs/heads/develop'
         run: |
           echo "$SIGNING_KEY" | nix store sign --key-file /dev/stdin "$(< out.paths)"
           nix copy --to "s3://wire-cache?write-nar-listing=1&ls-compression=br&log-compression=br&endpoint=s3.us-east-005.backblazeb2.com" "$(< out.paths)" -v
@@ -70,7 +69,6 @@ jobs:
       - name: Build
         run: nix build --print-build-logs --print-out-paths -v .#packages.x86_64-linux.agent > out.paths
       - name: Push
-        if: github.ref == 'refs/heads/trunk' || github.ref == 'refs/heads/develop'
         run: |
           echo "$SIGNING_KEY" | nix store sign --key-file /dev/stdin "$(< out.paths)"
           nix copy --to "s3://wire-cache?write-nar-listing=1&ls-compression=br&log-compression=br&endpoint=s3.us-east-005.backblazeb2.com" "$(< out.paths)" -v
@@ -109,7 +107,6 @@ jobs:
           MATRIX_PACKAGE: ${{ matrix.package }}
           ARCH: ${{ matrix.arch.id }}
       - name: Push
-        if: github.ref == 'refs/heads/trunk' || github.ref == 'refs/heads/develop'
         run: |
           echo "$SIGNING_KEY" | nix store sign --key-file /dev/stdin "$(< out.paths)"
           nix copy --to "s3://wire-cache?write-nar-listing=1&ls-compression=br&log-compression=br&endpoint=s3.us-east-005.backblazeb2.com" "$(< out.paths)" -v
