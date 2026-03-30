@@ -89,8 +89,12 @@ jobs:
         arch:
           - id: x86_64-linux
             runner: blacksmith-8vcpu-ubuntu-2404
-          - id: aarch64-linux
-            runner: blacksmith-8vcpu-ubuntu-2404-arm
+          # disabled arm building,
+          # currently handled by cachix and for development purposes i only use
+          # x86_64
+          #
+          # - id: aarch64-linux
+          #   runner: blacksmith-8vcpu-ubuntu-2404-arm
     steps:
       - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
