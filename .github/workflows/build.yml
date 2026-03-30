@@ -98,14 +98,37 @@ jobs:
       - uses: ./.github/actions/setup-nix
       - name: Build
         run: |
-          nix build \
-            --print-build-logs \
-            --print-out-paths \
-            -v \
-            .#hydraJobs.packages.${ARCH}.${MATRIX_PACKAGE} > out.paths
+          nix build --print-build-logs --print-out-paths -v .#hydraJobs.packages.${ARCH}.${MATRIX_PACKAGE} > out.paths
         env:
           MATRIX_PACKAGE: ${{ matrix.package }}
           ARCH: ${{ matrix.arch.id }}
+      - name: Push
+        run: |
+          echo "$SIGNING_KEY" | nix store sign --key-file /dev/stdin "$(< out.paths)"
+          nix copy --to "s3://wire-cache?write-nar-listing=1&ls-compression=br&log-compression=br&endpoint=s3.us-east-005.backblazeb2.com" "$(< out.paths)" -v
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.CACHE_AWS_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CACHE_AWS_KEY }}
+  tests:
+    runs-on: ${{ matrix.arch.runner }}
+    needs:
+      - find-jobs
+      - build-key-agent-x86_64
+    permissions: {}
+    strategy:
+      matrix:
+        test: ${{ fromJSON(needs.find-jobs.outputs.tests) }}
+    steps:
+      - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-nix
+      - name: Test
+        run: |
+          nix build --print-build-logs --print-out-paths -v .#hydraJobs.tests.${MATRIX_TEST} > out.paths
+        env:
+          MATRIX_TEST: ${{ matrix.test }}
       - name: Push
         run: |
           echo "$SIGNING_KEY" | nix store sign --key-file /dev/stdin "$(< out.paths)"
