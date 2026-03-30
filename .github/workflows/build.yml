@@ -115,7 +115,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.CACHE_AWS_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.CACHE_AWS_KEY }}
   tests:
-    runs-on: ${{ matrix.arch.runner }}
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     needs:
       - find-jobs
       - build-key-agent-x86_64
