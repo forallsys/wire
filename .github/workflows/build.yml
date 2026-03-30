@@ -47,7 +47,15 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-nix
       - name: Build
-        run: nix build --print-build-logs -v .#packages.aarch64-linux.agent
+        run: nix build --print-build-logs --print-out-paths .#packages.aarch64-linux.agent > out.paths
+      - name: Push
+        run: |
+          echo "$SIGNING_KEY" | nix store sign --key-file /dev/stdin "$(< out.paths)"
+          nix copy --to "s3://wire-cache?write-nar-listing=1&ls-compression=br&log-compression=br&endpoint=s3.us-east-005.backblazeb2.com" "$(< out.paths)" -v
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.CACHE_AWS_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CACHE_AWS_KEY }}
   build-key-agent-x86_64:
     runs-on: blacksmith-8vcpu-ubuntu-2404
     permissions: {}
@@ -59,7 +67,15 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-nix
       - name: Build
-        run: nix build --print-build-logs -v .#packages.x86_64-linux.agent
+        run: nix build --print-build-logs --print-out-paths -v .#packages.x86_64-linux.agent > out.paths
+      - name: Push
+        run: |
+          echo "$SIGNING_KEY" | nix store sign --key-file /dev/stdin "$(< out.paths)"
+          nix copy --to "s3://wire-cache?write-nar-listing=1&ls-compression=br&log-compression=br&endpoint=s3.us-east-005.backblazeb2.com" "$(< out.paths)" -v
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.CACHE_AWS_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CACHE_AWS_KEY }}
   build:
     runs-on: ${{ matrix.arch.runner }}
     needs:
@@ -84,8 +100,17 @@ jobs:
         run: |
           nix build \
             --print-build-logs \
+            --print-out-paths \
             -v \
-            .#hydraJobs.packages.${ARCH}.${MATRIX_PACKAGE}
+            .#hydraJobs.packages.${ARCH}.${MATRIX_PACKAGE} > out.paths
         env:
           MATRIX_PACKAGE: ${{ matrix.package }}
           ARCH: ${{ matrix.arch.id }}
+      - name: Push
+        run: |
+          echo "$SIGNING_KEY" | nix store sign --key-file /dev/stdin "$(< out.paths)"
+          nix copy --to "s3://wire-cache?write-nar-listing=1&ls-compression=br&log-compression=br&endpoint=s3.us-east-005.backblazeb2.com" "$(< out.paths)" -v
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.CACHE_AWS_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CACHE_AWS_KEY }}
