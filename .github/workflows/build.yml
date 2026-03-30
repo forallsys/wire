@@ -36,9 +36,36 @@ jobs:
       - name: Find test Jobs
         id: tests
         run: echo "tests=$(nix eval .#hydraJobs.tests --apply "builtins.attrNames" --json)" >> "$GITHUB_OUTPUT"
+  build-key-agent-arm:
+    runs-on: blacksmith-8vcpu-ubuntu-2404-arm
+    permissions: {}
+    needs: pre-job
+    if: needs.pre-job.outputs.should_skip != 'true'
+    steps:
+      - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-nix
+      - name: Build
+        run: nix build --print-build-logs -v .#packages.aarch64-linux.agent
+  build-key-agent-x86_64:
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    permissions: {}
+    needs: pre-job
+    if: needs.pre-job.outputs.should_skip != 'true'
+    steps:
+      - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-nix
+      - name: Build
+        run: nix build --print-build-logs -v .#packages.x86_64-linux.agent
   build:
     runs-on: ${{ matrix.arch.runner }}
-    needs: find-jobs
+    needs: 
+      - find-jobs
+      - build-key-agent-x86_64
+      - build-key-agent-arm
     permissions: {}
     strategy:
       matrix:
