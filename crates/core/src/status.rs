@@ -141,6 +141,12 @@ impl ActivityTracker {
             return;
         };
 
+        // don't double count any begins, even if two messages are rare, it
+        // could still happen.
+        if self.active_by_id.contains_key(&id) {
+            return;
+        }
+
         self.active_by_id.insert(id, category);
 
         match category {
