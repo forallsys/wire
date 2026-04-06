@@ -109,13 +109,13 @@ pub fn create_activity_category(
 
         ActivityType::BuildWaiting => Some(ActivityCategory::BuildPending),
 
-        // makes downloads very noisy, this is raised for every cache hit not
+        // Ignoring Substitute: makes downloads very noisy, this is raised for every cache hit not
         // just downloads themselves
-        ActivityType::Substitute |
-        // again, this is on the order of kilobytes so its not worth tracking as
+        // Ignoring QueryPathInfo: again, this is on the order of kilobytes so its not worth tracking as
         // a big download
-        ActivityType::QueryPathInfo => None,
-
+        // Ignoring CopyPath: Already covered in above if statement
+        //
+        // Other variants ignored for irrelevance
         _ => None,
     }
 }
@@ -171,6 +171,18 @@ impl ActivityTracker {
                 }
             }
         }
+    }
+
+    pub(crate) const fn get_counts(&self) -> [usize; 7] {
+        [
+            self.active_builds,
+            self.completed_builds,
+            self.pending_builds,
+            self.active_downloads,
+            self.completed_downloads,
+            self.active_uploads,
+            self.completed_uploads,
+        ]
     }
 }
 
@@ -246,163 +258,143 @@ impl Status {
         }
 
         let mut msg = String::new();
+        let _ = self.write_summary(&mut msg);
 
-        let _ = write!(&mut msg, "{}s Elapsed ", self.began.elapsed().as_secs());
+        let truncated_names = self.get_truncated_names();
+        let max_name_len = truncated_names.values().map(String::len).max().unwrap_or(0);
 
-        let _ = write!(
-            &mut msg,
-            "[Nodes {} / {}",
+        let node_lines = self.get_node_lines(&truncated_names, max_name_len);
+        let max_line_len = node_lines
+            .values()
+            .map(|l| strip_str(l).len())
+            .max()
+            .unwrap_or(0);
+
+        let (activities, widths) = self.get_activity_columns();
+
+        for (name, line) in node_lines
+            .into_iter()
+            .sorted_by_key(|(n, _)| truncated_names.get(n).unwrap().clone())
+        {
+            let padding = " ".repeat(max_line_len.saturating_sub(strip_str(&line).len()));
+            let activity = activities
+                .get(&name)
+                .map(|counts| Self::format_activity_row(counts, &widths))
+                .unwrap_or_default();
+            let _ = write!(&mut msg, "{line}{padding} {activity}");
+        }
+
+        msg
+    }
+
+    fn write_summary(&self, msg: &mut String) -> std::fmt::Result {
+        write!(
+            msg,
+            "{}s Elapsed [Nodes {} / {}",
+            self.began.elapsed().as_secs(),
             self.num_finished(),
             self.node_statuses.len()
-        );
+        )?;
 
         let num_failed = self.num_failed();
         let num_running = self.num_running();
 
-        let failed = if num_failed >= 1 {
-            Some(format!("{} Failed", num_failed.red()))
-        } else {
-            None
-        };
+        match (num_failed, num_running) {
+            (0, 0) => (),
+            (f, 0) => write!(msg, " ({} Failed)", f.red())?,
+            (0, r) => write!(msg, " ({} Deploying)", r.blue())?,
+            (f, r) => write!(msg, " ({} Failed, {} Deploying)", f.red(), r.blue())?,
+        }
 
-        let running = if num_running >= 1 {
-            Some(format!("{} Deploying", num_running.blue()))
-        } else {
-            None
-        };
+        write!(msg, "]")
+    }
 
-        let _ = match (failed, running) {
-            (None, None) => write!(&mut msg, ""),
-            (Some(message), None) | (None, Some(message)) => write!(&mut msg, " ({message})"),
-            (Some(failed), Some(running)) => write!(&mut msg, " ({failed}, {running})"),
-        };
-
-        let _ = write!(&mut msg, "]");
-
-        // truncate name to under 20 characters appending ... to longer ones
-        let truncated_names = self
-            .node_statuses
-            .iter()
-            .map(|(name, value)| match name.0.len() {
-                ..=MAX_NODE_NAME_LENGTH => (name.0.to_string(), value),
-                _ => (
+    fn get_truncated_names(&self) -> HashMap<Name, String> {
+        self.node_statuses
+            .keys()
+            .map(|name| {
+                let truncated = if name.0.len() <= MAX_NODE_NAME_LENGTH {
+                    name.0.to_string()
+                } else {
                     format!(
                         "{}...",
-                        &name
-                            .0
+                        name.0
                             .chars()
                             .take(MAX_NODE_NAME_LENGTH)
                             .collect::<String>()
-                    ),
-                    value,
-                ),
+                    )
+                };
+
+                (name.clone(), truncated)
             })
-            .collect::<HashMap<_, _>>();
+            .collect()
+    }
 
-        let max_name_length = truncated_names
-            .keys()
-            .max_by_key(|x| x.len())
-            .map_or(0, std::string::String::len);
-
-        let node_name_strings = truncated_names
+    fn get_node_lines(
+        &self,
+        truncated_names: &HashMap<Name, String>,
+        max_name_len: usize,
+    ) -> HashMap<Name, String> {
+        self.node_statuses
             .iter()
             .map(|(name, status)| {
+                let truncated = truncated_names.get(name).unwrap();
                 (
-                    name,
+                    name.clone(),
                     format!(
                         "\n  {}{} {}",
-                        name.bold(),
-                        " ".repeat(max_name_length.saturating_sub(name.len())),
+                        truncated.bold(),
+                        " ".repeat(max_name_len.saturating_sub(truncated.len())),
                         match status {
-                            NodeStatus::Pending => "Waiting".to_string().dimmed().to_string(),
+                            NodeStatus::Pending => "Waiting".dimmed().to_string(),
                             NodeStatus::Running(task) => format!("Running {}", task.blue())
                                 .on_default_color()
                                 .to_string(),
-                            NodeStatus::Succeeded => "Finished".to_string().green().to_string(),
-                            NodeStatus::Failed => "Failed".to_string().red().to_string(),
-                        },
-                    )
-                    .to_string(),
-                )
-            })
-            .collect::<HashMap<_, _>>();
-
-        let max_name_status_length = node_name_strings
-            .values()
-            .map(|x| strip_str(x).len())
-            .max()
-            .unwrap_or(0);
-
-        let columns = self
-            .nix_activities
-            .iter()
-            .map(|(name, tracker)| {
-                (
-                    name,
-                    (
-                        tracker.active_builds.to_string(),
-                        tracker.completed_builds.to_string(),
-                        tracker.pending_builds.to_string(),
-                        tracker.active_downloads.to_string(),
-                        tracker.completed_downloads.to_string(),
-                        tracker.active_uploads.to_string(),
-                        tracker.completed_uploads.to_string(),
+                            NodeStatus::Succeeded => "Finished".green().to_string(),
+                            NodeStatus::Failed => "Failed".red().to_string(),
+                        }
                     ),
                 )
             })
-            .collect::<HashMap<_, _>>();
+            .collect()
+    }
 
-        let column_maximums = columns
-            .values()
-            .fold((0, 0, 0, 0, 0, 0, 0), |mut acc, value| {
-                acc.0 = acc.0.max(value.0.len());
-                acc.1 = acc.1.max(value.1.len());
-                acc.2 = acc.2.max(value.2.len());
-                acc.3 = acc.3.max(value.3.len());
-                acc.4 = acc.4.max(value.4.len());
-                acc.5 = acc.5.max(value.5.len());
-                acc.6 = acc.6.max(value.6.len());
-                acc
-            });
+    // returns activity trackers, their cell values and the maximum width
+    // for all the columns
+    fn get_activity_columns(&self) -> (HashMap<Name, [String; 7]>, [usize; 7]) {
+        let mut widths = [0; 7];
+        let mut activities = HashMap::new();
 
-        let column_strings = columns.iter().filter_map(|(name, columns)| {
-            name.as_ref().map(|name| {
-                (name.0.to_string(), format!(
-                    "{ACTIVE_BUILDS_ICON} {}{} ❘ {COMPLETED_BUILDS_ICON} {}{} ❘ {PENDING_BUILDS_ICON} {}{} ❘ {ACTIVE_DOWNLOAD_ICON} {}{} ❘ {COMPLETED_DOWNLOAD_ICON} {}{} | {ACTIVE_UPLOAD_ICON} {}{} | {COMPLETED_UPLOAD_ICON} {}{}",
-                    columns.0.yellow(),
-                    " ".repeat(column_maximums.0.saturating_sub(columns.0.len())),
-                    columns.1,
-                    " ".repeat(column_maximums.1.saturating_sub(columns.1.len())),
-                    columns.2.blue(),
-                    " ".repeat(column_maximums.2.saturating_sub(columns.2.len())),
-                    columns.3.yellow(),
-                    " ".repeat(column_maximums.3.saturating_sub(columns.3.len())),
-                    columns.4.green(),
-                    " ".repeat(column_maximums.4.saturating_sub(columns.4.len())),
-                    columns.5.yellow(),
-                    " ".repeat(column_maximums.5.saturating_sub(columns.5.len())),
-                    columns.6.green(),
-                    " ".repeat(column_maximums.6.saturating_sub(columns.6.len())),
-                ))
-            })
-        }).collect::<HashMap<_, _>>();
+        for (name, tracker) in &self.nix_activities {
+            let Some(name) = name else { continue };
 
-        for (name, name_string) in node_name_strings.into_iter().sorted() {
-            let status_string = column_strings.get(name);
-            let name_padding =
-                " ".repeat(max_name_status_length.saturating_sub(strip_str(&name_string).len()));
+            let counts = tracker.get_counts().map(|c| c.to_string());
+            for (i, count) in counts.iter().enumerate() {
+                // replace this column max width with any that are higher
+                widths[i] = widths[i].max(count.len());
+            }
 
-            let _ = write!(
-                &mut msg,
-                "{name_string}{name_padding} {}",
-                match status_string {
-                    Some(string) => string.as_str(),
-                    None => "",
-                }
-            );
+            activities.insert(name.clone(), counts);
         }
 
-        msg
+        (activities, widths)
+    }
+
+    fn format_activity_row(counts: &[String; 7], widths: &[usize; 7]) -> String {
+        let pad = |i: usize, s: &String| {
+            format!("{}{}", s, " ".repeat(widths[i].saturating_sub(s.len())))
+        };
+
+        format!(
+            "{ACTIVE_BUILDS_ICON} {} ❘ {COMPLETED_BUILDS_ICON} {} ❘ {PENDING_BUILDS_ICON} {} ❘ {ACTIVE_DOWNLOAD_ICON} {} ❘ {COMPLETED_DOWNLOAD_ICON} {} | {ACTIVE_UPLOAD_ICON} {} | {COMPLETED_UPLOAD_ICON} {}",
+            pad(0, &counts[0]).yellow(),
+            pad(1, &counts[1]),
+            pad(2, &counts[2]).blue(),
+            pad(3, &counts[3]).yellow(),
+            pad(4, &counts[4]).green(),
+            pad(5, &counts[5]).yellow(),
+            pad(6, &counts[6]).green(),
+        )
     }
 
     pub fn clear<T: std::io::Write>(&self, writer: &mut T) {
