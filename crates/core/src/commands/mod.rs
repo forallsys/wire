@@ -220,19 +220,8 @@ impl ChildOutputMode {
 
                 return None;
             }
-            LogMessage::Result { id, r#type, .. } => {
-                if let Some(tx) = UI_SENDER.get() {
-                    let _ = tx.send(crate::status::UiMessage::ActivityEnd {
-                        node: task_name.clone(),
-                        id,
-                        result: Some(r#type),
-                    });
-                }
-
-                return None;
-            }
             LogMessage::Msg { msg, level, .. } => (msg, level),
-            LogMessage::SetPhase { .. } => return None,
+            LogMessage::SetPhase { .. } | LogMessage::Result { .. } => return None,
         };
 
         if msg.is_empty() {
