@@ -3,7 +3,7 @@
 
 use crate::hive::node::Name;
 use itertools::Itertools;
-use nix_compat::log::{ActivityType, ResultType};
+use nix_compat::log::{ActivityType, Field, ResultType};
 use owo_colors::{FgColorDisplay, OwoColorize};
 use std::{
     collections::VecDeque,
@@ -49,7 +49,7 @@ pub enum UiMessage {
     ActivityBegin {
         node: Option<Name>,
         id: u64,
-        activity_type: ActivityType,
+        activity_category: Option<ActivityCategory>,
     },
     /// Notes that a nix activity has ended
     ActivityEnd {
@@ -62,28 +62,61 @@ pub enum UiMessage {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ActivityCategory {
     Download,
+    Upload,
     Build,
     BuildPending,
 }
 
-impl TryFrom<ActivityType> for ActivityCategory {
-    type Error = ();
+// reference: https://github.com/maralorn/nix-output-monitor/blob/8f8e7caf3c5a440683b12b99f93926966da312a5/lib/NOM/Builds.hs#L78
+#[must_use]
+pub fn field_is_localhost(field: &Field) -> bool {
+    if let Field::String(to_string) = field
+        && matches!(
+            to_string.as_ref(),
+            // deviates from nom, daemon appears in testing as a localhost
+            b"" | b"local" | b"local://" | b"unix" | b"unix://" | b"daemon"
+        )
+    {
+        return true;
+    }
 
-    fn try_from(activity_type: ActivityType) -> Result<Self, Self::Error> {
-        Ok(match activity_type {
-            ActivityType::CopyPath
-            | ActivityType::FileTransfer
-            | ActivityType::Substitute
-            | ActivityType::QueryPathInfo
-            | ActivityType::FetchTree
-            | ActivityType::CopyPaths => Self::Download,
+    false
+}
 
-            ActivityType::Build | ActivityType::Builds => Self::Build,
+pub fn create_activity_category(
+    activity_type: &ActivityType,
+    fields: Option<Vec<Field>>,
+) -> Option<ActivityCategory> {
+    if let Some(fields) = fields
+        && matches!(activity_type, ActivityType::CopyPath)
+    {
+        // index 1 = "from", index 2 = "to"
+        if fields.get(2).is_some_and(field_is_localhost) {
+            return Some(ActivityCategory::Download);
+        }
 
-            ActivityType::BuildWaiting => Self::BuildPending,
+        if fields.get(1).is_some_and(field_is_localhost) {
+            return Some(ActivityCategory::Upload);
+        }
 
-            _ => return Err(()),
-        })
+        return None;
+    }
+
+    match activity_type {
+        ActivityType::FileTransfer | ActivityType::FetchTree => Some(ActivityCategory::Download),
+
+        ActivityType::Build => Some(ActivityCategory::Build),
+
+        ActivityType::BuildWaiting => Some(ActivityCategory::BuildPending),
+
+        // makes downloads very noisy, this is raised for every cache hit not
+        // just downloads themselves
+        ActivityType::Substitute |
+        // again, this is on the order of kilobytes so its not worth tracking as
+        // a big download
+        ActivityType::QueryPathInfo => None,
+
+        _ => None,
     }
 }
 
@@ -94,14 +127,17 @@ pub struct ActivityTracker {
     pub active_downloads: usize,
     pub completed_downloads: usize,
 
+    pub active_uploads: usize,
+    pub completed_uploads: usize,
+
     pub active_builds: usize,
     pub pending_builds: usize,
     pub completed_builds: usize,
 }
 
 impl ActivityTracker {
-    pub fn begin(&mut self, id: u64, category: ActivityType) {
-        let Ok(category) = category.try_into() else {
+    pub fn begin(&mut self, id: u64, category: Option<ActivityCategory>) {
+        let Some(category) = category else {
             return;
         };
 
@@ -111,6 +147,7 @@ impl ActivityTracker {
             ActivityCategory::Download => self.active_downloads += 1,
             ActivityCategory::Build => self.active_builds += 1,
             ActivityCategory::BuildPending => self.pending_builds += 1,
+            ActivityCategory::Upload => self.active_uploads += 1,
         }
     }
 
@@ -127,6 +164,10 @@ impl ActivityTracker {
                 }
                 ActivityCategory::BuildPending => {
                     self.pending_builds = self.pending_builds.saturating_sub(1);
+                }
+                ActivityCategory::Upload => {
+                    self.active_uploads = self.active_uploads.saturating_sub(1);
+                    self.completed_uploads += 1;
                 }
             }
         }
@@ -154,6 +195,10 @@ const ACTIVE_DOWNLOAD_ICON: FgColorDisplay<owo_colors::colors::Yellow, str> =
     FgColorDisplay::new("↓ ⏵");
 const COMPLETED_DOWNLOAD_ICON: FgColorDisplay<owo_colors::colors::Green, str> =
     FgColorDisplay::new("↓ ✔");
+const ACTIVE_UPLOAD_ICON: FgColorDisplay<owo_colors::colors::Yellow, str> =
+    FgColorDisplay::new("↑ ⏵");
+const COMPLETED_UPLOAD_ICON: FgColorDisplay<owo_colors::colors::Green, str> =
+    FgColorDisplay::new("↑ ✔");
 
 impl Status {
     fn new() -> Self {
@@ -300,24 +345,30 @@ impl Status {
                         tracker.pending_builds.to_string(),
                         tracker.active_downloads.to_string(),
                         tracker.completed_downloads.to_string(),
+                        tracker.active_uploads.to_string(),
+                        tracker.completed_uploads.to_string(),
                     ),
                 )
             })
             .collect::<HashMap<_, _>>();
 
-        let column_maximums = columns.values().fold((0, 0, 0, 0, 0), |mut acc, value| {
-            acc.0 = acc.0.max(value.0.len());
-            acc.1 = acc.1.max(value.1.len());
-            acc.2 = acc.2.max(value.2.len());
-            acc.3 = acc.3.max(value.3.len());
-            acc.4 = acc.4.max(value.4.len());
-            acc
-        });
+        let column_maximums = columns
+            .values()
+            .fold((0, 0, 0, 0, 0, 0, 0), |mut acc, value| {
+                acc.0 = acc.0.max(value.0.len());
+                acc.1 = acc.1.max(value.1.len());
+                acc.2 = acc.2.max(value.2.len());
+                acc.3 = acc.3.max(value.3.len());
+                acc.4 = acc.4.max(value.4.len());
+                acc.5 = acc.5.max(value.5.len());
+                acc.6 = acc.6.max(value.6.len());
+                acc
+            });
 
         let column_strings = columns.iter().filter_map(|(name, columns)| {
             name.as_ref().map(|name| {
                 (name.0.to_string(), format!(
-                    "{ACTIVE_BUILDS_ICON} {}{} ❘ {COMPLETED_BUILDS_ICON} {}{} ❘ {PENDING_BUILDS_ICON} {}{} ❘ {ACTIVE_DOWNLOAD_ICON} {}{} ❘ {COMPLETED_DOWNLOAD_ICON} {}{}",
+                    "{ACTIVE_BUILDS_ICON} {}{} ❘ {COMPLETED_BUILDS_ICON} {}{} ❘ {PENDING_BUILDS_ICON} {}{} ❘ {ACTIVE_DOWNLOAD_ICON} {}{} ❘ {COMPLETED_DOWNLOAD_ICON} {}{} | {ACTIVE_UPLOAD_ICON} {}{} | {COMPLETED_UPLOAD_ICON} {}{}",
                     columns.0.yellow(),
                     " ".repeat(column_maximums.0.saturating_sub(columns.0.len())),
                     columns.1,
@@ -328,6 +379,10 @@ impl Status {
                     " ".repeat(column_maximums.3.saturating_sub(columns.3.len())),
                     columns.4.green(),
                     " ".repeat(column_maximums.4.saturating_sub(columns.4.len())),
+                    columns.5.yellow(),
+                    " ".repeat(column_maximums.5.saturating_sub(columns.5.len())),
+                    columns.6.green(),
+                    " ".repeat(column_maximums.6.saturating_sub(columns.6.len())),
                 ))
             })
         }).collect::<HashMap<_, _>>();
@@ -445,9 +500,9 @@ pub async fn status_tick_worker(mut rx: UnboundedReceiver<UiMessage>, show_progr
                             status.write_status(&mut stderr);
                         }
                     },
-                    UiMessage::ActivityBegin { node, id, activity_type } => {
+                    UiMessage::ActivityBegin { node, id, activity_category } => {
                         let tracker = status.nix_activities.entry(node).or_default();
-                        tracker.begin(id, activity_type);
+                        tracker.begin(id, activity_category);
                     }
                     UiMessage::ActivityEnd { node, id, .. } => {
                         let tracker = status.nix_activities.entry(node).or_default();

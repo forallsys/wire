@@ -4,7 +4,7 @@
 use crate::{
     commands::pty::{InteractiveChildChip, interactive_command_with_env},
     hive::node::{Name, SharedTarget},
-    status::UI_SENDER,
+    status::{UI_SENDER, create_activity_category},
 };
 use std::{
     collections::HashMap,
@@ -196,13 +196,14 @@ impl ChildOutputMode {
                 level,
                 id,
                 r#type,
+                fields,
                 ..
             } => {
                 if let Some(tx) = UI_SENDER.get() {
                     let _ = tx.send(crate::status::UiMessage::ActivityBegin {
                         node: task_name.clone(),
                         id,
-                        activity_type: r#type,
+                        activity_category: create_activity_category(&r#type, fields),
                     });
                 }
 
