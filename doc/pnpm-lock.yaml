@@ -13,7 +13,7 @@ importers:
         version: 4.0.0
       vitepress-plugin-group-icons:
         specifier: ^1.6.5
-        version: 1.7.3(vite@5.4.21)
+        version: 1.7.5(vite@5.4.21)
     devDependencies:
       vitepress:
         specifier: ^1.6.4
@@ -762,8 +762,8 @@ packages:
   tabbable@6.3.0:
     resolution: {integrity: sha512-EIHvdY5bPLuWForiR/AN2Bxngzpuwn1is4asboytXtpTgsArc+WmSJKVLlhdh71u7jFcryDqB2A8lQvj78MkyQ==}
 
-  tinyexec@1.0.4:
-    resolution: {integrity: sha512-u9r3uZC0bdpGOXtlxUIdwf9pkmvhqJdrVCH9fapQtgy/OeTTMZ1nqH7agtvEfmGui6e1XxjcdrlxvxJvc3sMqw==}
+  tinyexec@1.1.1:
+    resolution: {integrity: sha512-VKS/ZaQhhkKFMANmAOhhXVoIfBXblQxGX1myCQ2faQrfmobMftXeJPcZGp0gS07ocvGJWDLZGyOZDadDBqYIJg==}
     engines: {node: '>=18'}
 
   trim-lines@3.0.1:
@@ -824,8 +824,8 @@ packages:
       terser:
         optional: true
 
-  vitepress-plugin-group-icons@1.7.3:
-    resolution: {integrity: sha512-Nj2znOveQC7KH1CQ1k2WlVvEDAuymhumcUvD51ognVUv2yjrfAhOzL1VEESPzoJN0kWoRxXK+iu+OKNLe7unGQ==}
+  vitepress-plugin-group-icons@1.7.5:
+    resolution: {integrity: sha512-QzcroUuIiVKyXpmEiiHVbfRTQIy9Zbwxpk5JC/zavO8mavitwumz2RZWlwTchMCCHducYyPptkYvXvdnNUWkog==}
     peerDependencies:
       vite: '>=3'
     peerDependenciesMeta:
@@ -972,7 +972,7 @@ snapshots:
   '@antfu/install-pkg@1.1.0':
     dependencies:
       package-manager-detector: 1.6.0
-      tinyexec: 1.0.4
+      tinyexec: 1.1.1
 
   '@babel/helper-string-parser@7.27.1': {}
 
@@ -1595,7 +1595,7 @@ snapshots:
 
   tabbable@6.3.0: {}
 
-  tinyexec@1.0.4: {}
+  tinyexec@1.1.1: {}
 
   trim-lines@3.0.1: {}
 
@@ -1642,7 +1642,7 @@ snapshots:
     optionalDependencies:
       fsevents: 2.3.3
 
-  vitepress-plugin-group-icons@1.7.3(vite@5.4.21):
+  vitepress-plugin-group-icons@1.7.5(vite@5.4.21):
     dependencies:
       '@iconify-json/logos': 1.2.11
       '@iconify-json/vscode-icons': 1.2.45
