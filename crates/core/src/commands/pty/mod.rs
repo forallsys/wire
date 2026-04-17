@@ -301,9 +301,6 @@ fn setup_master(pty_pair: &PtyPair) -> Result<(), HiveLibError> {
         termios.local_flags &= !LocalFlags::ECHO;
         // Key agent does not work well without canonical mode
         termios.local_flags &= !LocalFlags::ICANON;
-        // Actually quit
-        termios.local_flags &= !LocalFlags::ISIG;
-
         tcsetattr(fd, SetArg::TCSANOW, &termios)
             .map_err(|x| HiveLibError::CommandError(CommandError::TermAttrs(x)))?;
     }
@@ -417,7 +414,7 @@ impl StdinTermiosAttrGuard {
         let mut termios = tcgetattr(stdin_fd).map_err(CommandError::TermAttrs)?;
         let original_termios = termios.clone();
 
-        termios.local_flags &= !(LocalFlags::ECHO | LocalFlags::ICANON);
+        termios.local_flags &= !(LocalFlags::ECHO | LocalFlags::ICANON | LocalFlags::ISIG);
         tcsetattr(stdin_fd, SetArg::TCSANOW, &termios).map_err(CommandError::TermAttrs)?;
 
         Ok(StdinTermiosAttrGuard(original_termios))
