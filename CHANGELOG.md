@@ -7,9 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - yyyy-mm-dd
 
+### Added
+
+- "Encrypting with Sops" documentation example.
+
+### Changed
+
+- Under the hood improvements to how status bar updates are handled internally.
+- Cargo dependency updates.
+- Switched (back) to the https://snix.dev/ `nix_compat` crate for internal nix
+  json log parsing.
+
 ### Fixed
 
 - Status bar is cleaned every time after execution is completed.
+- Fixed garnix docs links in documentation.
 
 ## [v1.2.0] - 2026-03-18
 
