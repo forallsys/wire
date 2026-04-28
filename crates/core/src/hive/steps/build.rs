@@ -8,8 +8,7 @@ use tracing::{info, instrument};
 use crate::{
     HiveLibError,
     commands::{
-        CommandArguments, Either, WireCommandChip, builder::CommandStringBuilder,
-        run_command_with_env,
+        CommandArguments, Either, WireCommandChip, builder::CommandStringBuilder, run_command
     },
     hive::node::{Context, ExecuteStep, SharedTarget},
 };
@@ -40,15 +39,14 @@ impl ExecuteStep for Build {
             "--no-link",
             "--print-out-paths",
         ]);
-        command_string.arg(top_level.to_string());
+        command_string.arg(format!("\"{top_level}\""));
 
-        let status = run_command_with_env(
+        let status = run_command(
             &CommandArguments::new(command_string, ctx.modifiers)
                 // build remotely if asked for AND we arent applying locally
                 .execute_on_remote(self.target.clone())
                 .mode(crate::commands::ChildOutputMode::Nix)
                 .log_stdout(),
-            std::collections::HashMap::new(),
         )
         .await?
         .wait_till_success()
