@@ -8,7 +8,7 @@ use tracing::{info, instrument};
 use crate::{
     HiveLibError,
     commands::{
-        CommandArguments, Either, WireCommandChip, builder::CommandStringBuilder, run_command
+        CommandArguments, Either, WireCommandChip, builder::CommandStringBuilder, run_command,
     },
     hive::node::{Context, ExecuteStep, SharedTarget},
 };
