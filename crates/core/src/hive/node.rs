@@ -6,6 +6,7 @@ use enum_dispatch::enum_dispatch;
 use gethostname::gethostname;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
+use std::iter;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use tokio::sync::{RwLock, oneshot};
@@ -78,7 +79,7 @@ impl Target {
             "-p".to_string(),
             self.port.to_string(),
         ];
-        let mut options = vec![
+        let options = iter::once(
             format!(
                 "StrictHostKeyChecking={}",
                 match modifiers.ssh_accept_host {
@@ -86,10 +87,8 @@ impl Target {
                     StrictHostKeyChecking::No => "no",
                 }
             )
-            .to_string(),
-        ];
-
-        options.extend(["BatchMode=yes".to_string()]);
+            .to_string()
+        );
 
         vector.push("-o".to_string());
         vector.extend(options.into_iter().intersperse("-o".to_string()));
