@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - "Encrypting with Sops" documentation example.
+- `--ssh-verbose` / `--sv` argument which increases verbosity of SSH commands.
 
 ### Changed
 

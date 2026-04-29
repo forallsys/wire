@@ -2,7 +2,7 @@
 // Copyright 2024-2025 wire Contributors
 
 use clap::builder::PossibleValue;
-use clap::{Args, Parser, Subcommand, ValueEnum};
+use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use clap::{ValueHint, crate_version};
 use clap_complete::CompletionCandidate;
 use clap_complete::engine::ArgValueCompleter;
@@ -213,6 +213,10 @@ pub struct ApplyArgs {
     /// Vulnerable to man-in-the-middle attacks, use with caution.
     #[arg(long, default_value_t = false)]
     pub ssh_accept_host: bool,
+
+    /// Increase debug verbosity of SSH commands.
+    #[arg(long, visible_alias = "sv", action = ArgAction::Count, default_value_t = 0, value_parser=less_than_3)]
+    pub ssh_verbose: u8,
 }
 
 #[derive(Clone, Debug)]
@@ -332,6 +336,10 @@ impl ToSubCommandModifiers for Cli {
                 }
                 _ => wire_core::StrictHostKeyChecking::default(),
             },
+            ssh_verbosity: match &self.command {
+                Commands::Apply(args) => args.ssh_verbose.into(),
+                _ => 0,
+            },
         }
     }
 }
@@ -379,6 +387,10 @@ fn node_names_completer(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
 
         completions
     })
+}
+
+fn less_than_3(s: &str) -> Result<u8, String> {
+    number_range(s, 0, 3)
 }
 
 #[cfg(test)]

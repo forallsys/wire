@@ -94,6 +94,10 @@ impl Target {
         vector.push("-o".to_string());
         vector.extend(options.into_iter().intersperse("-o".to_string()));
 
+        if modifiers.ssh_verbosity > 0 {
+            vector.push(format!("-{}", "v".repeat(modifiers.ssh_verbosity)));
+        }
+
         Ok(vector)
     }
 
