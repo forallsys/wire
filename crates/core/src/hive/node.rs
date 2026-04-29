@@ -87,7 +87,7 @@ impl Target {
                     StrictHostKeyChecking::No => "no",
                 }
             )
-            .to_string()
+            .to_string(),
         );
 
         vector.push("-o".to_string());
