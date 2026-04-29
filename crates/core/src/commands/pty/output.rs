@@ -221,43 +221,59 @@ fn search_string(
     status_sender: &watch::Sender<Status>,
     began_tx: &mut Option<oneshot::Sender<()>>,
 ) -> SearchFindings {
-    let searched = aho_corasick
-        .find_iter(haystack)
-        .map(|x| x.pattern())
-        .collect::<Vec<_>>();
+    for haystack in haystack.split(|&b| b == b'\n') {
+        if haystack.starts_with(b"debug") || haystack.starts_with(b"ssh") {
+            tracing::log::log!(
+                if haystack.starts_with(b"ssh") {
+                    tracing::log::Level::Error
+                } else {
+                    tracing::log::Level::Debug
+                },
+                "{}",
+                String::from_utf8_lossy(haystack)
+            );
 
-    let started = if searched.contains(&STARTED_PATTERN) {
-        debug!("start needle was found, switching mode...");
-        if let Some(began_tx) = began_tx.take() {
-            let _ = began_tx.send(());
+            continue;
         }
-        true
-    } else {
-        false
-    };
 
-    let succeeded = if searched.contains(&SUCCEEDED_PATTERN) {
-        debug!("succeed needle was found, marking child as succeeding.");
-        status_sender.send_replace(Status::Done { success: true });
-        true
-    } else {
-        false
-    };
+        let searched = aho_corasick
+            .find_iter(haystack)
+            .map(|x| x.pattern())
+            .collect::<Vec<_>>();
 
-    let failed = if searched.contains(&FAILED_PATTERN) {
-        debug!("failed needle was found, elevated child did not succeed.");
-        status_sender.send_replace(Status::Done { success: false });
-        true
-    } else {
-        false
-    };
+        let started = if searched.contains(&STARTED_PATTERN) {
+            debug!("start needle was found, switching mode...");
+            if let Some(began_tx) = began_tx.take() {
+                let _ = began_tx.send(());
+            }
+            true
+        } else {
+            false
+        };
 
-    if succeeded || failed {
-        return SearchFindings::Terminate;
-    }
+        let succeeded = if searched.contains(&SUCCEEDED_PATTERN) {
+            debug!("succeed needle was found, marking child as succeeding.");
+            status_sender.send_replace(Status::Done { success: true });
+            true
+        } else {
+            false
+        };
 
-    if started {
-        return SearchFindings::Started;
+        let failed = if searched.contains(&FAILED_PATTERN) {
+            debug!("failed needle was found, elevated child did not succeed.");
+            status_sender.send_replace(Status::Done { success: false });
+            true
+        } else {
+            false
+        };
+
+        if succeeded || failed {
+            return SearchFindings::Terminate;
+        }
+
+        if started {
+            return SearchFindings::Started;
+        }
     }
 
     SearchFindings::None
