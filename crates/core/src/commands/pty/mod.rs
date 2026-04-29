@@ -323,7 +323,7 @@ async fn build_command<S: AsRef<str>>(
 
         command
     } else {
-        let mut command = portable_pty::CommandBuilder::new("sh");
+        let mut command = portable_pty::CommandBuilder::new("bash");
 
         command.arg("-c");
 
@@ -331,9 +331,9 @@ async fn build_command<S: AsRef<str>>(
     };
 
     if arguments.is_elevated() {
-        command.arg(format!("sudo -u root -- sh -c '{command_string}'"));
+        command.arg(format!("sudo -u root -- bash -c '{command_string}'"));
     } else {
-        command.arg(command_string);
+        command.arg(format!("bash -c '{command_string}'"));
     }
 
     Ok(command)

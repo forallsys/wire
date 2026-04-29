@@ -39,7 +39,7 @@ pub(crate) async fn non_interactive_command_with_env<S: AsRef<str>>(
     let mut command = if let Some(ref target) = arguments.target {
         create_sync_ssh_command(target, arguments.modifiers).await?
     } else {
-        let mut command = Command::new("sh");
+        let mut command = Command::new("bash");
 
         command.arg("-c");
 

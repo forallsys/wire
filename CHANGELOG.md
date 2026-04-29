@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   problematic string is now surrounded in quotes.
 - Status bar is cleaned every time after execution is completed.
 - Fixed garnix docs links in documentation.
+- Forces `bash` instead of remote user's potentially unsupported shell. This bug
+  was causing strange and hard to diagnose issues.
 
 ## [v1.2.0] - 2026-03-18
 
