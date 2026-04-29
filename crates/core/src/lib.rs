@@ -45,6 +45,7 @@ pub struct SubCommandModifiers {
     pub non_interactive: bool,
     pub ssh_accept_host: StrictHostKeyChecking,
     pub ssh_verbosity: usize,
+    pub print_build_logs: bool,
 }
 
 impl Default for SubCommandModifiers {
@@ -54,6 +55,7 @@ impl Default for SubCommandModifiers {
             non_interactive: !std::io::stdin().is_terminal(),
             ssh_accept_host: StrictHostKeyChecking::default(),
             ssh_verbosity: 0,
+            print_build_logs: false,
         }
     }
 }
