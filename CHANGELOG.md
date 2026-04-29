@@ -18,6 +18,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   annoying to repeatedly enter your password for key deployment.
 - Ipv6 addresses are now displayed in a nicer format in "Authenticate for ..."
   prompts.
+- Build logs from `-L` are now properly traced and logged alongside the build
+  job name.
 
 ### Fixed
 
