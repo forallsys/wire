@@ -58,10 +58,20 @@ pub(crate) async fn non_interactive_command_with_env<S: AsRef<str>>(
 
     let encoded = STANDARD.encode(&command_string);
 
+    // keep_stdin_open requires that bash not have its stdin messed up by
+    // base64, so a special case is created specifically for that.
     let command_string = if let Some(escalation_command) = &arguments.privilege_escalation_command {
-        format!("{escalation_command} sh -c 'echo {encoded} | base64 -d | bash'")
+        if arguments.keep_stdin_open {
+            format!("{escalation_command} sh -c '{command_string}'")
+        } else {
+            format!("{escalation_command} sh -c 'echo {encoded} | base64 -d | bash'")
+        }
     } else {
-        format!("echo {encoded} | base64 -d | bash")
+        if arguments.keep_stdin_open {
+            command_string
+        } else {
+            format!("echo {encoded} | base64 -d | bash")
+        }
     };
 
     debug!("{command_string}");

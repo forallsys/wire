@@ -335,11 +335,19 @@ async fn build_command<S: AsRef<str>>(
     let encoded = STANDARD.encode(command_string);
 
     if let Some(escalation_command) = &arguments.privilege_escalation_command {
-        command.arg(format!(
-            "{escalation_command} sh -c 'echo {encoded} | base64 -d | bash'"
-        ));
+        if arguments.keep_stdin_open {
+            command.arg(format!("{escalation_command} sh -c '{command_string}'"));
+        } else {
+            command.arg(format!(
+                "{escalation_command} sh -c 'echo {encoded} | base64 -d | bash'"
+            ));
+        }
     } else {
-        command.arg(format!("echo {encoded} | base64 -d | bash"));
+        if arguments.keep_stdin_open {
+            command.arg(command_string);
+        } else {
+            command.arg(format!("echo {encoded} | base64 -d | bash"));
+        }
     }
 
     Ok(command)
