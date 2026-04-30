@@ -66,12 +66,10 @@ pub(crate) async fn non_interactive_command_with_env<S: AsRef<str>>(
         } else {
             format!("{escalation_command} sh -c 'echo {encoded} | base64 -d | bash'")
         }
+    } else if arguments.keep_stdin_open {
+        command_string
     } else {
-        if arguments.keep_stdin_open {
-            command_string
-        } else {
-            format!("echo {encoded} | base64 -d | bash")
-        }
+        format!("echo {encoded} | base64 -d | bash")
     };
 
     debug!("{command_string}");

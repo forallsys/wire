@@ -342,12 +342,10 @@ async fn build_command<S: AsRef<str>>(
                 "{escalation_command} sh -c 'echo {encoded} | base64 -d | bash'"
             ));
         }
+    } else if arguments.keep_stdin_open {
+        command.arg(command_string);
     } else {
-        if arguments.keep_stdin_open {
-            command.arg(command_string);
-        } else {
-            command.arg(format!("echo {encoded} | base64 -d | bash"));
-        }
+        command.arg(format!("echo {encoded} | base64 -d | bash"));
     }
 
     Ok(command)
