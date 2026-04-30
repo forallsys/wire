@@ -55,10 +55,12 @@ pub(crate) async fn non_interactive_command_with_env<S: AsRef<str>>(
         }
     );
 
+    let command_string = command_string.replace('\'', "'\''");
+
     let command_string = if let Some(escalation_command) = &arguments.privilege_escalation_command {
-        format!("{escalation_command} sh -c '{command_string}'")
+        format!("{escalation_command} bash -c '{command_string}'")
     } else {
-        command_string
+        format!("bash -c '{command_string}'")
     };
 
     debug!("{command_string}");
