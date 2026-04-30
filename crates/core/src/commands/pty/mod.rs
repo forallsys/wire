@@ -244,9 +244,9 @@ pub(crate) async fn interactive_command_with_env<S: AsRef<str>>(
 async fn print_authenticate_warning<S: AsRef<str>>(
     arguments: &CommandArguments<S>,
 ) -> Result<(), HiveLibError> {
-    if !arguments.is_elevated() {
+    let Some(ref escalation_command) = arguments.privilege_escalation_command else {
         return Ok(());
-    }
+    };
 
     let target_display = if let Some(ref target) = arguments.target {
         let target = target.0.read().await;
@@ -264,7 +264,7 @@ async fn print_authenticate_warning<S: AsRef<str>>(
     if let Some(tx) = UI_SENDER.get() {
         let _ = tx.send(UiMessage::LogLine(
             format!(
-                "{target_display} | Authenticate for \"sudo {}\":\n",
+                "{target_display} | Authenticate for \"{escalation_command} {}\":\n",
                 arguments.command_string.as_ref()
             )
             .into_bytes(),
@@ -330,8 +330,8 @@ async fn build_command<S: AsRef<str>>(
         command
     };
 
-    if arguments.is_elevated() {
-        command.arg(format!("sudo -u root -- bash -c '{command_string}'"));
+    if let Some(ref escalation_command) = arguments.privilege_escalation_command {
+        command.arg(format!("{escalation_command} bash -c '{command_string}'"));
     } else {
         command.arg(format!("bash -c '{command_string}'"));
     }
