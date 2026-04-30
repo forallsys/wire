@@ -313,7 +313,7 @@ fn setup_master(pty_pair: &PtyPair) -> Result<(), HiveLibError> {
 
 async fn build_command<S: AsRef<str>>(
     arguments: &CommandArguments<S>,
-    command_string: &String,
+    command_string: &str,
 ) -> Result<CommandBuilder, HiveLibError> {
     let mut command = if let Some(ref target) = arguments.target {
         let mut command = create_int_ssh_command(target, arguments.modifiers).await?;
@@ -329,6 +329,8 @@ async fn build_command<S: AsRef<str>>(
 
         command
     };
+
+    let command_string = command_string.replace('\'', "'\''");
 
     if let Some(ref escalation_command) = arguments.privilege_escalation_command {
         command.arg(format!("{escalation_command} bash -c '{command_string}'"));
