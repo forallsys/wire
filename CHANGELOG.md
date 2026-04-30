@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cargo dependency updates.
 - Switched (back) to the https://snix.dev/ `nix_compat` crate for internal nix
   json log parsing.
+- `deployment.privilegeEscalationCommand` not being consistently applied.
 
 ### Fixed
 
