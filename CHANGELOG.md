@@ -21,8 +21,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Some host shells, like fish, would break the `build` phase command. The
-  problematic string is now surrounded in quotes.
 - Status bar is cleaned every time after execution is completed.
 - Fixed garnix docs links in documentation.
 - Forces `bash` instead of remote user's potentially unsupported shell. This bug
