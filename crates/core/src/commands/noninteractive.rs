@@ -13,6 +13,7 @@ use crate::{
     errors::{CommandError, HiveLibError},
     hive::node::SharedTarget,
 };
+use base64::{Engine, engine::general_purpose::STANDARD};
 use itertools::Itertools;
 use tokio::{
     io::{AsyncWriteExt, BufReader},
@@ -55,10 +56,12 @@ pub(crate) async fn non_interactive_command_with_env<S: AsRef<str>>(
         }
     );
 
+    let encoded = STANDARD.encode(&command_string);
+
     let command_string = if let Some(escalation_command) = &arguments.privilege_escalation_command {
-        format!("{escalation_command} sh -c '{command_string}'")
+        format!("{escalation_command} sh -c 'echo {encoded} | base64 -d | bash'")
     } else {
-        command_string
+        format!("echo {encoded} | base64 -d | bash")
     };
 
     debug!("{command_string}");

@@ -18,10 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cargo dependency updates.
 - Switched (back) to the https://snix.dev/ `nix_compat` crate for internal nix
   json log parsing.
+- Executed commands are encoded in base64 to harden the strings and help them
+  survive cross-shell parsing errors.
 
 ### Fixed
 
 - Status bar is cleaned every time after execution is completed.
+- `deployment.privilegeEscalationCommand` not being consistently applied.
 - Fixed garnix docs links in documentation.
 - Forces `bash` instead of remote user's potentially unsupported shell. This bug
   was causing strange and hard to diagnose issues.
