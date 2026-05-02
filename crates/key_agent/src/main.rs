@@ -13,7 +13,6 @@ use prost::Message;
 use prost::bytes::Bytes;
 use sha2::{Digest, Sha256};
 use std::os::fd::AsFd;
-use std::os::fd::AsRawFd;
 use std::path::{Path, PathBuf};
 use tokio::fs::OpenOptions;
 use tokio::io::AsyncWriteExt;
@@ -97,7 +96,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
                         0.into()
                     },
-                    |user| user.uid.into(),
+                    |user| user.uid,
                 ),
         );
         let group = Some(
