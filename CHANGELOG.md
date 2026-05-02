@@ -20,7 +20,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cargo dependency updates.
 - Switched (back) to the https://snix.dev/ `nix_compat` crate for internal nix
   json log parsing.
-- `deployment.privilegeEscalationCommand` not being consistently applied.
 
 ### Fixed
 
@@ -29,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Forces `bash` instead of remote user's potentially unsupported shell. This bug
   was causing strange and hard to diagnose issues.
 - Fixed a possible time-of-check to time-of-use bug while setting key permissions.
+- `deployment.privilegeEscalationCommand` not being consistently applied.
 
 ## [v1.2.0] - 2026-03-18
 
