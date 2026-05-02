@@ -79,7 +79,7 @@ async fn main() -> Result<(), anyhow::Error> {
             .context("opening file")?;
 
         // enforce permission on existing files
-        let mode = nix::sys::stat::Mode::from_bits(spec.unix_mode)
+        let mode = nix::sys::stat::Mode::from_bits(spec.unix_mode as nix::libc::mode_t)
             .with_context(|| format!("failed to create unix mode: {:o}", spec.unix_mode))?;
 
         fchmod(file.as_fd(), mode)
