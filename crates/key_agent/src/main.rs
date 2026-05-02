@@ -2,17 +2,19 @@
 // Copyright 2024-2025 wire Contributors
 
 #![deny(clippy::pedantic)]
+use anyhow::Context;
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use futures_util::stream::StreamExt;
+use nix::sys::stat::fchmod;
+use nix::unistd::fchown;
 use nix::unistd::{Group, User};
 use prost::Message;
 use prost::bytes::Bytes;
 use sha2::{Digest, Sha256};
-use std::os::unix::fs::PermissionsExt;
-use std::os::unix::fs::chown;
+use std::os::fd::AsFd;
 use std::path::{Path, PathBuf};
-use tokio::fs::File;
+use tokio::fs::OpenOptions;
 use tokio::io::AsyncWriteExt;
 use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
 use wire_key_agent::keys::KeySpec;
@@ -63,26 +65,58 @@ async fn main() -> Result<(), anyhow::Error> {
         }
 
         let path = PathBuf::from(&spec.destination);
-        create_path(&path)?;
+        create_path(&path).context("creating directory for key")?;
 
-        let mut file = File::create(path).await?;
-        let mut permissions = file.metadata().await?.permissions();
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            // only applies if the file is created
+            .mode(spec.unix_mode)
+            .custom_flags(nix::libc::O_NOFOLLOW)
+            .open(&path)
+            .await
+            .context("opening file")?;
 
-        permissions.set_mode(spec.unix_mode);
-        file.set_permissions(permissions).await?;
+        // enforce permission on existing files
+        let mode = nix::sys::stat::Mode::from_bits(spec.unix_mode)
+            .with_context(|| format!("failed to create unix mode: {:o}", spec.unix_mode))?;
 
-        let user = User::from_name(&spec.user)?;
-        let group = Group::from_name(&spec.group)?;
+        fchmod(file.as_fd(), mode)
+            .with_context(|| format!("setting permissions of fd to {:o}", spec.unix_mode))?;
 
-        chown(
-            spec.destination,
-            // Default uid/gid to 0. This is then wrapped around an Option again for
-            // the function.
-            Some(user.map_or(0, |user| user.uid.into())),
-            Some(group.map_or(0, |group| group.gid.into())),
-        )?;
+        // Default uid/gid to 0. This is then wrapped around an Option again for
+        // the function.
+        let user = Some(
+            User::from_name(&spec.user)
+                .context("obtaining user")?
+                .map_or_else(
+                    || {
+                        println!("warning: defaulting uid to `0`");
 
-        file.write_all(&key_bytes).await?;
+                        0.into()
+                    },
+                    |user| user.uid,
+                ),
+        );
+        let group = Some(
+            Group::from_name(&spec.group)
+                .context("obtaining group")?
+                .map_or_else(
+                    || {
+                        println!("warning: defaulting gid to `0`");
+
+                        0.into()
+                    },
+                    |group| group.gid,
+                ),
+        );
+
+        // set permission on new files
+        fchown(&file, user, group)
+            .with_context(|| format!("setting ownership of fd to {user:?}, {group:?}"))?;
+
+        file.write_all(&key_bytes).await.context("writing to fd")?;
 
         // last key, goobye
         if spec.last {
