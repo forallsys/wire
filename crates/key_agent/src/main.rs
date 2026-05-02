@@ -90,8 +90,8 @@ async fn main() -> Result<(), anyhow::Error> {
         let user = Some(
             User::from_name(&spec.user)
                 .context("obtaining user")?
-                .map_or(
-                    {
+                .map_or_else(
+                    || {
                         println!("warning: defaulting uid to `0`");
 
                         0.into()
@@ -102,8 +102,8 @@ async fn main() -> Result<(), anyhow::Error> {
         let group = Some(
             Group::from_name(&spec.group)
                 .context("obtaining group")?
-                .map_or(
-                    {
+                .map_or_else(
+                    || {
                         println!("warning: defaulting gid to `0`");
 
                         0.into()
