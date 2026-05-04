@@ -36,6 +36,15 @@ wire.makeHive {
     # type: NixOS Module
     defaults = { ... }: { };
 
+    # `nixosConfigurations` is an attrset can be passed down from a flake's `self`.
+    #
+    # Atributes are merged together with nodes. Please read
+    # https://wire.forall.systems/guides/flakes/nixos-rebuild.html
+    # for example usage of this attribute.
+    #
+    # type: attrset of NixOS systems
+    nixosConfigurations = { };
+
     # Any other attributes are nodes.
     <node-name> = { ... }: { };
 }
