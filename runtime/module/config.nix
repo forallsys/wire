@@ -46,7 +46,7 @@
             done
           '';
           unitConfig = {
-            ConditionPathExists = value.path;
+            AssertPathExists = value.path;
           };
           serviceConfig = {
             Type = "simple";
