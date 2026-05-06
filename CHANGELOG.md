@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - yyyy-mm-dd
 
+### Fixed
+
+- Use `AssertPathExists` instead of conditional path existence checks for key services.
+
 ## [v1.3.0] - 2026-05-02
 
 ### Added
