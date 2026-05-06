@@ -39,7 +39,7 @@ wire.makeHive {
     # `nixosConfigurations` is an attrset that can be passed down from a
     # flake's `self`.
     #
-    # Atributes are merged together with nodes. Please read
+    # Attributes are merged together with nodes. Please read
     # https://wire.forall.systems/guides/flakes/nixos-rebuild.html
     # for example usage of this attribute.
     #
