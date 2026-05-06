@@ -29,6 +29,7 @@
           path = [
             pkgs.inotify-tools
             pkgs.coreutils
+            pkgs.systemd
           ];
           script = ''
             MSG="Key ${value.path} exists."
