@@ -37,14 +37,13 @@
 
             echo "waiting to fail if the key is removed..."
 
-            while inotifywait -e delete_self "${value.path}"; do
-              MSG="Key ${value.path} no longer exists."
+            inotifywait -e delete_self "${value.path}"
 
-              systemd-notify --status="$MSG"
-              echo $MSG
+            MSG="Key ${value.path} no longer exists."
 
-              exit 1
-            done
+            systemd-notify --status="$MSG"
+            echo $MSG
+            exit 1
           '';
           unitConfig = {
             AssertPathExists = value.path;
