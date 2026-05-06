@@ -139,17 +139,6 @@ fn apply_plan(
         }));
     }
 
-    if !*no_keys
-        && matches!(
-            &goal,
-            ApplyGoal::Keys | ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch)
-        )
-    {
-        let (pre, post) = apply_plan_keys(args, node, &target);
-        steps.extend(pre);
-        end.extend(post);
-    }
-
     if !matches!(goal, ApplyGoal::Keys) {
         steps.push(Step::Evaluate(Evaluate));
     }
@@ -182,6 +171,17 @@ fn apply_plan(
             substitute_on_destination: *substitute_on_destination,
             target: target.clone(),
         }));
+    }
+
+    if !*no_keys
+        && matches!(
+            &goal,
+            ApplyGoal::Keys | ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch)
+        )
+    {
+        let (pre, post) = apply_plan_keys(args, node, &target);
+        steps.extend(pre);
+        end.extend(post);
     }
 
     if let ApplyGoal::SwitchToConfiguration(goal) = goal {
@@ -303,22 +303,7 @@ mod tests {
 
         assert_eq!(
             plan.steps,
-            vec![
-                Evaluate.into(),
-                Build { target: None }.into() // TODO: this was previously used in an old test, may lose
-                                              // coverage by deleting it.
-                                              // Ping { }.into(),
-                                              // PushKeyAgent { host_platform: "x86_64-linux".into(), substitute_on_destination: true, target: Target::default() }.into(),
-                                              // Keys { .. }.into(),
-                                              // crate::hive::steps::evaluate::Evaluate.into(),
-                                              // crate::hive::steps::build::Build { .. }.into(),
-                                              // crate::hive::steps::push::PushBuildOutput { .. }.into(),
-                                              // SwitchToConfiguration { .. }.into(),
-                                              // Keys {
-                                              //     filter: UploadKeyAt::PostActivation
-                                              // }
-                                              // .into(),
-            ]
+            vec![Evaluate.into(), Build { target: None }.into()]
         );
     }
 
