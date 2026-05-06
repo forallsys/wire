@@ -49,7 +49,7 @@
             ConditionPathExists = value.path;
           };
           serviceConfig = {
-            Type = "simple";
+            Type = "notify";
             Restart = "no";
             NotifyAccess = "all";
             RemainAfterExit = "yes";
