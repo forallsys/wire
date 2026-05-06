@@ -55,7 +55,7 @@ in wire.makeHive {
   meta.nixpkgs = import sources.nixpkgs { };
 
   node-1 = {
-    deployment.key."file.txt" = {
+    deployment.keys."file.txt" = {
       source = ''
         Hello World!
       '';
@@ -79,7 +79,7 @@ in wire.makeHive {
   meta.nixpkgs = import sources.nixpkgs { };
 
   node-1 = {
-    deployment.key."file.txt" = {
+    deployment.keys."file.txt" = {
       source = [
         "gpg"
         "--decrypt"
@@ -124,7 +124,7 @@ in wire.makeHive {
   meta.nixpkgs = import sources.nixpkgs { };
 
   node-1 = {
-    deployment.key."file.txt" = {
+    deployment.keys."file.txt" = {
       source = [
         "bash"
         "-c"
@@ -150,7 +150,7 @@ in wire.makeHive {
   meta.nixpkgs = import sources.nixpkgs { };
 
   node-1 = {
-    deployment.key."file.txt" = {
+    deployment.keys."file.txt" = {
       # using this syntax will enter the file into the store, readable by
       # anyone!
       source = ./file.txt;
@@ -163,7 +163,7 @@ in wire.makeHive {
 
 wire defaults `destDir` to `/run/keys`. `/run/` is held in memory and will not
 persist past reboot. Change
-[`deployment.key.<name>.destDir`](/reference/module#deployment-keys-name-destdir)
+[`deployment.keys.<name>.destDir`](/reference/module#deployment-keys-name-destdir)
 to something like `/etc/keys` if you need secrets every time the machine boots.
 
 ## Upload Order
@@ -186,7 +186,7 @@ in wire.makeHive {
   meta.nixpkgs = import sources.nixpkgs { };
 
   node-1 = {
-    deployment.key."file.txt" = {
+    deployment.keys."file.txt" = {
       source = [
         "gpg"
         "--decrypt"
