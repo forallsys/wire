@@ -37,15 +37,20 @@ async fn evaluate_task(
     name: Name,
     modifiers: SubCommandModifiers,
 ) {
-    let output = evaluate_hive_attribute(&hive_location, &EvalGoal::GetTopLevel(&name), modifiers)
-        .await
-        .and_then(|output| {
-            serde_json::from_str(&output).map_err(|e| {
-                HiveLibError::HiveInitialisationError(
-                    crate::errors::HiveInitialisationError::ParseEvaluateError(e),
-                )
-            })
-        });
+    let output = evaluate_hive_attribute(
+        &hive_location,
+        &EvalGoal::GetTopLevel(&name),
+        Some(&name),
+        modifiers,
+    )
+    .await
+    .and_then(|output| {
+        serde_json::from_str(&output).map_err(|e| {
+            HiveLibError::HiveInitialisationError(
+                crate::errors::HiveInitialisationError::ParseEvaluateError(e),
+            )
+        })
+    });
 
     debug!(output = ?output, done = true);
 

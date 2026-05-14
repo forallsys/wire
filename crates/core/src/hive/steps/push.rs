@@ -27,13 +27,13 @@ pub struct PushBuildOutput {
 
 impl Display for PushEvaluatedOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Push the evaluated output")
+        write!(f, "Push evaluated output")
     }
 }
 
 impl Display for PushBuildOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Push the build output")
+        write!(f, "Push build output")
     }
 }
 

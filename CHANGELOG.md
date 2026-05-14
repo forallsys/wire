@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - yyyy-mm-dd
 
+### Added
+
+- The status bar now shows the nix status of builds, downloads, and uploads,
+  akin to the status bar of nix-output-monitor.
+
 ### Fixed
 
 - Use `AssertPathExists` instead of conditional path existence checks for key services.

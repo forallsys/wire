@@ -3,7 +3,8 @@
 
 use crate::{
     commands::pty::{InteractiveChildChip, interactive_command_with_env},
-    hive::node::SharedTarget,
+    hive::node::{Name, SharedTarget},
+    status::{UI_SENDER, create_activity_category},
 };
 use std::{
     collections::HashMap,
@@ -26,9 +27,9 @@ pub mod common;
 pub(crate) mod noninteractive;
 pub(crate) mod pty;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum ChildOutputMode {
-    Nix,
+    Nix(Option<Name>),
     Generic,
     Interactive,
 }
@@ -76,7 +77,7 @@ impl<S: AsRef<str>> CommandArguments<S> {
         self
     }
 
-    pub(crate) const fn mode(mut self, mode: ChildOutputMode) -> Self {
+    pub(crate) fn mode(mut self, mode: ChildOutputMode) -> Self {
         self.output_mode = mode;
         self
     }
@@ -156,19 +157,19 @@ impl WireCommandChip for Either<InteractiveChildChip, NonInteractiveChildChip> {
 impl ChildOutputMode {
     /// this function is by far the biggest hotspot in the whole tree
     /// Returns a string if this log is notable to be stored as an error message
-    fn trace_slice(self, line: &mut [u8]) -> Option<String> {
-        let slice = match self {
+    fn trace_slice(&self, line: &mut [u8]) -> Option<String> {
+        let (slice, task_name) = match self {
             Self::Generic | Self::Interactive => {
                 let string = String::from_utf8_lossy(line);
                 let stripped = strip_ansi_escapes::strip_str(&string);
                 warn!("{stripped}");
                 return Some(string.to_string());
             }
-            Self::Nix => {
+            Self::Nix(task_name) => {
                 let position = AHO_CORASICK.find(&line).map(|x| &mut line[x.end()..]);
 
                 if let Some(json_buf) = position {
-                    json_buf
+                    (json_buf, task_name)
                 } else {
                     // usually happens when ssh is outputting something
                     warn!("{}", String::from_utf8_lossy(line));
@@ -177,16 +178,50 @@ impl ChildOutputMode {
             }
         };
 
-        let Ok(log_message) = serde_json::from_slice::<LogMessage>(slice) else {
-            // failed to parse, print the string regardless as a backup
-            warn!("{}", String::from_utf8_lossy(slice));
-            return None;
+        let log_message = match serde_json::from_slice::<LogMessage>(slice) {
+            Ok(log_message) => log_message,
+            Err(err) => {
+                // failed to parse, print the string regardless as a backup
+                warn!(
+                    "failed to parse log `{}`: {err}",
+                    String::from_utf8_lossy(slice)
+                );
+                return None;
+            }
         };
 
         let (msg, level) = match log_message {
-            LogMessage::Start { text, level, .. } => (text, level),
+            LogMessage::Start {
+                text,
+                level,
+                id,
+                r#type,
+                fields,
+                ..
+            } => {
+                if let Some(tx) = UI_SENDER.get() {
+                    let _ = tx.send(crate::status::UiMessage::ActivityBegin {
+                        node: task_name.clone(),
+                        id,
+                        activity_category: create_activity_category(&r#type, fields),
+                    });
+                }
+
+                (text, level)
+            }
+            LogMessage::Stop { id } => {
+                if let Some(tx) = UI_SENDER.get() {
+                    let _ = tx.send(crate::status::UiMessage::ActivityEnd {
+                        node: task_name.clone(),
+                        id,
+                        result: None,
+                    });
+                }
+
+                return None;
+            }
             LogMessage::Msg { msg, level, .. } => (msg, level),
-            _ => return None,
+            LogMessage::SetPhase { .. } | LogMessage::Result { .. } => return None,
         };
 
         if msg.is_empty() {

@@ -141,7 +141,7 @@ async fn main() -> Result<()> {
                     }
                 }
                 cli::Inspection::Names => {
-                    let names = get_hive_node_names(&location, modifiers).await?;
+                    let names = get_hive_node_names(&location, None, modifiers).await?;
 
                     if json {
                         serde_json::to_string(&names).into_diagnostic()?

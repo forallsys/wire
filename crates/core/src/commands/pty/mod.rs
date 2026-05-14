@@ -138,7 +138,7 @@ pub(crate) async fn interactive_command_with_env<S: AsRef<str>>(
         "{starting}{command} {flags} {IO_SUBS} && {ending}",
         command = arguments.command_string.as_ref(),
         flags = match arguments.output_mode {
-            ChildOutputMode::Nix => "--log-format internal-json",
+            ChildOutputMode::Nix(..) => "--log-format internal-json",
             ChildOutputMode::Generic | ChildOutputMode::Interactive => "",
         },
         starting = create_starting_segment(arguments, &needles.start),
@@ -184,7 +184,7 @@ pub(crate) async fn interactive_command_with_env<S: AsRef<str>>(
             began_tx,
             reader,
             needles,
-            output_mode: arguments.output_mode,
+            output_mode: arguments.output_mode.clone(),
             stderr_collection: stderr_collection.clone(),
             stdout_collection: stdout_collection.clone(),
             span: Span::current(),

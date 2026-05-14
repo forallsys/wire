@@ -130,7 +130,7 @@ pub(super) fn handle_pty_stdout(arguments: WatchStdoutArguments) -> Result<(), C
                         &stdout_collection,
                         &mut line,
                         log_stdout,
-                        output_mode,
+                        &output_mode,
                     );
                 }
             }
@@ -189,7 +189,7 @@ fn handle_normal_data(
     stdout_collection: &Arc<Mutex<VecDeque<String>>>,
     line: &mut [u8],
     log_stdout: bool,
-    output_mode: ChildOutputMode,
+    output_mode: &ChildOutputMode,
 ) {
     if line.starts_with(b"#") {
         let stripped = &mut line[1..];

@@ -64,7 +64,7 @@ impl Hive {
             return Ok(hive);
         }
 
-        let output = evaluate_hive_attribute(location, &EvalGoal::Inspect, modifiers).await?;
+        let output = evaluate_hive_attribute(location, &EvalGoal::Inspect, None, modifiers).await?;
 
         let hive: Hive = serde_json::from_str(&output).map_err(|err| {
             HiveLibError::HiveInitialisationError(HiveInitialisationError::ParseEvaluateError(err))

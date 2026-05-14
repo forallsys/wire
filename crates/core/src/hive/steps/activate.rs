@@ -23,7 +23,7 @@ pub struct SwitchToConfiguration {
 
 impl Display for SwitchToConfiguration {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "switch-to-configuration")
+        write!(f, "Run switch-to-configuration")
     }
 }
 
@@ -59,7 +59,9 @@ impl SwitchToConfiguration {
 
         let child = run_command(
             &CommandArguments::new(command_string, ctx.modifiers)
-                .mode(crate::commands::ChildOutputMode::Nix)
+                .mode(crate::commands::ChildOutputMode::Nix(Some(
+                    ctx.name.clone(),
+                )))
                 .execute_on_remote(self.target.clone())
                 .privileged(&self.privilege_escalation_command),
         )

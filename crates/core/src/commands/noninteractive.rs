@@ -51,7 +51,7 @@ pub(crate) async fn non_interactive_command_with_env<S: AsRef<str>>(
         command_string = arguments.command_string.as_ref(),
         extra = match arguments.output_mode {
             ChildOutputMode::Generic | ChildOutputMode::Interactive => "",
-            ChildOutputMode::Nix => " --log-format internal-json",
+            ChildOutputMode::Nix(..) => " --log-format internal-json",
         }
     );
 
@@ -88,7 +88,7 @@ pub(crate) async fn non_interactive_command_with_env<S: AsRef<str>>(
         .ok_or(HiveLibError::CommandError(CommandError::NoHandle))?;
 
     let mut joinset = JoinSet::new();
-    let output_mode = Arc::new(arguments.output_mode);
+    let output_mode = Arc::new(arguments.output_mode.clone());
 
     joinset.spawn(
         handle_io(

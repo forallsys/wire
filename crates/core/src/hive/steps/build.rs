@@ -22,7 +22,7 @@ pub struct Build {
 
 impl Display for Build {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Build the node")
+        write!(f, "Build")
     }
 }
 
@@ -46,7 +46,9 @@ impl ExecuteStep for Build {
             &CommandArguments::new(command_string, ctx.modifiers)
                 // build remotely if asked for AND we arent applying locally
                 .execute_on_remote(self.target.clone())
-                .mode(crate::commands::ChildOutputMode::Nix)
+                .mode(crate::commands::ChildOutputMode::Nix(Some(
+                    ctx.name.clone(),
+                )))
                 .log_stdout(),
             std::collections::HashMap::new(),
         )

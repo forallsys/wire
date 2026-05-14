@@ -376,7 +376,7 @@ fn node_names_completer(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
         }
 
         if let Ok(names) =
-            handle.block_on(async { get_hive_node_names(&hive_location, modifiers).await })
+            handle.block_on(async { get_hive_node_names(&hive_location, None, modifiers).await })
         {
             for name in names {
                 if name.starts_with(current) {
