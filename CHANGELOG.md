@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - yyyy-mm-dd
 
+### Changed
+
+- The pre-activation key stage is now scheduled after the evaluation stage. The
+  rationale for this is that while iterating on evaluation errors it was often quite 
+  annoying to repeatedly enter your password for key deployment.
+
 ### Fixed
 
 - Use `AssertPathExists` instead of conditional path existence checks for key services.
