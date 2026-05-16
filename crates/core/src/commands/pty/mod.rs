@@ -254,7 +254,13 @@ async fn print_authenticate_warning<S: AsRef<str>>(
         format!(
             "{}@{}:{}",
             target.user,
-            target.get_preferred_host()?,
+            target
+                .get_preferred_host()
+                .map(|host| if host.contains(':') {
+                    format!("[{host}]")
+                } else {
+                    host.to_string()
+                })?,
             target.port
         )
     } else {

@@ -10,8 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - The pre-activation key stage is now scheduled after the evaluation stage. The
-  rationale for this is that while iterating on evaluation errors it was often quite 
+  rationale for this is that while iterating on evaluation errors it was often quite
   annoying to repeatedly enter your password for key deployment.
+- Ipv6 addresses are now displayed in a nicer format in "Authenticate for ..."
+  prompts.
 
 ### Fixed
 
