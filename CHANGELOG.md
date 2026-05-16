@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - yyyy-mm-dd
 
+### Added
+
+- `--print-build-logs` / `-L` argument.
+
 ### Changed
 
 - The pre-activation key stage is now scheduled after the evaluation stage. The

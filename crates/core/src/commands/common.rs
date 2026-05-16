@@ -148,6 +148,7 @@ pub async fn evaluate_hive_attribute(
         "--json",
     ]);
     command_string.opt_arg(modifiers.show_trace, "--show-trace");
+    command_string.opt_arg(modifiers.print_build_logs, "--print-build-logs");
     command_string.arg(&attribute);
 
     let child = run_command(

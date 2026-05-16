@@ -173,6 +173,9 @@ pub struct CommonVerbArgs {
 
     #[arg(short, long, default_value_t = 10, value_parser=more_than_zero)]
     pub parallel: usize,
+
+    #[arg(short = 'L', long, default_value_t = false)]
+    pub print_build_logs: bool,
 }
 
 #[allow(clippy::struct_excessive_bools)]
@@ -335,6 +338,11 @@ impl ToSubCommandModifiers for Cli {
                     wire_core::StrictHostKeyChecking::No
                 }
                 _ => wire_core::StrictHostKeyChecking::default(),
+            },
+            print_build_logs: match &self.command {
+                Commands::Apply(args) => args.common.print_build_logs,
+                Commands::Build(args) => args.common.print_build_logs,
+                Commands::Inspect { .. } => false,
             },
             ssh_verbosity: match &self.command {
                 Commands::Apply(args) => args.ssh_verbose.into(),

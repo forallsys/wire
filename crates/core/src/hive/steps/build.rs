@@ -36,10 +36,10 @@ impl ExecuteStep for Build {
             "--extra-experimental-features",
             "nix-command",
             "build",
-            "--print-build-logs",
             "--no-link",
             "--print-out-paths",
         ]);
+        command_string.opt_arg(ctx.modifiers.print_build_logs, "--print-build-logs");
         command_string.arg(top_level.to_string());
 
         let status = run_command_with_env(
