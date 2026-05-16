@@ -3,16 +3,19 @@
 
 use crate::{
     commands::pty::{InteractiveChildChip, interactive_command_with_env},
-    hive::node::SharedTarget,
+    hive::node::{BuildNameMap, SharedTarget},
 };
+use core::str;
 use std::{
+    borrow::Cow,
     collections::HashMap,
-    sync::{Arc, LazyLock},
+    path::Path,
+    sync::{Arc, LazyLock, nonpoison::Mutex},
 };
 
 use aho_corasick::AhoCorasick;
 use itertools::Itertools;
-use nix_compat::log::{AT_NIX_PREFIX, LogMessage, VerbosityLevel};
+use nix_compat::log::{AT_NIX_PREFIX, Field, LogMessage, ResultType, VerbosityLevel};
 use tracing::{debug, error, info, trace, warn};
 
 use crate::{
@@ -48,6 +51,7 @@ pub(crate) struct CommandArguments<S: AsRef<str>> {
     keep_stdin_open: bool,
     privilege_escalation_command: Option<String>,
     log_stdout: bool,
+    build_name_map: BuildNameMap,
 }
 
 static AHO_CORASICK: LazyLock<AhoCorasick> = LazyLock::new(|| {
@@ -59,7 +63,7 @@ static AHO_CORASICK: LazyLock<AhoCorasick> = LazyLock::new(|| {
 });
 
 impl<S: AsRef<str>> CommandArguments<S> {
-    pub(crate) const fn new(command_string: S, modifiers: SubCommandModifiers) -> Self {
+    pub(crate) fn new(command_string: S, modifiers: SubCommandModifiers) -> Self {
         Self {
             command_string,
             keep_stdin_open: false,
@@ -68,6 +72,7 @@ impl<S: AsRef<str>> CommandArguments<S> {
             target: None,
             output_mode: ChildOutputMode::Generic,
             modifiers,
+            build_name_map: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -156,7 +161,7 @@ impl WireCommandChip for Either<InteractiveChildChip, NonInteractiveChildChip> {
 impl ChildOutputMode {
     /// this function is by far the biggest hotspot in the whole tree
     /// Returns a string if this log is notable to be stored as an error message
-    fn trace_slice(self, line: &mut [u8]) -> Option<String> {
+    fn trace_slice(self, line: &mut [u8], build_name_map: &BuildNameMap) -> Option<String> {
         let slice = match self {
             Self::Generic | Self::Interactive => {
                 let string = String::from_utf8_lossy(line);
@@ -183,9 +188,58 @@ impl ChildOutputMode {
             return None;
         };
 
-        let (msg, level) = match log_message {
-            LogMessage::Start { text, level, .. } => (text, level),
-            LogMessage::Msg { msg, level, .. } => (msg, level),
+        let (msg, level, build_name) = match log_message {
+            LogMessage::Start {
+                text,
+                r#type,
+                level,
+                id,
+                fields,
+                ..
+            } => {
+                if let Some(fields) = fields
+                    && matches!(r#type, nix_compat::log::ActivityType::Build)
+                    // first field of start log contains the build name.
+                    && let Some(Field::String(name)) = fields.first()
+                {
+                    build_name_map
+                        .lock()
+                        .insert(id, drv_path_to_build_name(name));
+                }
+
+                (text, level, None)
+            }
+            LogMessage::Stop { id, .. } => {
+                build_name_map.lock().remove(&id);
+
+                return None;
+            }
+            LogMessage::Msg { msg, level, .. } => (msg, level, None),
+            LogMessage::Result {
+                r#type: ResultType::BuildLogLine,
+                fields,
+                id,
+                ..
+            } => {
+                let Some(Field::String(msg)) = fields.into_iter().next() else {
+                    return None;
+                };
+
+                // Attempt to reuse owned bytes into a utf8 string, or falls
+                // back lossy if it fails.
+                let msg = match msg {
+                    std::borrow::Cow::Borrowed(bytes) => String::from_utf8_lossy(bytes),
+                    std::borrow::Cow::Owned(vec) => match String::from_utf8(vec) {
+                        Ok(s) => Cow::Owned(s),
+                        Err(e) => Cow::Owned(String::from_utf8_lossy(e.as_bytes()).into_owned()),
+                    },
+                };
+
+                let lock = build_name_map.lock();
+                let build_name = lock.get(&id).cloned();
+
+                (msg, VerbosityLevel::Info, build_name)
+            }
             _ => return None,
         };
 
@@ -195,23 +249,81 @@ impl ChildOutputMode {
 
         let msg = strip_ansi_escapes::strip_str(msg);
 
-        match level {
-            VerbosityLevel::Info => info!("{msg}"),
-            VerbosityLevel::Warn | VerbosityLevel::Notice => warn!("{msg}"),
-            VerbosityLevel::Error => error!("{msg}"),
-            VerbosityLevel::Debug => debug!("{msg}"),
-            VerbosityLevel::Vomit | VerbosityLevel::Talkative | VerbosityLevel::Chatty => {
-                trace!("{msg}");
-            }
-        }
+        let level = log_print(&level, build_name.as_ref(), &msg);
 
-        if matches!(
-            level,
-            VerbosityLevel::Error | VerbosityLevel::Warn | VerbosityLevel::Notice
-        ) {
+        if matches!(level, tracing::Level::ERROR | tracing::Level::WARN) {
             return Some(msg);
         }
 
         None
     }
+}
+
+fn log_print(
+    level: &VerbosityLevel,
+    build_name: Option<&Arc<String>>,
+    msg: &String,
+) -> tracing::Level {
+    let level: tracing::Level = match level {
+        VerbosityLevel::Info => tracing::Level::INFO,
+        VerbosityLevel::Warn | VerbosityLevel::Notice => tracing::Level::WARN,
+        VerbosityLevel::Error => tracing::Level::ERROR,
+        VerbosityLevel::Debug => tracing::Level::DEBUG,
+        VerbosityLevel::Vomit | VerbosityLevel::Talkative | VerbosityLevel::Chatty => {
+            tracing::Level::TRACE
+        }
+    };
+
+    if let Some(build_name) = build_name {
+        match level {
+            tracing::Level::ERROR => error!(build = %build_name, "{msg}"),
+            tracing::Level::WARN => warn!(build = %build_name, "{msg}"),
+            tracing::Level::INFO => info!(build = %build_name, "{msg}"),
+            tracing::Level::DEBUG => debug!(build = %build_name, "{msg}"),
+            tracing::Level::TRACE => trace!(build = %build_name, "{msg}"),
+        }
+    } else {
+        match level {
+            tracing::Level::ERROR => error!("{msg}"),
+            tracing::Level::WARN => warn!("{msg}"),
+            tracing::Level::INFO => info!("{msg}"),
+            tracing::Level::DEBUG => debug!("{msg}"),
+            tracing::Level::TRACE => trace!("{msg}"),
+        }
+    }
+
+    level
+}
+
+fn drv_path_to_build_name(drv_path: &[u8]) -> Arc<String> {
+    let string = match String::from_utf8(drv_path.to_vec()) {
+        Err(err) => {
+            error!(err = %err, "failed to parse build job name");
+
+            return Arc::new(String::from_utf8_lossy(drv_path).to_string());
+        }
+        Ok(str) => str,
+    };
+
+    let Some(file_stem) = Path::new(&string).file_stem() else {
+        error!("drv path build job's file_stem was None");
+
+        return Arc::new(String::from_utf8_lossy(drv_path).to_string());
+    };
+
+    let Some(file_stem) = file_stem.to_str() else {
+        error!("drv path build job's file_stem was not valid unicode");
+
+        return Arc::new(String::from_utf8_lossy(drv_path).to_string());
+    };
+
+    let build_name = file_stem.split_once('-').map_or_else(
+        || {
+            error!("unexpected drv build job file stem format");
+            file_stem
+        },
+        |(_, name)| name,
+    );
+
+    Arc::new(build_name.to_string())
 }

@@ -10,6 +10,7 @@ use crate::{
         },
     },
     errors::CommandError,
+    hive::node::BuildNameMap,
 };
 use aho_corasick::AhoCorasick;
 use std::{
@@ -30,6 +31,7 @@ pub(super) struct WatchStdoutArguments {
     pub status_sender: watch::Sender<Status>,
     pub span: Span,
     pub log_stdout: bool,
+    pub build_name_map: BuildNameMap,
 }
 
 /// Handles data from the PTY, and logs or prompts the user depending on the state
@@ -49,6 +51,7 @@ pub(super) fn handle_pty_stdout(arguments: WatchStdoutArguments) -> Result<(), C
         stderr_collection,
         status_sender,
         log_stdout,
+        build_name_map,
         ..
     } = arguments;
 
@@ -131,6 +134,7 @@ pub(super) fn handle_pty_stdout(arguments: WatchStdoutArguments) -> Result<(), C
                         &mut line,
                         log_stdout,
                         output_mode,
+                        &build_name_map,
                     );
                 }
             }
@@ -190,12 +194,13 @@ fn handle_normal_data(
     line: &mut [u8],
     log_stdout: bool,
     output_mode: ChildOutputMode,
+    build_name_map: &BuildNameMap,
 ) {
     if line.starts_with(b"#") {
         let stripped = &mut line[1..];
 
         if log_stdout {
-            output_mode.trace_slice(stripped);
+            output_mode.trace_slice(stripped, build_name_map);
         }
 
         let mut queue = stdout_collection.lock().unwrap();
@@ -203,7 +208,7 @@ fn handle_normal_data(
         return;
     }
 
-    let log = output_mode.trace_slice(line);
+    let log = output_mode.trace_slice(line, build_name_map);
 
     if let Some(error_msg) = log {
         let mut queue = stderr_collection.lock().unwrap();

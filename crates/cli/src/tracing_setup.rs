@@ -13,7 +13,7 @@ use tracing_subscriber::{
     field::{RecordFields, VisitFmt},
     fmt::{
         FormatEvent, FormatFields, FormattedFields,
-        format::{self, DefaultFields, DefaultVisitor, Format, Full},
+        format::{self, DefaultVisitor, Format, Full},
     },
     layer::{Context, SubscriberExt},
     registry::LookupSpan,
@@ -48,30 +48,30 @@ impl Write for NonClobberingWriter {
 /// passed.
 struct WireEventFormat(Format<Full, ()>);
 /// Formats the node's name with `WireFieldVisitor`
-struct WireFieldFormat;
-struct WireFieldVisitor<'a>(DefaultVisitor<'a>);
+struct WireSpanFieldFormat;
+struct WireSpanFieldVisitor<'a>(DefaultVisitor<'a>);
 /// `WireLayer` injects `WireFieldFormat` as an extension on the event
 struct WireLayer;
 
-impl<'a> WireFieldVisitor<'a> {
+impl<'a> WireSpanFieldVisitor<'a> {
     fn new(writer: format::Writer<'a>, is_empty: bool) -> Self {
         Self(DefaultVisitor::new(writer, is_empty))
     }
 }
 
-impl<'writer> FormatFields<'writer> for WireFieldFormat {
+impl<'writer> FormatFields<'writer> for WireSpanFieldFormat {
     fn format_fields<R: RecordFields>(
         &self,
         writer: format::Writer<'writer>,
         fields: R,
     ) -> std::fmt::Result {
-        let mut v = WireFieldVisitor::new(writer, true);
+        let mut v = WireSpanFieldVisitor::new(writer, true);
         fields.record(&mut v);
         Ok(())
     }
 }
 
-impl tracing::field::Visit for WireFieldVisitor<'_> {
+impl tracing::field::Visit for WireSpanFieldVisitor<'_> {
     fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
         if field.name() == "node" {
             let _ = write!(
@@ -118,6 +118,33 @@ where
         mut writer: tracing_subscriber::fmt::format::Writer<'_>,
         event: &tracing::Event<'_>,
     ) -> std::fmt::Result {
+        struct OrderedFieldsVisitor {
+            msg: String,
+            build: String,
+            other: String,
+            has_fields: bool,
+        }
+
+        // deliberately place the build job field before other fields including the
+        // message
+        impl tracing::field::Visit for OrderedFieldsVisitor {
+            fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
+                use std::fmt::Write;
+
+                self.has_fields = true;
+                if field.name() == "message" || field.name() == "msg" {
+                    self.msg = format!("{value:?}");
+                } else if field.name() == "build" {
+                    self.build = format!("{value:?}");
+                } else {
+                    if !self.other.is_empty() {
+                        self.other.push_str(", ");
+                    }
+                    let _ = write!(self.other, "{}={value:?}", field.name());
+                }
+            }
+        }
+
         let metadata = event.metadata();
 
         // skip events without an "event_scope"
@@ -140,6 +167,19 @@ where
             return self.0.format_event(ctx, writer, event);
         }
 
+        let mut visitor = OrderedFieldsVisitor {
+            msg: String::new(),
+            build: String::new(),
+            other: String::new(),
+            has_fields: false,
+        };
+        event.record(&mut visitor);
+
+        // Skip logging if there's no fields at all
+        if !visitor.has_fields {
+            return Ok(());
+        }
+
         let style = get_style(*metadata.level());
 
         // write the log level with colour
@@ -152,7 +192,7 @@ where
         // extract the formatted node name into a string
         let parent_ext = parent.extensions();
         let node_name = &parent_ext
-            .get::<FormattedFields<WireFieldFormat>>()
+            .get::<FormattedFields<WireSpanFieldFormat>>()
             .unwrap();
 
         write!(writer, "{node_name}")?;
@@ -162,14 +202,24 @@ where
             write!(writer, " {}", step.name().italic())?;
         }
 
-        write!(writer, " | ")?;
+        if !visitor.build.is_empty() {
+            write!(
+                writer,
+                " {}",
+                visitor
+                    .build
+                    .if_supports_color(Stream::Stderr, |text| text.dimmed())
+            )?;
+        }
 
-        // write the default fields, including the actual message and other data
-        let mut fields = FormattedFields::<DefaultFields>::new(String::new());
+        if !visitor.msg.is_empty() {
+            write!(writer, " | {}", visitor.msg)?;
+        }
 
-        ctx.format_fields(fields.as_writer(), event)?;
+        if !visitor.other.is_empty() {
+            write!(writer, " | {}", visitor.other)?;
+        }
 
-        write!(writer, "{fields}")?;
         writeln!(writer)?;
 
         Ok(())
@@ -188,12 +238,12 @@ where
     ) {
         let span = ctx.span(id).unwrap();
 
-        if span.extensions().get::<WireFieldFormat>().is_some() {
+        if span.extensions().get::<WireSpanFieldFormat>().is_some() {
             return;
         }
 
-        let mut fields = FormattedFields::<WireFieldFormat>::new(String::new());
-        if WireFieldFormat
+        let mut fields = FormattedFields::<WireSpanFieldFormat>::new(String::new());
+        if WireSpanFieldFormat
             .format_fields(fields.as_writer(), attrs)
             .is_ok()
         {

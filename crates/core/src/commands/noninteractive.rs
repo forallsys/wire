@@ -11,7 +11,7 @@ use crate::{
     SubCommandModifiers,
     commands::{ChildOutputMode, CommandArguments, WireCommandChip},
     errors::{CommandError, HiveLibError},
-    hive::node::SharedTarget,
+    hive::node::{BuildNameMap, SharedTarget},
 };
 use itertools::Itertools;
 use tokio::{
@@ -97,6 +97,7 @@ pub(crate) async fn non_interactive_command_with_env<S: AsRef<str>>(
             error_collection.clone(),
             true,
             true,
+            arguments.build_name_map.clone(),
         )
         .in_current_span(),
     );
@@ -107,6 +108,7 @@ pub(crate) async fn non_interactive_command_with_env<S: AsRef<str>>(
             stdout_collection.clone(),
             false,
             arguments.log_stdout,
+            arguments.build_name_map.clone(),
         )
         .in_current_span(),
     );
@@ -161,6 +163,7 @@ pub async fn handle_io<R>(
     collection: Arc<Mutex<VecDeque<String>>>,
     is_error: bool,
     should_log: bool,
+    build_name_map: BuildNameMap,
 ) where
     R: tokio::io::AsyncRead + Unpin,
 {
@@ -170,7 +173,7 @@ pub async fn handle_io<R>(
         let mut line = line.into_bytes();
 
         let log = if should_log {
-            Some(output_mode.trace_slice(&mut line))
+            Some(output_mode.trace_slice(&mut line, &build_name_map))
         } else {
             None
         };

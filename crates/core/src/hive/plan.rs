@@ -1,4 +1,7 @@
-use std::sync::{Arc, atomic::AtomicBool};
+use std::{
+    collections::HashMap,
+    sync::{Arc, atomic::AtomicBool, nonpoison::Mutex},
+};
 
 use tokio::sync::RwLock;
 
@@ -206,6 +209,7 @@ fn apply_plan(
             hive_location,
             modifiers,
             should_quit,
+            build_id_names: Arc::new(Mutex::new(HashMap::new())),
         },
         steps,
         greedy_evaluate: !matches!(&goal, ApplyGoal::Keys),
@@ -230,6 +234,7 @@ pub fn plan_for_node(
                 hive_location,
                 should_quit,
                 name,
+                build_id_names: Arc::new(Mutex::new(HashMap::new())),
             },
             steps: vec![
                 Step::Evaluate(Evaluate),

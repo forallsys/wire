@@ -5,9 +5,11 @@
 use enum_dispatch::enum_dispatch;
 use gethostname::gethostname;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::nonpoison::Mutex;
 use tokio::sync::{RwLock, oneshot};
 use tracing::instrument;
 
@@ -286,12 +288,16 @@ pub struct StepState {
     pub key_agent_directory: Option<String>,
 }
 
+pub type BuildNameMap = Arc<Mutex<HashMap<u64, Arc<String>>>>;
+
 pub struct Context {
     pub hive_location: Arc<HiveLocation>,
     pub modifiers: SubCommandModifiers,
     pub state: StepState,
     pub should_quit: Arc<AtomicBool>,
     pub name: Name,
+
+    pub build_id_names: BuildNameMap,
 }
 
 #[enum_dispatch(ExecuteStep)]
