@@ -10,6 +10,7 @@ name = "wire"
 [workspace.lints.clippy]
 pedantic = { level = "deny", priority = -1 }
 missing_const_for_fn = "deny"
+disallowed_types = "warn"
 
 # annoying to deal with
 missing_errors_doc = "allow"

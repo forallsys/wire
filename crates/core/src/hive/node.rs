@@ -22,7 +22,7 @@ use crate::hive::steps::evaluate::Evaluate;
 use crate::hive::steps::keys::{Key, Keys, PushKeyAgent};
 use crate::hive::steps::ping::Ping;
 use crate::hive::steps::push::{PushBuildOutput, PushEvaluatedOutput};
-use crate::{StrictHostKeyChecking, SubCommandModifiers};
+use crate::{SafeStorePath, StrictHostKeyChecking, SubCommandModifiers};
 
 use super::HiveLibError;
 use super::steps::activate::SwitchToConfiguration;
@@ -235,19 +235,9 @@ pub fn should_apply_locally(allow_local_deployment: bool, name: &str) -> bool {
     *name == *gethostname() && allow_local_deployment
 }
 
-#[derive(derive_more::Display)]
 pub enum Push<'a> {
-    Derivation(&'a Derivation),
-    Path(&'a String),
-}
-
-#[derive(Deserialize, Clone, Debug)]
-pub struct Derivation(String);
-
-impl Display for Derivation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f).and_then(|()| write!(f, "^*"))
-    }
+    Derivation(&'a SafeStorePath<String>),
+    Path(&'a SafeStorePath<String>),
 }
 
 #[derive(derive_more::Display, Debug, Clone, Copy, PartialEq, Eq)]
@@ -282,10 +272,10 @@ pub enum HandleUnreachable {
 
 #[derive(Default)]
 pub struct StepState {
-    pub evaluation: Option<Derivation>,
-    pub evaluation_rx: Option<oneshot::Receiver<Result<Derivation, HiveLibError>>>,
-    pub build: Option<String>,
-    pub key_agent_directory: Option<String>,
+    pub evaluation: Option<SafeStorePath<String>>,
+    pub evaluation_rx: Option<oneshot::Receiver<Result<SafeStorePath<String>, HiveLibError>>>,
+    pub build: Option<SafeStorePath<String>>,
+    pub key_agent_directory: Option<SafeStorePath<String>>,
 }
 
 pub type BuildNameMap = Arc<Mutex<HashMap<u64, Arc<String>>>>;

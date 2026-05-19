@@ -6,7 +6,7 @@ use std::{fmt::Display, sync::Arc};
 use tracing::{error, info, instrument, warn};
 
 use crate::{
-    HiveLibError,
+    HiveLibError, SafeStorePath,
     commands::{CommandArguments, WireCommandChip, builder::CommandStringBuilder, run_command},
     errors::{ActivationError, NetworkError},
     hive::node::{Context, ExecuteStep, SharedTarget, SwitchToConfigurationGoal},
@@ -47,7 +47,11 @@ async fn wait_for_ping(target: &SharedTarget, ctx: &Context) -> Result<(), HiveL
 }
 
 impl SwitchToConfiguration {
-    async fn set_profile(&self, built_path: &String, ctx: &Context) -> Result<(), HiveLibError> {
+    async fn set_profile(
+        &self,
+        built_path: &SafeStorePath<String>,
+        ctx: &Context,
+    ) -> Result<(), HiveLibError> {
         info!(
             "Setting profiles in anticipation for switch-to-configuration {}",
             self.goal
@@ -55,7 +59,7 @@ impl SwitchToConfiguration {
 
         let mut command_string = CommandStringBuilder::new("nix-env");
         command_string.args(&["-p", "/nix/var/nix/profiles/system", "--set"]);
-        command_string.arg(built_path);
+        command_string.arg(built_path.to_absolute_path());
 
         let child = run_command(
             &CommandArguments::new(command_string, ctx.modifiers)
@@ -93,8 +97,10 @@ impl ExecuteStep for SwitchToConfiguration {
 
         info!("Running switch-to-configuration {}", self.goal);
 
-        let mut command_string =
-            CommandStringBuilder::new(format!("{built_path}/bin/switch-to-configuration"));
+        let mut command_string = CommandStringBuilder::new(format!(
+            "{}/bin/switch-to-configuration",
+            built_path.to_absolute_path()
+        ));
         command_string.arg(match self.goal {
             SwitchToConfigurationGoal::Switch => "switch",
             SwitchToConfigurationGoal::Boot => "boot",

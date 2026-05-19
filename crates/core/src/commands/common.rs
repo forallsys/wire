@@ -48,8 +48,8 @@ pub async fn push(
             host = target.get_preferred_host()?,
         ),
         match push {
-            Push::Derivation(drv) => format!("{drv} --derivation"),
-            Push::Path(path) => path.clone(),
+            Push::Derivation(drv) => format!("{}^* --derivation", drv.to_absolute_path()),
+            Push::Path(path) => path.to_absolute_path(),
         },
     ]);
 
@@ -73,7 +73,9 @@ pub async fn push(
 
     status.map_err(|error| HiveLibError::NixCopyError {
         name: context.name.clone(),
-        path: push.to_string(),
+        path: match push {
+            Push::Derivation(path) | Push::Path(path) => path.clone(),
+        },
         error: Box::new(error),
         help,
     })?;

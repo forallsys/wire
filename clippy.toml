@@ -1,0 +1,3 @@
+disallowed-types = [
+  { path = "nix_compat::store_path::StorePath", reason = "use `SafeStorePath` instead to ensure path prefixes are handled correctly", replacement = "crate::SafeStorePath" },
+]

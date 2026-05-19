@@ -6,7 +6,7 @@ use std::fmt::Display;
 use tracing::{info, instrument};
 
 use crate::{
-    HiveLibError,
+    HiveLibError, SafeStorePath,
     commands::{
         CommandArguments, Either, WireCommandChip, builder::CommandStringBuilder,
         run_command_with_env,
@@ -40,7 +40,7 @@ impl ExecuteStep for Build {
             "--print-out-paths",
         ]);
         command_string.opt_arg(ctx.modifiers.print_build_logs, "--print-build-logs");
-        command_string.arg(top_level.to_string());
+        command_string.arg(format!("{}^*", top_level.to_absolute_path()));
 
         let status = run_command_with_env(
             &CommandArguments::new(command_string, ctx.modifiers)
@@ -67,7 +67,9 @@ impl ExecuteStep for Build {
         // print built path to stdout
         println!("{stdout}");
 
-        ctx.state.build = Some(stdout);
+        ctx.state.build = Some(SafeStorePath::<String>::from_absolute_path(
+            stdout.as_bytes(),
+        )?);
 
         Ok(())
     }

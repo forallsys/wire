@@ -2,6 +2,7 @@
 // Copyright 2024-2025 wire Contributors
 
 use crate::{
+    SafeStorePath,
     commands::pty::{InteractiveChildChip, interactive_command_with_env},
     hive::node::{BuildNameMap, SharedTarget},
 };
@@ -9,7 +10,6 @@ use core::str;
 use std::{
     borrow::Cow,
     collections::HashMap,
-    path::Path,
     sync::{Arc, LazyLock, nonpoison::Mutex},
 };
 
@@ -301,7 +301,7 @@ fn drv_path_to_build_name(drv_path: &[u8]) -> Arc<String> {
             error!(err = %err, "failed to parse build job name");
 
             return Arc::new(String::from_utf8_lossy(drv_path).to_string());
-        },
+        }
         Ok(path) => path,
     };
 
