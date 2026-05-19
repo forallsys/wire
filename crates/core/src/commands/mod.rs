@@ -296,34 +296,14 @@ fn log_print(
 }
 
 fn drv_path_to_build_name(drv_path: &[u8]) -> Arc<String> {
-    let string = match String::from_utf8(drv_path.to_vec()) {
+    let store_path = match SafeStorePath::<&str>::from_absolute_path(drv_path) {
         Err(err) => {
             error!(err = %err, "failed to parse build job name");
 
             return Arc::new(String::from_utf8_lossy(drv_path).to_string());
-        }
-        Ok(str) => str,
-    };
-
-    let Some(file_stem) = Path::new(&string).file_stem() else {
-        error!("drv path build job's file_stem was None");
-
-        return Arc::new(String::from_utf8_lossy(drv_path).to_string());
-    };
-
-    let Some(file_stem) = file_stem.to_str() else {
-        error!("drv path build job's file_stem was not valid unicode");
-
-        return Arc::new(String::from_utf8_lossy(drv_path).to_string());
-    };
-
-    let build_name = file_stem.split_once('-').map_or_else(
-        || {
-            error!("unexpected drv build job file stem format");
-            file_stem
         },
-        |(_, name)| name,
-    );
+        Ok(path) => path,
+    };
 
-    Arc::new(build_name.to_string())
+    Arc::new(store_path.name().to_string())
 }
