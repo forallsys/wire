@@ -14,3 +14,13 @@ to use [direnv](https://github.com/direnv/direnv).
 
 `ty check` will download the entire nixpkgs git repo. I know, its stupid. It may
 take a very long time to download on first run.
+
+To run cargo commands you'll need to setup a development sqlite file for sqlx.
+Just run
+
+```
+sqlx database create
+sqlx migrate run --source crates/core/src/cache/migrations
+```
+
+and it should resolve the issue.
