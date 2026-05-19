@@ -35,7 +35,7 @@ use wire_core::hive::plan::Goal;
 #[macro_use]
 extern crate enum_display_derive;
 
-mod apply;
+pub mod apply;
 mod cli;
 mod sigint;
 mod tracing_setup;

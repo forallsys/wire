@@ -93,6 +93,7 @@ where
         .to_vec()
 }
 
+#[allow(clippy::missing_errors_doc)]
 pub async fn apply<F>(
     hive: &mut Hive,
     should_quit: Arc<AtomicBool>,
