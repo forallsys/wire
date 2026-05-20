@@ -3,6 +3,7 @@
 
 use itertools::Itertools;
 use nix_compat::flakeref::FlakeRef;
+use nix_compat::nixhash::NixHash;
 use node::{Name, Node};
 use owo_colors::{OwoColorize, Stream};
 use serde::de::Error;
@@ -21,7 +22,7 @@ use crate::commands::builder::CommandStringBuilder;
 use crate::commands::common::evaluate_hive_attribute;
 use crate::commands::{CommandArguments, Either, WireCommandChip, run_command};
 use crate::errors::{HiveInitialisationError, HiveLocationError};
-use crate::{EvalGoal, HiveLibError, SubCommandModifiers};
+use crate::{EvalGoal, HiveLibError, SafeStorePath, SubCommandModifiers};
 pub mod executor;
 pub mod node;
 pub mod plan;
@@ -184,9 +185,9 @@ impl Display for Hive {
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct FlakePrefetch {
-    pub(crate) hash: String,
+    pub(crate) hash: NixHash,
     #[serde(rename = "storePath")]
-    pub(crate) store_path: String,
+    pub(crate) store_path: SafeStorePath<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
