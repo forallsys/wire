@@ -5,8 +5,9 @@
 #![feature(sync_nonpoison)]
 #![feature(nonpoison_mutex)]
 
-use std::{io::IsTerminal, sync::LazyLock};
+use std::{hash::Hash, io::IsTerminal, sync::LazyLock};
 
+use nix_compat::wire::ser::NixSerialize;
 use serde::Deserialize;
 use tokio::sync::{AcquireError, Semaphore, SemaphorePermit, mpsc::UnboundedSender, oneshot};
 
@@ -19,6 +20,7 @@ use crate::{
 pub mod cache;
 pub mod commands;
 pub mod hive;
+pub mod nix_client;
 pub mod status;
 
 #[cfg(test)]
@@ -106,18 +108,15 @@ pub async fn acquire_stdin_lock<'a>() -> Result<ClobberGuard<'a>, AcquireError> 
 ///
 /// If <https://github.com/rust-lang/rust-clippy/issues/8581>
 /// is ever closed, this can be dropped from the codebase.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 #[allow(clippy::disallowed_types)]
 pub struct SafeStorePath<S>(nix_compat::store_path::StorePath<S>);
 
 #[allow(clippy::disallowed_types)]
-impl<S> SafeStorePath<S>
-where
-    S: AsRef<str>,
-{
+impl<S> SafeStorePath<S> {
     pub fn from_absolute_path<'a>(s: &'a [u8]) -> Result<SafeStorePath<S>, HiveLibError>
     where
-        S: From<&'a str>,
+        S: From<&'a str> + AsRef<str>,
     {
         Ok(Self(
             nix_compat::store_path::StorePath::from_absolute_path(s).map_err(|error| {
@@ -129,9 +128,13 @@ where
         ))
     }
 
+    pub fn into_inner(self) -> nix_compat::store_path::StorePath<S> {
+        self.0
+    }
+
     pub fn from_name_and_digest<'a>(name: &'a str, digest: &[u8]) -> Result<Self, HiveLibError>
     where
-        S: From<&'a str>,
+        S: From<&'a str> + AsRef<str>,
     {
         Ok(Self(
             nix_compat::store_path::StorePath::from_name_and_digest(name, digest).map_err(
@@ -143,19 +146,24 @@ where
         ))
     }
 
-    pub fn into_inner(self) -> nix_compat::store_path::StorePath<S> {
-        self.0
-    }
-
-    pub fn to_absolute_path(&self) -> String {
+    pub fn to_absolute_path(&self) -> String
+    where
+        S: AsRef<str>,
+    {
         self.0.to_absolute_path()
     }
 
-    pub fn digest(&self) -> &[u8; nix_compat::store_path::DIGEST_SIZE] {
+    pub fn digest(&self) -> &[u8; nix_compat::store_path::DIGEST_SIZE]
+    where
+        S: AsRef<str>,
+    {
         self.0.digest()
     }
 
-    pub fn name(&self) -> &S {
+    pub fn name(&self) -> &S
+    where
+        S: AsRef<str>,
+    {
         self.0.name()
     }
 }
@@ -164,6 +172,7 @@ where
 impl<'de, S> Deserialize<'de> for SafeStorePath<S>
 where
     nix_compat::store_path::StorePath<S>: Deserialize<'de>,
+    S: AsRef<str>,
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -184,4 +193,60 @@ where
     }
 }
 
+impl<S> Hash for SafeStorePath<S>
+where
+    S: AsRef<str>,
+{
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
 impl<S> Eq for SafeStorePath<S> where S: AsRef<str> {}
+
+impl<S> NixSerialize for SafeStorePath<S>
+where
+    S: AsRef<str>,
+{
+    fn serialize<W>(&self, writer: &mut W) -> impl Future<Output = Result<(), W::Error>> + Send
+    where
+        W: nix_compat::wire::ser::NixWrite,
+    {
+        self.0.serialize(writer)
+    }
+}
+
+impl<S> NixSerialize for &SafeStorePath<S>
+where
+    S: AsRef<str>,
+{
+    fn serialize<W>(&self, writer: &mut W) -> impl Future<Output = Result<(), W::Error>> + Send
+    where
+        W: nix_compat::wire::ser::NixWrite,
+    {
+        self.0.serialize(writer)
+    }
+}
+
+#[allow(clippy::disallowed_types)]
+impl<S> From<nix_compat::store_path::StorePath<S>> for SafeStorePath<S> {
+    fn from(value: nix_compat::store_path::StorePath<S>) -> Self {
+        SafeStorePath(value)
+    }
+}
+
+#[allow(clippy::disallowed_types)]
+impl<S> From<SafeStorePath<S>> for nix_compat::store_path::StorePath<S> {
+    fn from(value: SafeStorePath<S>) -> nix_compat::store_path::StorePath<S> {
+        value.into_inner()
+    }
+}
+
+impl<S> std::fmt::Debug for SafeStorePath<S>
+where
+    S: AsRef<str>,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0.to_absolute_path())
+    }
+}

@@ -1,87 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright 2024-2025 wire Contributors
 
-use std::collections::HashMap;
-
 use tracing::instrument;
 
 use crate::{
     EvalGoal, SubCommandModifiers,
     commands::{
         CommandArguments, Either, WireCommandChip, builder::CommandStringBuilder, run_command,
-        run_command_with_env,
     },
     errors::{CommandError, HiveInitialisationError, HiveLibError},
-    hive::{
-        HiveLocation,
-        node::{Context, Push, SharedTarget},
-    },
+    hive::HiveLocation,
 };
-
-fn get_common_copy_path_help(error: &CommandError) -> Option<String> {
-    if let CommandError::CommandFailed { logs, .. } = error
-        && (logs.contains("error: unexpected end-of-file"))
-    {
-        Some("wire requires the deploying user or wire binary cache is trusted on the remote server. if you're attempting to make that change, skip keys with --no-keys. please read https://wire.forall.systems/guides/keys for more information".to_string())
-    } else {
-        None
-    }
-}
-
-pub async fn push(
-    context: &Context,
-    target: &SharedTarget,
-    push: Push<'_>,
-    substitute_on_destination: bool,
-) -> Result<(), HiveLibError> {
-    let target = target.0.read().await;
-
-    let mut command_string = CommandStringBuilder::nix();
-
-    command_string.args(&["--extra-experimental-features", "nix-command", "copy"]);
-    command_string.opt_arg(substitute_on_destination, "--substitute-on-destination");
-    command_string.arg("--to");
-    command_string.args(&[
-        format!(
-            "ssh://{user}@{host}",
-            user = target.user,
-            host = target.get_preferred_host()?,
-        ),
-        match push {
-            Push::Derivation(drv) => format!("{}^* --derivation", drv.to_absolute_path()),
-            Push::Path(path) => path.to_absolute_path(),
-        },
-    ]);
-
-    let child = run_command_with_env(
-        &CommandArguments::new(command_string, context.modifiers)
-            .mode(crate::commands::ChildOutputMode::Nix),
-        HashMap::from([(
-            "NIX_SSHOPTS".into(),
-            target.create_ssh_opts(context.modifiers)?,
-        )]),
-    )
-    .await?;
-
-    let status = child.wait_till_success().await;
-
-    let help = if let Err(ref error) = status {
-        get_common_copy_path_help(error).map(Box::new)
-    } else {
-        None
-    };
-
-    status.map_err(|error| HiveLibError::NixCopyError {
-        name: context.name.clone(),
-        path: match push {
-            Push::Derivation(path) | Push::Path(path) => path.clone(),
-        },
-        error: Box::new(error),
-        help,
-    })?;
-
-    Ok(())
-}
 
 fn get_common_command_help(error: &CommandError) -> Option<String> {
     if let CommandError::CommandFailed { logs, .. } = error

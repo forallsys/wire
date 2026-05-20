@@ -287,4 +287,34 @@ pub enum HiveLibError {
         #[source]
         error: nix_compat::store_path::Error,
     },
+
+    #[diagnostic(code(wire::NixDaemonIO))]
+    #[error("nix daemon io error")]
+    NixDaemonIO(#[source] std::io::Error),
+
+    #[diagnostic(code(wire::NixDaemonInvalidResponse))]
+    #[error("nix daemon returned an invalid response: {}", .0)]
+    NixDaemonInvalidResponse(String),
+
+    #[diagnostic(code(wire::NixDaemonOperationFailed))]
+    #[error("nix daemon operation failed: {}", .0)]
+    NixDaemonOperationFailed(String),
+
+    #[diagnostic(code(wire::NixDaemonConnectionFailure))]
+    #[error("failed to connect to nix daemon")]
+    NixDaemonConnectionFailure(#[source] std::io::Error),
+
+    #[diagnostic(code(wire::NixDaemonProtocolVersion))]
+    #[error(
+        "the nix daemon protocol version is too old for wire to perform {operation:?}! want atleast {wanted}, have {have}"
+    )]
+    NixDaemonProtocolVersion {
+        wanted: nix_compat::wire::ProtocolVersion,
+        have: nix_compat::wire::ProtocolVersion,
+        operation: String,
+    },
+
+    #[diagnostic(code(wire::NixDaemonOperationError))]
+    #[error("{name}: {msg}")]
+    NixDaemonOperationError { name: String, msg: String },
 }

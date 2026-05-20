@@ -27,10 +27,10 @@ use tokio_util::codec::LengthDelimitedCodec;
 use tracing::{debug, instrument};
 
 use crate::commands::builder::CommandStringBuilder;
-use crate::commands::common::push;
 use crate::commands::{CommandArguments, WireCommandChip, run_command};
 use crate::errors::KeyError;
 use crate::hive::node::{Context, ExecuteStep, Push, SharedTarget};
+use crate::nix_client::utils::push;
 use crate::{HiveLibError, SafeStorePath};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Hash)]

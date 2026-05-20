@@ -33,7 +33,6 @@ pub(crate) mod pty;
 pub(crate) enum ChildOutputMode {
     Nix,
     Generic,
-    Interactive,
 }
 
 #[derive(Debug)]
@@ -168,7 +167,7 @@ impl ChildOutputMode {
         print_build_logs: bool,
     ) -> Option<String> {
         let slice = match self {
-            Self::Generic | Self::Interactive => {
+            Self::Generic => {
                 let string = String::from_utf8_lossy(line);
                 let stripped = strip_ansi_escapes::strip_str(&string);
                 warn!("{stripped}");
