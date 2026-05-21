@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   prompts.
 - Build logs from `-L` are now properly traced and logged alongside the build
   job name.
+- Internal representation of Nix store paths now use `snix`'s `StorePath`
+  data type.
+- Flake evaluation caching now use `snix`'s `StorePath` native digests and name field
+  as primary keys instead of full sqlite `text`.
 
 ### Fixed
 
