@@ -14,7 +14,10 @@ use sqlx::{
 use tokio::fs::create_dir_all;
 use tracing::{debug, error, trace};
 
-use crate::hive::{FlakePrefetch, Hive};
+use crate::{
+    SafeStorePath,
+    hive::{FlakePrefetch, Hive},
+};
 
 #[derive(Clone)]
 pub struct InspectionCache {
@@ -72,8 +75,19 @@ impl InspectionCache {
         Some(Self { pool })
     }
 
-    fn cache_invalid(store_path: &String) -> bool {
-        let path = Path::new(store_path);
+    fn is_cache_invalid(store_path_name: &str, store_path_digest: &[u8]) -> bool {
+        let store_path =
+            match SafeStorePath::<&str>::from_name_and_digest(store_path_name, store_path_digest) {
+                Err(err) => {
+                    error!(err = %err, "failed to parse store digest & name from cache entry");
+
+                    return true;
+                }
+                Ok(path) => path,
+            };
+
+        let absolute_path = store_path.to_absolute_path();
+        let path = Path::new(&absolute_path);
 
         // possible TOCTOU
         !path.exists()
@@ -82,28 +96,36 @@ impl InspectionCache {
     pub async fn get_hive(&self, prefetch: &FlakePrefetch) -> Option<Hive> {
         struct Query {
             json_value: Vec<u8>,
-            store_path: String,
+            store_path_digest: Vec<u8>,
+            store_path_name: String,
         }
+
+        let store_path_digest = &prefetch.store_path.digest()[..];
+        let store_path_name = prefetch.store_path.name();
+        let hash = prefetch.hash.to_sri_string();
 
         let cached_blob = sqlx::query_as!(
             Query,
             "
             select
               inspection_blobs.json_value,
-              inspection_cache.store_path
+              inspection_cache.store_path_digest,
+              inspection_cache.store_path_name
             from
               inspection_blobs
               join inspection_cache on inspection_cache.blob_id = inspection_blobs.id
             where
-              inspection_cache.store_path = $1
-              and inspection_cache.hash = $2
+              inspection_cache.store_path_digest = $1
+              and inspection_cache.hash_sri = $2
               and inspection_blobs.schema_version = $3
+              and inspection_cache.store_path_name = $4
             limit
               1
             ",
-            prefetch.store_path,
-            prefetch.hash,
-            Hive::SCHEMA_VERSION
+            store_path_digest,
+            hash,
+            Hive::SCHEMA_VERSION,
+            store_path_name
         )
         .fetch_optional(&self.pool)
         .await
@@ -113,7 +135,7 @@ impl InspectionCache {
         // the cached path may of been garbage collected, discard it
         // it is quite hard to replicate this bug but its occurred to me
         // atleast once
-        if Self::cache_invalid(&cached_blob.store_path) {
+        if Self::is_cache_invalid(&cached_blob.store_path_name, &cached_blob.store_path_digest) {
             trace!("discarding cache that does not exist in the nix store");
             return None;
         }
@@ -166,15 +188,20 @@ impl InspectionCache {
             return;
         };
 
+        let store_path_digest = &prefetch.store_path.digest()[..];
+        let store_path_name = &prefetch.store_path.name();
+        let hash_sri = prefetch.hash.to_sri_string();
+
         let cached_inspection = sqlx::query!(
             "
             insert into
-              inspection_cache (store_path, hash, blob_id)
+              inspection_cache (store_path_digest, store_path_name, hash_sri, blob_id)
             values
-              ($1, $2, $3)
+              ($1, $2, $3, $4)
             ",
-            prefetch.store_path,
-            prefetch.hash,
+            store_path_digest,
+            store_path_name,
+            hash_sri,
             blob_id
         )
         .execute(&self.pool)
