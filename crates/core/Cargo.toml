@@ -36,7 +36,7 @@ strip-ansi-escapes = "0.2.1"
 aho-corasick = "1.1.4"
 owo-colors = { workspace = true }
 termion = "4.0.6"
-sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+sqlx = { version = "0.9", features = ["runtime-tokio", "sqlite"] }
 zstd = "0.13.3"
 
 [dev-dependencies]
