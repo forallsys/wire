@@ -34,7 +34,7 @@ async fn wait_for_ping(target: &SharedTarget, ctx: &Context) -> Result<(), HiveL
     for num in 0..3 {
         warn!("Trying to ping {host} (attempt {}/3)", num + 1);
 
-        let result = target.ping(ctx.modifiers).await;
+        let result = target.ping(ctx.modifiers, ctx.should_quit.clone()).await;
 
         if result.is_ok() {
             info!("Regained connection to {} via {host}", ctx.name);

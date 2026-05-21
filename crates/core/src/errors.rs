@@ -9,6 +9,7 @@ use miette::{Diagnostic, SourceSpan};
 use nix_compat::flakeref::{FlakeRef, FlakeRefError};
 use thiserror::Error;
 use tokio::task::JoinError;
+use wire_nix_client::{NixDaemonClientError, store_path::StorePathError};
 
 use crate::{
     SafeStorePath,
@@ -233,6 +234,25 @@ pub enum HiveLibError {
     #[diagnostic(transparent)]
     HiveLocationError(HiveLocationError),
 
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    NixDaemonClientError(NixDaemonClientError),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    StorePath(StorePathError),
+
+    #[diagnostic(code(wire::CopyPath))]
+    #[error("failed to copy path {} to node {name}", path.to_absolute_path())]
+    NixCopyError {
+        name: Name,
+        path: SafeStorePath<String>,
+        #[source]
+        error: Box<NixDaemonClientError>,
+        #[help]
+        help: Option<String>,
+    },
+
     #[error("Failed to apply key {}", .0)]
     KeyError(
         String,
@@ -246,18 +266,7 @@ pub enum HiveLibError {
     NixBuildError {
         name: Name,
         #[source]
-        source: CommandError,
-    },
-
-    #[diagnostic(code(wire::CopyPath))]
-    #[error("failed to copy path {} to node {name}", path.to_absolute_path())]
-    NixCopyError {
-        name: Name,
-        path: SafeStorePath<String>,
-        #[source]
-        error: Box<CommandError>,
-        #[help]
-        help: Option<Box<String>>,
+        source: NixDaemonClientError,
     },
 
     #[diagnostic(code(wire::Evaluate))]
@@ -279,42 +288,4 @@ pub enum HiveLibError {
     #[diagnostic(code(wire::SIGINT))]
     #[error("SIGINT received, shut down")]
     Sigint,
-
-    #[diagnostic(code(wire::SnixStorePath))]
-    #[error("Failed to parse store path {path:?}")]
-    StorePath {
-        path: String,
-        #[source]
-        error: nix_compat::store_path::Error,
-    },
-
-    #[diagnostic(code(wire::NixDaemonIO))]
-    #[error("nix daemon io error")]
-    NixDaemonIO(#[source] std::io::Error),
-
-    #[diagnostic(code(wire::NixDaemonInvalidResponse))]
-    #[error("nix daemon returned an invalid response: {}", .0)]
-    NixDaemonInvalidResponse(String),
-
-    #[diagnostic(code(wire::NixDaemonOperationFailed))]
-    #[error("nix daemon operation failed: {}", .0)]
-    NixDaemonOperationFailed(String),
-
-    #[diagnostic(code(wire::NixDaemonConnectionFailure))]
-    #[error("failed to connect to nix daemon")]
-    NixDaemonConnectionFailure(#[source] std::io::Error),
-
-    #[diagnostic(code(wire::NixDaemonProtocolVersion))]
-    #[error(
-        "the nix daemon protocol version is too old for wire to perform {operation:?}! want atleast {wanted}, have {have}"
-    )]
-    NixDaemonProtocolVersion {
-        wanted: nix_compat::wire::ProtocolVersion,
-        have: nix_compat::wire::ProtocolVersion,
-        operation: String,
-    },
-
-    #[diagnostic(code(wire::NixDaemonOperationError))]
-    #[error("{name}: {msg}")]
-    NixDaemonOperationError { name: String, msg: String },
 }

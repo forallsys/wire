@@ -52,6 +52,7 @@ async fn evaluate_task(
             debug!(pre_parsed_output = %output, "evaluated {name}");
 
             SafeStorePath::<String>::from_absolute_path(output.as_bytes())
+                .map_err(HiveLibError::StorePath)
         });
 
     debug!(output = ?output, done = true);

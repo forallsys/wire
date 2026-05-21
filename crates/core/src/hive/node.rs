@@ -13,6 +13,7 @@ use std::sync::nonpoison::Mutex;
 use tokio::sync::{RwLock, oneshot};
 use tracing::instrument;
 
+use crate::commands::trace_nix_log_message;
 use crate::errors::NetworkError;
 use crate::hive::HiveLocation;
 use crate::hive::steps::build::Build;
@@ -20,8 +21,7 @@ use crate::hive::steps::evaluate::Evaluate;
 use crate::hive::steps::keys::{Key, Keys, PushKeyAgent};
 use crate::hive::steps::ping::Ping;
 use crate::hive::steps::push::{PushBuildOutput, PushEvaluatedOutput};
-use crate::nix_client::NixClient;
-use crate::{SafeStorePath, StrictHostKeyChecking, SubCommandModifiers};
+use crate::{SafeStorePath, StrictHostKeyChecking, SubCommandModifiers, open_remote_client};
 
 use super::HiveLibError;
 use super::steps::activate::SwitchToConfiguration;
@@ -106,8 +106,12 @@ impl Target {
     }
 
     /// Tests the connection to a node
-    pub async fn ping(&self, modifiers: SubCommandModifiers) -> Result<(), HiveLibError> {
-        NixClient::open_remote(&self, modifiers).await?;
+    pub async fn ping(
+        &self,
+        modifiers: SubCommandModifiers,
+        should_quit: Arc<AtomicBool>,
+    ) -> Result<(), HiveLibError> {
+        open_remote_client(&self, modifiers, trace_nix_log_message, should_quit).await?;
 
         // connection established
 

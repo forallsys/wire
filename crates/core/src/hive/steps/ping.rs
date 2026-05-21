@@ -34,7 +34,11 @@ impl ExecuteStep for Ping {
                 host = target.get_preferred_host()?.to_string()
             );
 
-            if target.ping(ctx.modifiers).await.is_ok() {
+            if target
+                .ping(ctx.modifiers, ctx.should_quit.clone())
+                .await
+                .is_ok()
+            {
                 event!(
                     Level::INFO,
                     status = "success",

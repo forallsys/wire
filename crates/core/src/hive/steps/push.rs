@@ -8,7 +8,7 @@ use tracing::instrument;
 use crate::{
     HiveLibError,
     hive::node::{Context, ExecuteStep, SharedTarget},
-    nix_client::utils::push,
+    push,
 };
 
 #[derive(Debug)]

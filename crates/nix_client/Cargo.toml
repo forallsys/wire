@@ -1,0 +1,17 @@
+[package]
+name = "wire-nix-client"
+edition.workspace = true
+version.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+itertools = { workspace = true }
+nix-compat = { workspace = true }
+owo-colors = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+miette = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true

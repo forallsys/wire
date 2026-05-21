@@ -5,22 +5,34 @@
 #![feature(sync_nonpoison)]
 #![feature(nonpoison_mutex)]
 
-use std::{hash::Hash, io::IsTerminal, sync::LazyLock};
+use std::{
+    collections::{HashMap, HashSet},
+    io::IsTerminal,
+    ops::Deref,
+    process::Stdio,
+    sync::{Arc, LazyLock, atomic::AtomicBool, nonpoison::Mutex},
+};
 
-use nix_compat::wire::ser::NixSerialize;
-use serde::Deserialize;
-use tokio::sync::{AcquireError, Semaphore, SemaphorePermit, mpsc::UnboundedSender, oneshot};
+use nix_compat::log::LogMessage;
+use tokio::{
+    process::{ChildStdin, ChildStdout, Command},
+    sync::{AcquireError, Semaphore, SemaphorePermit, mpsc::UnboundedSender, oneshot},
+};
+use tracing::{info, instrument, trace};
+use wire_nix_client::{
+    NixClient, NixDaemonClientError, WireAddToStoreNarRequest, store_path::SafeStorePath,
+};
 
 use crate::{
+    commands::trace_nix_log_message,
     errors::HiveLibError,
-    hive::node::Name,
+    hive::node::{Context, Name, Push, SharedTarget},
     status::{UI_SENDER, UiMessage},
 };
 
 pub mod cache;
 pub mod commands;
 pub mod hive;
-pub mod nix_client;
 pub mod status;
 
 #[cfg(test)]
@@ -101,152 +113,178 @@ pub async fn acquire_stdin_lock<'a>() -> Result<ClobberGuard<'a>, AcquireError> 
     Ok(result)
 }
 
-/// This type exists to restrict `StorePath` usage to only methods that deal with
-/// absolute paths. By default, the `StorePath` type implements Display that
-/// does not include `/nix/store/` can introduce many hard to catch bugs.
-///
-///
-/// If <https://github.com/rust-lang/rust-clippy/issues/8581>
-/// is ever closed, this can be dropped from the codebase.
-#[derive(Clone)]
-#[allow(clippy::disallowed_types)]
-pub struct SafeStorePath<S>(nix_compat::store_path::StorePath<S>);
+#[instrument(skip(trace_callback))]
+pub async fn open_remote_client<D, T>(
+    target: &D,
+    modifiers: SubCommandModifiers,
+    trace_callback: T,
+    should_quit: Arc<AtomicBool>,
+) -> Result<(NixClient<ChildStdout, ChildStdin, T>, String), HiveLibError>
+where
+    D: Deref<Target = crate::hive::node::Target> + std::fmt::Debug,
+    T: Fn(LogMessage, &Arc<Mutex<HashMap<u64, Arc<String>>>>, bool) -> Option<String>,
+{
+    let mut command = Command::new("ssh")
+        .args(target.create_ssh_args(modifiers, true)?)
+        .arg(target.get_preferred_host()?.to_string())
+        .arg("nix-daemon --stdio")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        // TODO: move to separate thread
+        .stderr(Stdio::inherit())
+        .spawn()
+        .map_err(|error| {
+            HiveLibError::NixDaemonClientError(NixDaemonClientError::NixDaemonConnectionFailure(
+                error,
+            ))
+        })?;
 
-#[allow(clippy::disallowed_types)]
-impl<S> SafeStorePath<S> {
-    pub fn from_absolute_path<'a>(s: &'a [u8]) -> Result<SafeStorePath<S>, HiveLibError>
-    where
-        S: From<&'a str> + AsRef<str>,
+    let stdin = command.stdin.take().unwrap();
+    let stdout = command.stdout.take().unwrap();
+
+    tokio::spawn(async move { command.wait().await });
+
+    Ok((
+        NixClient::<ChildStdout, ChildStdin, T>::handshake(
+            stdout,
+            stdin,
+            trace_callback,
+            should_quit,
+            modifiers.print_build_logs,
+        )
+        .await
+        .map_err(HiveLibError::NixDaemonClientError)?,
+        target.get_preferred_host()?.to_string(),
+    ))
+}
+
+fn get_common_copy_path_help(error: &NixDaemonClientError) -> Option<String> {
+    if let NixDaemonClientError::NixDaemonOperationError { msg, .. } = error
+        && (msg.contains("error: unexpected end-of-file"))
     {
-        Ok(Self(
-            nix_compat::store_path::StorePath::from_absolute_path(s).map_err(|error| {
-                HiveLibError::StorePath {
-                    path: String::from_utf8_lossy(s).to_string(),
-                    error,
-                }
-            })?,
-        ))
+        Some("wire requires the deploying user or wire binary cache is trusted on the remote server. if you're attempting to make that change, skip keys with --no-keys. please read https://wire.forall.systems/guides/keys for more information".to_string())
+    } else {
+        None
+    }
+}
+
+pub async fn push(
+    context: &Context,
+    target: &SharedTarget,
+    push: Push<'_>,
+    substitute_on_destination: bool,
+) -> Result<(), HiveLibError> {
+    let mut local_daemon = NixClient::open_local(
+        trace_nix_log_message,
+        context.should_quit.clone(),
+        context.modifiers.print_build_logs,
+    )
+    .await
+    .map_err(HiveLibError::NixDaemonClientError)?;
+
+    let target = target.0.read().await;
+
+    let (mut remote_daemon, host) = open_remote_client(
+        &target,
+        context.modifiers,
+        trace_nix_log_message,
+        context.should_quit.clone(),
+    )
+    .await?;
+
+    let path = match push {
+        Push::Derivation(path) | Push::Path(path) => path.clone(),
+    };
+
+    info!(path = ?path, "attempting copy");
+
+    let closure = local_daemon
+        .collect_complete_closure(&path)
+        .await
+        .map_err(HiveLibError::NixDaemonClientError)?;
+    let closure_length = closure.len();
+
+    info!(path = ?path, "closure has {:?} paths", closure_length);
+
+    let paths_on_target: HashSet<_> = remote_daemon
+        .query_valid_paths(closure.clone(), substitute_on_destination)
+        .await
+        .map_err(HiveLibError::NixDaemonClientError)?
+        .into_iter()
+        .collect();
+
+    trace!(path = ?path, "target already has {} path(s)", paths_on_target.len());
+
+    let paths_to_push = closure_length.saturating_sub(paths_on_target.len());
+    if paths_to_push > 0 {
+        info!("pushing {}", closure_length - paths_on_target.len());
     }
 
-    pub fn into_inner(self) -> nix_compat::store_path::StorePath<S> {
-        self.0
-    }
+    let paths_to_upload = closure.into_iter().filter(|p| !paths_on_target.contains(p));
 
-    pub fn from_name_and_digest<'a>(name: &'a str, digest: &[u8]) -> Result<Self, HiveLibError>
-    where
-        S: From<&'a str> + AsRef<str>,
-    {
-        Ok(Self(
-            nix_compat::store_path::StorePath::from_name_and_digest(name, digest).map_err(
-                |error| HiveLibError::StorePath {
-                    path: format!("raw name & digest: {digest:?}-{name:?}"),
-                    error,
+    for path in paths_to_upload {
+        info!("copying '{}' to node {host}", path.to_absolute_path());
+
+        let Some(path_info) =
+            local_daemon
+                .query(&path)
+                .await
+                .map_err(|err| HiveLibError::NixCopyError {
+                    name: context.name.clone(),
+                    path: path.clone(),
+                    help: get_common_copy_path_help(&err),
+                    error: Box::new(err),
+                })?
+        else {
+            return Err(HiveLibError::NixCopyError {
+                name: context.name.clone(),
+                path: path.clone(),
+                error: Box::new(NixDaemonClientError::NixDaemonOperationFailed(format!(
+                    "selected {path:?} for upload does not exist in local store"
+                ))),
+                help: None,
+            });
+        };
+
+        let nar_stream = local_daemon
+            .get_nar_stream(&path, path_info.nar_size)
+            .await
+            .map_err(|err| HiveLibError::NixCopyError {
+                name: context.name.clone(),
+                path: path.clone(),
+                help: get_common_copy_path_help(&err),
+                error: Box::new(err),
+            })?;
+
+        remote_daemon
+            .add_to_store_nar(
+                WireAddToStoreNarRequest {
+                    path: path.clone(),
+                    deriver: path_info.deriver.map(Into::into),
+                    nar_hash: path_info.nar_hash,
+                    references: path_info
+                        .references
+                        .into_iter()
+                        .map(SafeStorePath)
+                        .collect(),
+                    registration_time: path_info.registration_time,
+                    nar_size: path_info.nar_size,
+                    ultimate: false,
+                    signatures: path_info.signatures,
+                    ca: path_info.ca,
+                    repair: false,
+                    dont_check_sigs: true,
                 },
-            )?,
-        ))
+                nar_stream,
+            )
+            .await
+            .map_err(|err| HiveLibError::NixCopyError {
+                name: context.name.clone(),
+                path: path.clone(),
+                help: get_common_copy_path_help(&err),
+                error: Box::new(err),
+            })?;
     }
 
-    pub fn to_absolute_path(&self) -> String
-    where
-        S: AsRef<str>,
-    {
-        self.0.to_absolute_path()
-    }
-
-    pub fn digest(&self) -> &[u8; nix_compat::store_path::DIGEST_SIZE]
-    where
-        S: AsRef<str>,
-    {
-        self.0.digest()
-    }
-
-    pub fn name(&self) -> &S
-    where
-        S: AsRef<str>,
-    {
-        self.0.name()
-    }
-}
-
-#[allow(clippy::disallowed_types)]
-impl<'de, S> Deserialize<'de> for SafeStorePath<S>
-where
-    nix_compat::store_path::StorePath<S>: Deserialize<'de>,
-    S: AsRef<str>,
-{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        Ok(SafeStorePath(
-            nix_compat::store_path::StorePath::deserialize(deserializer)?,
-        ))
-    }
-}
-
-impl<S> PartialEq for SafeStorePath<S>
-where
-    S: AsRef<str>,
-{
-    fn eq(&self, other: &Self) -> bool {
-        self.0.eq(&other.0)
-    }
-}
-
-impl<S> Hash for SafeStorePath<S>
-where
-    S: AsRef<str>,
-{
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.0.hash(state);
-    }
-}
-
-impl<S> Eq for SafeStorePath<S> where S: AsRef<str> {}
-
-impl<S> NixSerialize for SafeStorePath<S>
-where
-    S: AsRef<str>,
-{
-    fn serialize<W>(&self, writer: &mut W) -> impl Future<Output = Result<(), W::Error>> + Send
-    where
-        W: nix_compat::wire::ser::NixWrite,
-    {
-        self.0.serialize(writer)
-    }
-}
-
-impl<S> NixSerialize for &SafeStorePath<S>
-where
-    S: AsRef<str>,
-{
-    fn serialize<W>(&self, writer: &mut W) -> impl Future<Output = Result<(), W::Error>> + Send
-    where
-        W: nix_compat::wire::ser::NixWrite,
-    {
-        self.0.serialize(writer)
-    }
-}
-
-#[allow(clippy::disallowed_types)]
-impl<S> From<nix_compat::store_path::StorePath<S>> for SafeStorePath<S> {
-    fn from(value: nix_compat::store_path::StorePath<S>) -> Self {
-        SafeStorePath(value)
-    }
-}
-
-#[allow(clippy::disallowed_types)]
-impl<S> From<SafeStorePath<S>> for nix_compat::store_path::StorePath<S> {
-    fn from(value: SafeStorePath<S>) -> nix_compat::store_path::StorePath<S> {
-        value.into_inner()
-    }
-}
-
-impl<S> std::fmt::Debug for SafeStorePath<S>
-where
-    S: AsRef<str>,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0.to_absolute_path())
-    }
+    Ok(())
 }
