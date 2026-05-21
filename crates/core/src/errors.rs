@@ -10,7 +10,10 @@ use nix_compat::flakeref::{FlakeRef, FlakeRefError};
 use thiserror::Error;
 use tokio::task::JoinError;
 
-use crate::hive::node::{Name, SwitchToConfigurationGoal};
+use crate::{
+    SafeStorePath,
+    hive::node::{Name, SwitchToConfigurationGoal},
+};
 
 #[derive(Debug, Diagnostic, Error)]
 pub enum KeyError {
@@ -247,10 +250,10 @@ pub enum HiveLibError {
     },
 
     #[diagnostic(code(wire::CopyPath))]
-    #[error("failed to copy path {path} to node {name}")]
+    #[error("failed to copy path {} to node {name}", path.to_absolute_path())]
     NixCopyError {
         name: Name,
-        path: String,
+        path: SafeStorePath<String>,
         #[source]
         error: Box<CommandError>,
         #[help]
@@ -276,4 +279,12 @@ pub enum HiveLibError {
     #[diagnostic(code(wire::SIGINT))]
     #[error("SIGINT received, shut down")]
     Sigint,
+
+    #[diagnostic(code(wire::SnixStorePath))]
+    #[error("Failed to parse store path {path:?}")]
+    StorePath {
+        path: String,
+        #[source]
+        error: nix_compat::store_path::Error,
+    },
 }

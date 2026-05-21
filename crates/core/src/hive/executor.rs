@@ -1,4 +1,5 @@
 use crate::{
+    SafeStorePath,
     hive::node::Step,
     status::{NodeStatus, UI_SENDER, UiMessage},
 };
@@ -12,7 +13,7 @@ use crate::{
     errors::HiveLibError,
     hive::{
         HiveLocation,
-        node::{Context, Derivation, ExecuteStep, Name},
+        node::{Context, ExecuteStep, Name},
         plan::NodePlan,
     },
 };
@@ -32,7 +33,7 @@ fn app_shutdown_guard(context: &Context) -> Result<(), HiveLibError> {
 /// Task that evaluates the node.
 #[instrument(skip_all, name = "eval")]
 async fn evaluate_task(
-    tx: tokio::sync::oneshot::Sender<Result<Derivation, HiveLibError>>,
+    tx: tokio::sync::oneshot::Sender<Result<SafeStorePath<String>, HiveLibError>>,
     hive_location: Arc<HiveLocation>,
     name: Name,
     modifiers: SubCommandModifiers,
@@ -45,6 +46,11 @@ async fn evaluate_task(
                     crate::errors::HiveInitialisationError::ParseEvaluateError(e),
                 )
             })
+        })
+        .and_then(|output: String| {
+            debug!(pre_parsed_output = %output, "evaluated {name}");
+
+            SafeStorePath::<String>::from_absolute_path(output.as_bytes())
         });
 
     debug!(output = ?output, done = true);

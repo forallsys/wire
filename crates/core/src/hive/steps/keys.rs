@@ -26,12 +26,12 @@ use tokio::{fs::File, io::AsyncRead};
 use tokio_util::codec::LengthDelimitedCodec;
 use tracing::{debug, instrument};
 
-use crate::HiveLibError;
 use crate::commands::builder::CommandStringBuilder;
 use crate::commands::common::push;
 use crate::commands::{CommandArguments, WireCommandChip, run_command};
 use crate::errors::KeyError;
 use crate::hive::node::{Context, ExecuteStep, Push, SharedTarget};
+use crate::{HiveLibError, SafeStorePath};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Hash)]
 #[serde(tag = "t", content = "c")]
@@ -245,8 +245,10 @@ impl ExecuteStep for Keys {
             return Ok(());
         }
 
-        let command_string =
-            CommandStringBuilder::new(format!("{agent_directory}/bin/wire-key-agent"));
+        let command_string = CommandStringBuilder::new(format!(
+            "{}/bin/wire-key-agent",
+            agent_directory.to_absolute_path()
+        ));
 
         let mut child = run_command(
             &CommandArguments::new(command_string, ctx.modifiers)
@@ -321,17 +323,20 @@ impl ExecuteStep for PushKeyAgent {
             ),
         };
 
+        let agent_store_path =
+            SafeStorePath::<String>::from_absolute_path(agent_directory.as_bytes())?;
+
         if let Some(ref target) = self.target {
             push(
                 ctx,
                 target,
-                Push::Path(&agent_directory),
+                Push::Path(&agent_store_path),
                 self.substitute_on_destination,
             )
             .await?;
         }
 
-        ctx.state.key_agent_directory = Some(agent_directory);
+        ctx.state.key_agent_directory = Some(agent_store_path);
 
         Ok(())
     }
