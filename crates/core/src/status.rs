@@ -96,7 +96,7 @@ impl Status {
             return String::new();
         }
 
-        let mut msg = format!("[{} / {}", self.num_finished(), self.statuses.len(),);
+        let mut msg = format!("[{} / {}", self.num_finished(), self.statuses.len());
 
         let num_failed = self.num_failed();
         let num_running = self.num_running();

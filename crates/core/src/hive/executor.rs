@@ -1,9 +1,10 @@
+use std::debug_assert_matches;
 use crate::{
     SafeStorePath,
     hive::node::Step,
     status::{NodeStatus, UI_SENDER, UiMessage},
 };
-use std::{assert_matches::debug_assert_matches, sync::Arc};
+use std::sync::Arc;
 
 use tracing::{Instrument, Span, debug, error, event, instrument};
 

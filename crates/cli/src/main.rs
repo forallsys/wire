@@ -2,9 +2,6 @@
 // Copyright 2024-2025 wire Contributors
 
 #![deny(clippy::pedantic)]
-#![feature(sync_nonpoison)]
-#![feature(nonpoison_mutex)]
-#![feature(assert_matches)]
 
 use std::process::Command;
 use std::sync::Arc;

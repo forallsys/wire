@@ -403,8 +403,6 @@ fn less_than_3(s: &str) -> Result<u8, String> {
 
 #[cfg(test)]
 mod tests {
-    use std::assert_matches::assert_matches;
-
     use crate::cli::{Partitions, parse_partitions};
 
     #[test]

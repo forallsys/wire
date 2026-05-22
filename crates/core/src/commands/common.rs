@@ -130,7 +130,7 @@ pub async fn evaluate_hive_attribute(
         HiveLocation::HiveNix(path) => {
             format!(
                 "--file {} {}",
-                &path.to_string_lossy(),
+                path.to_string_lossy(),
                 match goal {
                     EvalGoal::Inspect => "inspect".to_string(),
                     EvalGoal::Names => "names".to_string(),
