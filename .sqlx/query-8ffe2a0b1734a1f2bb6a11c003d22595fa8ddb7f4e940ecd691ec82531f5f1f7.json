@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            select\n              inspection_blobs.json_value,\n              inspection_cache.store_path_digest,\n              inspection_cache.store_path_name\n            from\n              inspection_blobs\n              join inspection_cache on inspection_cache.blob_id = inspection_blobs.id\n            where\n              inspection_cache.store_path_digest = $1\n              and inspection_cache.hash_sri = $2\n              and inspection_blobs.schema_version = $3\n              and inspection_cache.store_path_name = $4\n            limit\n              1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "json_value",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "inspection_blobs",
+            "name": "json_value"
+          }
+        }
+      },
+      {
+        "name": "store_path_digest",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "inspection_cache",
+            "name": "store_path_digest"
+          }
+        }
+      },
+      {
+        "name": "store_path_name",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "inspection_cache",
+            "name": "store_path_name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "8ffe2a0b1734a1f2bb6a11c003d22595fa8ddb7f4e940ecd691ec82531f5f1f7"
+}

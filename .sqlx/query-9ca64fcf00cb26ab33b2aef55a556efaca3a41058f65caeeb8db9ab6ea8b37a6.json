@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            insert into\n              inspection_cache (store_path_digest, store_path_name, hash_sri, blob_id)\n            values\n              ($1, $2, $3, $4)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "9ca64fcf00cb26ab33b2aef55a556efaca3a41058f65caeeb8db9ab6ea8b37a6"
+}
