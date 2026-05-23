@@ -32,6 +32,7 @@
           cfg.installationScript
           ''
             export WIRE_TEST_DIR=$(realpath ./tests/rust)
+            export SQLX_OFFLINE=true
           ''
         ];
       };
