@@ -6,7 +6,7 @@ use std::{
 use tokio::sync::RwLock;
 
 use crate::{
-    SubCommandModifiers,
+    SafeStorePath, SubCommandModifiers,
     hive::{
         HiveLocation,
         node::{
@@ -121,6 +121,7 @@ fn apply_plan(
     modifiers: SubCommandModifiers,
     hive_location: Arc<HiveLocation>,
     should_quit: Arc<AtomicBool>,
+    cached_evaluation: Option<SafeStorePath<String>>,
 ) -> NodePlan {
     let ApplyGoalArgs {
         goal,
@@ -135,6 +136,7 @@ fn apply_plan(
     let mut steps: Vec<Step> = Vec::new();
     let mut end: Vec<Step> = Vec::new();
     let target = SharedTarget(Arc::new(RwLock::new(node.target.clone())));
+    let has_cached_evaluation = cached_evaluation.is_some();
 
     if !*should_apply_locally {
         steps.push(Step::Ping(Ping {
@@ -143,7 +145,7 @@ fn apply_plan(
     }
 
     if !matches!(goal, ApplyGoal::Keys) {
-        steps.push(Step::Evaluate(Evaluate));
+        steps.push(Step::Evaluate(Evaluate { cached_evaluation }));
     }
 
     if !matches!(goal, ApplyGoal::Keys)
@@ -212,7 +214,7 @@ fn apply_plan(
             build_id_names: Arc::new(Mutex::new(HashMap::new())),
         },
         steps,
-        greedy_evaluate: !matches!(&goal, ApplyGoal::Keys),
+        greedy_evaluate: !matches!(&goal, ApplyGoal::Keys) && !has_cached_evaluation,
         ignore_failed_ping: matches!(handle_unreachable, HandleUnreachable::Ignore),
     }
 }
@@ -225,7 +227,10 @@ pub fn plan_for_node(
     hive_location: Arc<HiveLocation>,
     modifiers: &SubCommandModifiers,
     should_quit: Arc<AtomicBool>,
+    cached_evaluation: Option<SafeStorePath<String>>,
 ) -> NodePlan {
+    let greedy_evaluate = cached_evaluation.is_none();
+
     match goal {
         Goal::Build => NodePlan {
             context: Context {
@@ -237,13 +242,21 @@ pub fn plan_for_node(
                 build_id_names: Arc::new(Mutex::new(HashMap::new())),
             },
             steps: vec![
-                Step::Evaluate(Evaluate),
+                Step::Evaluate(Evaluate { cached_evaluation }),
                 Step::Build(Build { target: None }),
             ],
-            greedy_evaluate: true,
+            greedy_evaluate,
             ignore_failed_ping: false,
         },
-        Goal::Apply(args) => apply_plan(args, node, &name, *modifiers, hive_location, should_quit),
+        Goal::Apply(args) => apply_plan(
+            args,
+            node,
+            &name,
+            *modifiers,
+            hive_location,
+            should_quit,
+            cached_evaluation,
+        ),
     }
 }
 
@@ -304,11 +317,18 @@ mod tests {
             location.clone().into(),
             &SubCommandModifiers::default(),
             should_quit.clone(),
+            None,
         );
 
         assert_eq!(
             plan.steps,
-            vec![Evaluate.into(), Build { target: None }.into()]
+            vec![
+                Evaluate {
+                    cached_evaluation: None
+                }
+                .into(),
+                Build { target: None }.into()
+            ]
         );
     }
 
@@ -337,6 +357,7 @@ mod tests {
             location.clone().into(),
             &SubCommandModifiers::default(),
             should_quit.clone(),
+            None,
         );
 
         assert_eq!(
@@ -346,7 +367,10 @@ mod tests {
                     target: target.clone()
                 }
                 .into(),
-                crate::hive::steps::evaluate::Evaluate.into(),
+                crate::hive::steps::evaluate::Evaluate {
+                    cached_evaluation: None
+                }
+                .into(),
                 crate::hive::steps::push::PushEvaluatedOutput {
                     substitute_on_destination: true,
                     target: target.clone()
@@ -378,6 +402,7 @@ mod tests {
             location.clone().into(),
             &SubCommandModifiers::default(),
             should_quit.clone(),
+            None,
         );
 
         assert_eq!(
@@ -387,7 +412,10 @@ mod tests {
                     target: target.clone()
                 }
                 .into(),
-                crate::hive::steps::evaluate::Evaluate.into(),
+                crate::hive::steps::evaluate::Evaluate {
+                    cached_evaluation: None
+                }
+                .into(),
                 crate::hive::steps::build::Build { target: None }.into(),
                 crate::hive::steps::push::PushBuildOutput {
                     substitute_on_destination: true,
@@ -428,6 +456,7 @@ mod tests {
             location.clone().into(),
             &SubCommandModifiers::default(),
             should_quit.clone(),
+            None,
         );
 
         assert_eq!(
@@ -488,6 +517,7 @@ mod tests {
             location.clone().into(),
             &SubCommandModifiers::default(),
             should_quit.clone(),
+            None,
         );
 
         assert_eq!(
@@ -554,6 +584,7 @@ mod tests {
             location.clone().into(),
             &SubCommandModifiers::default(),
             should_quit.clone(),
+            None,
         );
 
         assert_eq!(
@@ -563,7 +594,10 @@ mod tests {
                     target: target.clone()
                 }
                 .into(),
-                Evaluate.into(),
+                Evaluate {
+                    cached_evaluation: None
+                }
+                .into(),
                 PushEvaluatedOutput {
                     substitute_on_destination: true,
                     target: target.clone()
@@ -598,6 +632,7 @@ mod tests {
             location.clone().into(),
             &SubCommandModifiers::default(),
             should_quit.clone(),
+            None,
         );
 
         assert_eq!(
@@ -607,7 +642,10 @@ mod tests {
                     target: target.clone()
                 }
                 .into(),
-                Evaluate.into(),
+                Evaluate {
+                    cached_evaluation: None
+                }
+                .into(),
                 PushEvaluatedOutput {
                     substitute_on_destination: true,
                     target: target.clone()
@@ -654,6 +692,7 @@ mod tests {
             location.clone().into(),
             &SubCommandModifiers::default(),
             should_quit.clone(),
+            None,
         );
 
         assert_eq!(
@@ -663,7 +702,10 @@ mod tests {
                     target: target.clone()
                 }
                 .into(),
-                Evaluate.into(),
+                Evaluate {
+                    cached_evaluation: None
+                }
+                .into(),
                 PushEvaluatedOutput {
                     substitute_on_destination: true,
                     target: target.clone()
@@ -705,12 +747,16 @@ mod tests {
             location.clone().into(),
             &SubCommandModifiers::default(),
             should_quit.clone(),
+            None,
         );
 
         assert_eq!(
             plan.steps,
             vec![
-                Evaluate.into(),
+                Evaluate {
+                    cached_evaluation: None
+                }
+                .into(),
                 Build { target: None }.into(),
                 SwitchToConfiguration {
                     goal: SwitchToConfigurationGoal::Switch,

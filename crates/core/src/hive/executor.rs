@@ -6,6 +6,7 @@ use crate::{
 use std::debug_assert_matches;
 use std::sync::Arc;
 
+use tokio::sync::oneshot;
 use tracing::{Instrument, Span, debug, error, event, instrument};
 
 use crate::{
@@ -38,6 +39,7 @@ async fn evaluate_task(
     hive_location: Arc<HiveLocation>,
     name: Name,
     modifiers: SubCommandModifiers,
+    on_new_evaluation: oneshot::Sender<SafeStorePath<String>>,
 ) {
     let output = evaluate_hive_attribute(&hive_location, &EvalGoal::GetTopLevel(&name), modifiers)
         .await
@@ -57,6 +59,10 @@ async fn evaluate_task(
 
     debug!(output = ?output, done = true);
 
+    if let Ok(ref path) = output {
+        let _ = on_new_evaluation.send(path.clone());
+    }
+
     let _ = tx.send(output);
 }
 
@@ -64,7 +70,10 @@ async fn evaluate_task(
 /// Performs some optimisations such as greedily executing evaluation before
 /// other steps independent of evaluation's result.
 #[instrument(skip_all, fields(node = %plan.context.name))]
-pub async fn execute(mut plan: NodePlan) -> Result<(), HiveLibError> {
+pub async fn execute(
+    mut plan: NodePlan,
+    on_new_evaluation: oneshot::Sender<SafeStorePath<String>>,
+) -> Result<(), HiveLibError> {
     app_shutdown_guard(&plan.context)?;
 
     let (tx, rx) = tokio::sync::oneshot::channel();
@@ -90,6 +99,7 @@ pub async fn execute(mut plan: NodePlan) -> Result<(), HiveLibError> {
                 plan.context.hive_location.clone(),
                 plan.context.name.clone(),
                 plan.context.modifiers,
+                on_new_evaluation,
             )
             .in_current_span(),
         );
@@ -143,6 +153,8 @@ pub async fn execute(mut plan: NodePlan) -> Result<(), HiveLibError> {
 
 #[cfg(test)]
 mod tests {
+    use tokio::sync::oneshot;
+
     use crate::{
         SubCommandModifiers,
         errors::HiveLibError,
@@ -182,9 +194,12 @@ mod tests {
             location.clone().into(),
             &SubCommandModifiers::default(),
             should_quit.clone(),
+            None,
         );
 
-        let status = execute(plan).await;
+        let channel = oneshot::channel();
+
+        let status = execute(plan, channel.0).await;
 
         assert_matches!(status, Err(HiveLibError::Sigint));
     }

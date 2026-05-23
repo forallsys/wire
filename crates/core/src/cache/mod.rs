@@ -2,21 +2,26 @@
 // Copyright 2024-2025 wire Contributors
 
 use std::{
+    collections::HashMap,
     env,
     path::{Path, PathBuf},
+    sync::{Arc, atomic::AtomicBool},
 };
 
+use itertools::Itertools;
 use sqlx::{
     Pool, Sqlite,
     migrate::{Migrator, MigrateError},
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
 };
 use tokio::fs::create_dir_all;
-use tracing::{debug, error, info, trace};
+use tracing::{Level, debug, error, info, instrument, trace};
+use wire_nix_client::NixClient;
 
 use crate::{
     SafeStorePath,
-    hive::{FlakePrefetch, Hive},
+    commands::trace_nix_log_message,
+    hive::{FlakePrefetch, Hive, node::Name},
 };
 
 #[derive(Clone)]
@@ -258,7 +263,151 @@ impl InspectionCache {
         }
     }
 
-    pub async fn gc(&self) -> Result<(), sqlx::Error> {
+    #[instrument(skip(self), ret(level = Level::DEBUG))]
+    pub async fn get_evaluations(
+        &self,
+        prefetch: &FlakePrefetch,
+        nodes: &[Name],
+        should_quit: Arc<AtomicBool>,
+    ) -> Option<HashMap<Name, SafeStorePath<String>>> {
+        struct Query {
+            output_path_digest: Vec<u8>,
+            output_path_name: String,
+            node_name: String,
+        }
+
+        let mut client = NixClient::open_local(trace_nix_log_message, should_quit, false).await.inspect_err(|err| error!(err = ?err, "failed to open local nix client to verify cached evaluations")).ok()?;
+
+        let store_path_digest = &prefetch.store_path.digest()[..];
+        let store_path_name = prefetch.store_path.name();
+        let flake_hash_sri = prefetch.hash.to_sri_string();
+        let nodes_json = serde_json::to_string(nodes).unwrap_or_else(|_| "[]".to_string());
+
+        let evaluation_cache = sqlx::query_as!(
+            Query,
+            "
+            select
+                evaluation_cache.output_path_digest,
+                evaluation_cache.output_path_name,
+                evaluation_cache.node_name
+            from
+                evaluation_cache
+            where
+                evaluation_cache.flake_path_digest = $1
+                and evaluation_cache.flake_path_name = $2
+                and evaluation_cache.flake_hash_sri = $3
+                and evaluation_cache.node_name in (select value from json_each($4))
+        ",
+            store_path_digest,
+            store_path_name,
+            flake_hash_sri,
+            nodes_json
+        )
+        .fetch_all(&self.pool)
+        .await
+        .inspect_err(|x| error!("failed to fetch cached node evaluations: {x}"))
+        .ok()?;
+
+        let evaluation_cache: HashMap<_, _> = evaluation_cache
+            .into_iter()
+            .map(|x| {
+                (
+                    x.node_name,
+                    SafeStorePath::<String>::from_name_and_digest(
+                        &x.output_path_name,
+                        &x.output_path_digest,
+                    )
+                    .inspect_err(|err| error!("failed to parse StorePath from cache: {err:?}"))
+                    .ok(),
+                )
+            })
+            .filter_map(|(name, path)| path.map(|path| (name, path)))
+            .filter_map(|(name, path)| {
+                nodes
+                    .iter()
+                    .find(|x| x.0.as_ref() == name.as_str())
+                    .map(|name| (name.clone(), path))
+            })
+            .collect();
+
+        let valid_paths = client
+            .query_valid_paths(evaluation_cache.values().cloned().collect_vec(), false)
+            .await
+            .inspect_err(
+                |err| error!(err = ?err, "failed to query valid paths for evaluation cache"),
+            )
+            .ok()?;
+
+        // delete paths that no longer exist in the nix store
+        let invalid_paths: Vec<_> = evaluation_cache
+            .iter()
+            .filter(|(_, path)| !valid_paths.contains(path))
+            .map(|(_, path)| (path.digest().to_vec(), path.name().clone()))
+            .collect();
+
+        for (output_path_digest, output_path_name) in invalid_paths {
+            if let Err(err) = sqlx::query!(
+                "delete from evaluation_cache where output_path_digest = $1 and output_path_name = $2",
+                output_path_digest,
+                output_path_name
+            )
+            .execute(&self.pool)
+            .await
+            {
+                error!(err = ?err, "failed to delete invalid evaluation cache entry");
+            }
+        }
+
+        Some(
+            evaluation_cache
+                .into_iter()
+                .filter(|(_, path)| valid_paths.contains(path))
+                .collect(),
+        )
+    }
+
+    pub async fn store_evaluation(
+        &self,
+        prefetch: &FlakePrefetch,
+        name: &Name,
+        path: SafeStorePath<String>,
+    ) {
+        trace!(evaluated_path = ?path, prefetch = ?prefetch, "storing evaluated output");
+
+        let store_path_digest = &prefetch.store_path.digest()[..];
+        let store_path_name = prefetch.store_path.name();
+        let output_path_digest = &path.digest()[..];
+        let output_path_name = path.name();
+        let flake_hash_sri = prefetch.hash.to_sri_string();
+        let node_name = name.to_string();
+
+        let cached_evaluation = sqlx::query!(
+            "
+            insert into evaluation_cache (
+                    flake_path_digest,
+                    flake_path_name,
+                    flake_hash_sri,
+                    node_name,
+                    output_path_digest,
+                    output_path_name
+            ) values ($1, $2, $3, $4, $5, $6)
+        ",
+            store_path_digest,
+            store_path_name,
+            flake_hash_sri,
+            node_name,
+            output_path_digest,
+            output_path_name
+        )
+        .execute(&self.pool)
+        .await;
+
+        if let Err(err) = cached_evaluation {
+            error!("could not insert cached_evaluation: {err}");
+        }
+    }
+
+    pub async fn gc(&self, should_quit: Arc<AtomicBool>) -> Result<(), sqlx::Error> {
         // keep newest 30 AND
         // delete caches that refer to a blob w/ wrong schema
         sqlx::query!(
@@ -304,6 +453,119 @@ where
         )
         .execute(&self.pool)
         .await?;
+
+        self.gc_evaluation_cache(should_quit).await?;
+
+        Ok(())
+    }
+
+    pub async fn gc_evaluation_cache(
+        &self,
+        should_quit: Arc<AtomicBool>,
+    ) -> Result<(), sqlx::Error> {
+        struct EvaluationPaths {
+            flake_path_digest: Vec<u8>,
+            flake_path_name: String,
+            output_path_digest: Vec<u8>,
+            output_path_name: String,
+            rowid: i64,
+        }
+
+        let mut previous_rowid = 0;
+
+        let mut client =
+            match NixClient::open_local(trace_nix_log_message, should_quit, false).await {
+                Ok(c) => c,
+                Err(err) => {
+                    error!(err = ?err, "failed to open local nix client for gc");
+                    return Ok(());
+                }
+            };
+
+        // delete caches whose flake/output paths no longer exist in the nix store
+        loop {
+            let evaluation_paths: Vec<_> = sqlx::query_as!(
+                EvaluationPaths,
+                "select rowid, flake_path_digest, flake_path_name, output_path_digest, output_path_name from evaluation_cache where rowid > $1 order by rowid asc limit 50",
+                previous_rowid
+            )
+            .fetch_all(&self.pool)
+            .await?;
+
+            if evaluation_paths.is_empty() {
+                break;
+            }
+
+            previous_rowid = evaluation_paths
+                .last()
+                .map(|r| r.rowid)
+                .unwrap_or(previous_rowid);
+
+            // build list of all store paths to check
+            let mut all_paths: Vec<SafeStorePath<String>> = Vec::new();
+
+            for path in &evaluation_paths {
+                if let Ok(p) = SafeStorePath::<String>::from_name_and_digest(
+                    &path.flake_path_name,
+                    &path.flake_path_digest,
+                ) {
+                    all_paths.push(p);
+                }
+                if let Ok(p) = SafeStorePath::<String>::from_name_and_digest(
+                    &path.output_path_name,
+                    &path.output_path_digest,
+                ) {
+                    all_paths.push(p);
+                }
+            }
+
+            // query which cached paths are valid in the nix store
+            let valid_paths = match client.query_valid_paths(all_paths.clone(), false).await {
+                Ok(v) => v,
+                Err(err) => {
+                    error!(err = ?err, "failed to query valid paths for gc");
+                    return Ok(());
+                }
+            };
+
+            let valid_set: std::collections::HashSet<_> = valid_paths.into_iter().collect();
+
+            // delete invalid evaluation_cache entries
+            for path in &evaluation_paths {
+                let mut is_invalid = false;
+
+                if let Ok(p) = SafeStorePath::<String>::from_name_and_digest(
+                    &path.flake_path_name,
+                    &path.flake_path_digest,
+                ) && !valid_set.contains(&p)
+                {
+                    is_invalid = true;
+                }
+
+                if let Ok(p) = SafeStorePath::<String>::from_name_and_digest(
+                    &path.output_path_name,
+                    &path.output_path_digest,
+                ) && !valid_set.contains(&p)
+                {
+                    is_invalid = true;
+                }
+
+                if !is_invalid {
+                    continue;
+                }
+
+                let _ = sqlx::query!(
+                    "delete from evaluation_cache where flake_path_digest = $1 and flake_path_name = $2 and output_path_digest = $3 and output_path_name = $4",
+                    path.flake_path_digest.clone(),
+                    path.flake_path_name,
+                    path.output_path_digest.clone(),
+                    path.output_path_name
+                )
+                .execute(&self.pool)
+                .await
+                .inspect_err(|err| error!(err = ?err, "failed to delete from evaluation path"));
+            }
+        }
 
         Ok(())
     }

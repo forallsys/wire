@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            insert into evaluation_cache (\n                    flake_path_digest,\n                    flake_path_name,\n                    flake_hash_sri,\n                    node_name,\n                    output_path_digest,\n                    output_path_name\n            ) values ($1, $2, $3, $4, $5, $6)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "7d06a5ac5518429aa99edd5d878b6332ad23bf70286f29665f5b3e556aa32c5c"
+}

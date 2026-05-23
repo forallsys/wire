@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rust nix daemon client if `--experimental-nix-client` is passed.
 - Node `target` liveliness is now determined directly by initiating a nix daemon
   handshake if `--experimental-nix-client` is passed.
+- Node evaluations are now cached between wire invocations in flake hives,
+  invalidating old caches with a connection to the local nix daemon.
 
 ### Changed
 

@@ -78,7 +78,7 @@ async fn main() -> Result<()> {
     let signals_task = tokio::spawn(handle_signals(signals, should_shutdown.clone()));
 
     let location = get_hive_location(args.path, modifiers).await?;
-    let cache = InspectionCache::new().await;
+    let cache = Arc::new(InspectionCache::new().await);
 
     match args.command {
         cli::Commands::Apply(apply_args) => {
@@ -90,7 +90,7 @@ async fn main() -> Result<()> {
 
             apply::apply(
                 &mut hive,
-                should_shutdown,
+                should_shutdown.clone(),
                 location,
                 apply_args.common,
                 Partitions::default(),
@@ -109,6 +109,7 @@ async fn main() -> Result<()> {
                     })
                 },
                 modifiers,
+                cache.clone(),
             )
             .await?;
         }
@@ -117,12 +118,13 @@ async fn main() -> Result<()> {
 
             apply::apply(
                 &mut hive,
-                should_shutdown,
+                should_shutdown.clone(),
                 location,
                 build_args.common,
                 build_args.partition.unwrap_or_default(),
                 |_name, _node| Goal::Build,
                 modifiers,
+                cache.clone(),
             )
             .await?;
         }
@@ -150,8 +152,8 @@ async fn main() -> Result<()> {
         }),
     }
 
-    if let Some(cache) = cache {
-        cache.gc().await.into_diagnostic()?;
+    if let Some(cache) = &*cache {
+        cache.gc(should_shutdown).await.into_diagnostic()?;
     }
 
     signals_handle.close();
