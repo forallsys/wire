@@ -404,6 +404,7 @@ fn less_than_3(s: &str) -> Result<u8, String> {
 #[cfg(test)]
 mod tests {
     use crate::cli::{Partitions, parse_partitions};
+    use std::assert_matches;
 
     #[test]
     fn test_partition_parsing() {

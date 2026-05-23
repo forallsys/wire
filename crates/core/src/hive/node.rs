@@ -324,7 +324,7 @@ mod tests {
     use rand::distr::Alphabetic;
 
     use super::*;
-    use std::{assert_matches::assert_matches, env};
+    use std::{assert_matches, env};
 
     #[test]
     fn test_ssh_opts() {

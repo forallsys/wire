@@ -461,7 +461,7 @@ mod tests {
     use crate::commands::pty::output::handle_rawmode_data;
 
     use super::*;
-    use std::assert_matches::assert_matches;
+    use std::assert_matches;
 
     #[test]
     fn test_rawmode_data() {
