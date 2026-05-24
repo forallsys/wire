@@ -33,7 +33,6 @@ pub(crate) mod pty;
 pub(crate) enum ChildOutputMode {
     Nix,
     Generic,
-    Interactive,
 }
 
 #[derive(Debug)]
@@ -158,6 +157,86 @@ impl WireCommandChip for Either<InteractiveChildChip, NonInteractiveChildChip> {
     }
 }
 
+pub(crate) fn trace_nix_log_message(
+    log_message: LogMessage,
+    build_name_map: &BuildNameMap,
+    print_build_logs: bool,
+) -> Option<String> {
+    let (msg, level, build_name) = match log_message {
+        LogMessage::Start {
+            text,
+            r#type,
+            level,
+            id,
+            fields,
+            ..
+        } => {
+            if let Some(fields) = fields
+                && matches!(r#type, nix_compat::log::ActivityType::Build)
+                // first field of start log contains the build name.
+                && let Some(Field::String(name)) = fields.first()
+                && print_build_logs
+            {
+                build_name_map
+                    .lock()
+                    .insert(id, drv_path_to_build_name(name));
+            }
+
+            (text, level, None)
+        }
+        LogMessage::Stop { id, .. } => {
+            build_name_map.lock().remove(&id);
+
+            return None;
+        }
+        LogMessage::Msg { msg, level, .. } => (msg, level, None),
+        LogMessage::Result {
+            r#type: ResultType::BuildLogLine,
+            fields,
+            id,
+            ..
+        } => {
+            if !print_build_logs {
+                return None;
+            }
+
+            let Some(Field::String(msg)) = fields.into_iter().next() else {
+                return None;
+            };
+
+            // Attempt to reuse owned bytes into a utf8 string, or falls
+            // back lossy if it fails.
+            let msg = match msg {
+                std::borrow::Cow::Borrowed(bytes) => String::from_utf8_lossy(bytes),
+                std::borrow::Cow::Owned(vec) => match String::from_utf8(vec) {
+                    Ok(s) => Cow::Owned(s),
+                    Err(e) => Cow::Owned(String::from_utf8_lossy(e.as_bytes()).into_owned()),
+                },
+            };
+
+            let lock = build_name_map.lock();
+            let build_name = lock.get(&id).cloned();
+
+            (msg, VerbosityLevel::Info, build_name)
+        }
+        _ => return None,
+    };
+
+    if msg.is_empty() {
+        return None;
+    }
+
+    let msg = strip_ansi_escapes::strip_str(msg);
+
+    let level = log_print(&level, build_name.as_ref(), &msg);
+
+    if matches!(level, tracing::Level::ERROR | tracing::Level::WARN) {
+        return Some(msg);
+    }
+
+    None
+}
+
 impl ChildOutputMode {
     /// this function is by far the biggest hotspot in the whole tree
     /// Returns a string if this log is notable to be stored as an error message
@@ -168,7 +247,7 @@ impl ChildOutputMode {
         print_build_logs: bool,
     ) -> Option<String> {
         let slice = match self {
-            Self::Generic | Self::Interactive => {
+            Self::Generic => {
                 let string = String::from_utf8_lossy(line);
                 let stripped = strip_ansi_escapes::strip_str(&string);
                 warn!("{stripped}");
@@ -193,79 +272,7 @@ impl ChildOutputMode {
             return None;
         };
 
-        let (msg, level, build_name) = match log_message {
-            LogMessage::Start {
-                text,
-                r#type,
-                level,
-                id,
-                fields,
-                ..
-            } => {
-                if let Some(fields) = fields
-                    && matches!(r#type, nix_compat::log::ActivityType::Build)
-                    // first field of start log contains the build name.
-                    && let Some(Field::String(name)) = fields.first()
-                    && print_build_logs
-                {
-                    build_name_map
-                        .lock()
-                        .insert(id, drv_path_to_build_name(name));
-                }
-
-                (text, level, None)
-            }
-            LogMessage::Stop { id, .. } => {
-                build_name_map.lock().remove(&id);
-
-                return None;
-            }
-            LogMessage::Msg { msg, level, .. } => (msg, level, None),
-            LogMessage::Result {
-                r#type: ResultType::BuildLogLine,
-                fields,
-                id,
-                ..
-            } => {
-                if !print_build_logs {
-                    return None;
-                }
-
-                let Some(Field::String(msg)) = fields.into_iter().next() else {
-                    return None;
-                };
-
-                // Attempt to reuse owned bytes into a utf8 string, or falls
-                // back lossy if it fails.
-                let msg = match msg {
-                    std::borrow::Cow::Borrowed(bytes) => String::from_utf8_lossy(bytes),
-                    std::borrow::Cow::Owned(vec) => match String::from_utf8(vec) {
-                        Ok(s) => Cow::Owned(s),
-                        Err(e) => Cow::Owned(String::from_utf8_lossy(e.as_bytes()).into_owned()),
-                    },
-                };
-
-                let lock = build_name_map.lock();
-                let build_name = lock.get(&id).cloned();
-
-                (msg, VerbosityLevel::Info, build_name)
-            }
-            _ => return None,
-        };
-
-        if msg.is_empty() {
-            return None;
-        }
-
-        let msg = strip_ansi_escapes::strip_str(msg);
-
-        let level = log_print(&level, build_name.as_ref(), &msg);
-
-        if matches!(level, tracing::Level::ERROR | tracing::Level::WARN) {
-            return Some(msg);
-        }
-
-        None
+        trace_nix_log_message(log_message, build_name_map, print_build_logs)
     }
 }
 

@@ -83,43 +83,21 @@ static FAILED_PATTERN: LazyLock<PatternID> = LazyLock::new(|| PatternID::must(2)
 /// substitutes STDOUT with #$line. stdout is far less common than stderr.
 const IO_SUBS: &str = "1> >(while IFS= read -r line; do echo \"#$line\"; done)";
 
-fn create_ending_segment<S: AsRef<str>>(
-    arguments: &CommandArguments<S>,
-    needles: &Needles,
-) -> String {
-    let Needles {
-        succeed,
-        fail,
-        start,
-    } = needles;
+fn create_ending_segment(needles: &Needles) -> String {
+    let Needles { succeed, fail, .. } = needles;
 
     format!(
         "echo -e '{succeed}' || echo '{failed}'",
-        succeed = if matches!(arguments.output_mode, ChildOutputMode::Interactive) {
-            format!(
-                "{start}\\n{succeed}",
-                start = String::from_utf8_lossy(start),
-                succeed = String::from_utf8_lossy(succeed)
-            )
-        } else {
-            String::from_utf8_lossy(succeed).to_string()
-        },
+        succeed = String::from_utf8_lossy(succeed),
         failed = String::from_utf8_lossy(fail)
     )
 }
 
-fn create_starting_segment<S: AsRef<str>>(
-    arguments: &CommandArguments<S>,
-    start_needle: &Arc<Vec<u8>>,
-) -> String {
-    if matches!(arguments.output_mode, ChildOutputMode::Interactive) {
-        String::new()
-    } else {
-        format!(
-            "echo '{start}' && ",
-            start = String::from_utf8_lossy(start_needle)
-        )
-    }
+fn create_starting_segment(start_needle: &Arc<Vec<u8>>) -> String {
+    format!(
+        "echo '{start}' && ",
+        start = String::from_utf8_lossy(start_needle)
+    )
 }
 
 #[instrument(skip_all, name = "run-int", fields(elevated = %arguments.is_elevated(), mode = ?arguments.output_mode))]
@@ -139,10 +117,10 @@ pub(crate) async fn interactive_command_with_env<S: AsRef<str>>(
         command = arguments.command_string.as_ref(),
         flags = match arguments.output_mode {
             ChildOutputMode::Nix => "--log-format internal-json",
-            ChildOutputMode::Generic | ChildOutputMode::Interactive => "",
+            ChildOutputMode::Generic => "",
         },
-        starting = create_starting_segment(arguments, &needles.start),
-        ending = create_ending_segment(arguments, &needles)
+        starting = create_starting_segment(&needles.start),
+        ending = create_ending_segment(&needles)
     );
 
     debug!("{command_string}");
@@ -449,7 +427,7 @@ async fn create_int_ssh_command(
 ) -> Result<portable_pty::CommandBuilder, HiveLibError> {
     let target = target.0.read().await;
     let mut command = portable_pty::CommandBuilder::new("ssh");
-    command.args(target.create_ssh_args(modifiers)?);
+    command.args(target.create_ssh_args(modifiers, false)?);
     command.arg(target.get_preferred_host()?.to_string());
     Ok(command)
 }

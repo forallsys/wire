@@ -13,8 +13,7 @@ use std::sync::nonpoison::Mutex;
 use tokio::sync::{RwLock, oneshot};
 use tracing::instrument;
 
-use crate::commands::builder::CommandStringBuilder;
-use crate::commands::{CommandArguments, WireCommandChip, run_command};
+use crate::commands::trace_nix_log_message;
 use crate::errors::NetworkError;
 use crate::hive::HiveLocation;
 use crate::hive::steps::build::Build;
@@ -22,7 +21,7 @@ use crate::hive::steps::evaluate::Evaluate;
 use crate::hive::steps::keys::{Key, Keys, PushKeyAgent};
 use crate::hive::steps::ping::Ping;
 use crate::hive::steps::push::{PushBuildOutput, PushEvaluatedOutput};
-use crate::{SafeStorePath, StrictHostKeyChecking, SubCommandModifiers};
+use crate::{SafeStorePath, StrictHostKeyChecking, SubCommandModifiers, open_remote_client};
 
 use super::HiveLibError;
 use super::steps::activate::SwitchToConfiguration;
@@ -66,13 +65,14 @@ impl PartialEq for SharedTarget {
 impl Target {
     #[instrument(ret(level = tracing::Level::DEBUG), skip_all)]
     pub fn create_ssh_opts(&self, modifiers: SubCommandModifiers) -> Result<String, HiveLibError> {
-        self.create_ssh_args(modifiers).map(|x| x.join(" "))
+        self.create_ssh_args(modifiers, false).map(|x| x.join(" "))
     }
 
     #[instrument(ret(level = tracing::Level::DEBUG))]
     pub fn create_ssh_args(
         &self,
         modifiers: SubCommandModifiers,
+        force_quiet: bool,
     ) -> Result<Vec<String>, HiveLibError> {
         let mut vector = vec![
             "-l".to_string(),
@@ -96,7 +96,9 @@ impl Target {
         vector.push("-o".to_string());
         vector.extend(options.into_iter().intersperse("-o".to_string()));
 
-        if modifiers.ssh_verbosity > 0 {
+        if force_quiet {
+            vector.push("-q".to_string());
+        } else if modifiers.ssh_verbosity > 0 {
             vector.push(format!("-{}", "v".repeat(modifiers.ssh_verbosity)));
         }
 
@@ -104,27 +106,14 @@ impl Target {
     }
 
     /// Tests the connection to a node
-    pub async fn ping(&self, modifiers: SubCommandModifiers) -> Result<(), HiveLibError> {
-        let host = self.get_preferred_host()?;
+    pub async fn ping(
+        &self,
+        modifiers: SubCommandModifiers,
+        should_quit: Arc<AtomicBool>,
+    ) -> Result<(), HiveLibError> {
+        open_remote_client(&self, modifiers, trace_nix_log_message, should_quit).await?;
 
-        let mut command_string = CommandStringBuilder::new("ssh");
-        command_string.arg(format!("{}@{host}", self.user));
-        command_string.arg(self.create_ssh_opts(modifiers)?);
-        command_string.arg("exit");
-
-        let output = run_command(
-            &CommandArguments::new(command_string, modifiers)
-                .log_stdout()
-                .mode(crate::commands::ChildOutputMode::Interactive),
-        )
-        .await?;
-
-        output.wait_till_success().await.map_err(|source| {
-            HiveLibError::NetworkError(NetworkError::HostUnreachable {
-                host: host.to_string(),
-                source,
-            })
-        })?;
+        // connection established
 
         Ok(())
     }
@@ -235,6 +224,7 @@ pub fn should_apply_locally(allow_local_deployment: bool, name: &str) -> bool {
     *name == *gethostname() && allow_local_deployment
 }
 
+#[derive(Debug)]
 pub enum Push<'a> {
     Derivation(&'a SafeStorePath<String>),
     Path(&'a SafeStorePath<String>),
@@ -353,14 +343,17 @@ mod tests {
             "BatchMode=yes".to_string(),
         ];
 
-        assert_eq!(target.create_ssh_args(subcommand_modifiers).unwrap(), args);
+        assert_eq!(
+            target.create_ssh_args(subcommand_modifiers, false).unwrap(),
+            args
+        );
         assert_eq!(
             target.create_ssh_opts(subcommand_modifiers).unwrap(),
             args.join(" ")
         );
 
         assert_eq!(
-            target.create_ssh_args(subcommand_modifiers).unwrap(),
+            target.create_ssh_args(subcommand_modifiers, false).unwrap(),
             [
                 "-l".to_string(),
                 target.user.to_string(),
@@ -374,7 +367,7 @@ mod tests {
         );
 
         assert_eq!(
-            target.create_ssh_args(subcommand_modifiers).unwrap(),
+            target.create_ssh_args(subcommand_modifiers, false).unwrap(),
             [
                 "-l".to_string(),
                 target.user.to_string(),
@@ -389,12 +382,15 @@ mod tests {
 
         // forced non interactive is the same as --non-interactive
         assert_eq!(
-            target.create_ssh_args(subcommand_modifiers).unwrap(),
+            target.create_ssh_args(subcommand_modifiers, false).unwrap(),
             target
-                .create_ssh_args(SubCommandModifiers {
-                    non_interactive: true,
-                    ..Default::default()
-                })
+                .create_ssh_args(
+                    SubCommandModifiers {
+                        non_interactive: true,
+                        ..Default::default()
+                    },
+                    false
+                )
                 .unwrap()
         );
     }

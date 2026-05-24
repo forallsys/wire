@@ -27,11 +27,10 @@ use tokio_util::codec::LengthDelimitedCodec;
 use tracing::{debug, instrument};
 
 use crate::commands::builder::CommandStringBuilder;
-use crate::commands::common::push;
 use crate::commands::{CommandArguments, WireCommandChip, run_command};
 use crate::errors::KeyError;
 use crate::hive::node::{Context, ExecuteStep, Push, SharedTarget};
-use crate::{HiveLibError, SafeStorePath};
+use crate::{HiveLibError, SafeStorePath, push};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Hash)]
 #[serde(tag = "t", content = "c")]
@@ -324,7 +323,8 @@ impl ExecuteStep for PushKeyAgent {
         };
 
         let agent_store_path =
-            SafeStorePath::<String>::from_absolute_path(agent_directory.as_bytes())?;
+            SafeStorePath::<String>::from_absolute_path(agent_directory.as_bytes())
+                .map_err(HiveLibError::StorePath)?;
 
         if let Some(ref target) = self.target {
             push(
