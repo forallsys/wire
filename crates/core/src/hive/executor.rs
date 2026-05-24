@@ -1,9 +1,9 @@
-use std::debug_assert_matches;
 use crate::{
     SafeStorePath,
     hive::node::Step,
     status::{NodeStatus, UI_SENDER, UiMessage},
 };
+use std::debug_assert_matches;
 use std::sync::Arc;
 
 use tracing::{Instrument, Span, debug, error, event, instrument};
@@ -143,14 +143,18 @@ pub async fn execute(mut plan: NodePlan) -> Result<(), HiveLibError> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        SubCommandModifiers, errors::HiveLibError, function_name, get_test_path, hive::{
+        SubCommandModifiers,
+        errors::HiveLibError,
+        function_name, get_test_path,
+        hive::{
             executor::execute,
             node::{ApplyGoal, HandleUnreachable, Name, Node, SwitchToConfigurationGoal},
             plan::{ApplyGoalArgs, Goal, plan_for_node},
-        }, location
+        },
+        location,
     };
-    use std::path::PathBuf;
     use std::assert_matches;
+    use std::path::PathBuf;
     use std::{
         env,
         sync::{Arc, atomic::AtomicBool},

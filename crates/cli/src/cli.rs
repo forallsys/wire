@@ -174,6 +174,7 @@ pub struct CommonVerbArgs {
     #[arg(short, long, default_value_t = 10, value_parser=more_than_zero)]
     pub parallel: usize,
 
+    /// Trace full build logs.
     #[arg(short = 'L', long, default_value_t = false)]
     pub print_build_logs: bool,
 }

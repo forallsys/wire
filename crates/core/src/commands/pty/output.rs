@@ -32,6 +32,7 @@ pub(super) struct WatchStdoutArguments {
     pub span: Span,
     pub log_stdout: bool,
     pub build_name_map: BuildNameMap,
+    pub print_build_logs: bool,
 }
 
 /// Handles data from the PTY, and logs or prompts the user depending on the state
@@ -52,6 +53,7 @@ pub(super) fn handle_pty_stdout(arguments: WatchStdoutArguments) -> Result<(), C
         status_sender,
         log_stdout,
         build_name_map,
+        print_build_logs,
         ..
     } = arguments;
 
@@ -135,6 +137,7 @@ pub(super) fn handle_pty_stdout(arguments: WatchStdoutArguments) -> Result<(), C
                         log_stdout,
                         output_mode,
                         &build_name_map,
+                        print_build_logs,
                     );
                 }
             }
@@ -195,12 +198,13 @@ fn handle_normal_data(
     log_stdout: bool,
     output_mode: ChildOutputMode,
     build_name_map: &BuildNameMap,
+    print_build_logs: bool,
 ) {
     if line.starts_with(b"#") {
         let stripped = &mut line[1..];
 
         if log_stdout {
-            output_mode.trace_slice(stripped, build_name_map);
+            output_mode.trace_slice(stripped, build_name_map, print_build_logs);
         }
 
         let mut queue = stdout_collection.lock().unwrap();
@@ -208,7 +212,7 @@ fn handle_normal_data(
         return;
     }
 
-    let log = output_mode.trace_slice(line, build_name_map);
+    let log = output_mode.trace_slice(line, build_name_map, print_build_logs);
 
     if let Some(error_msg) = log {
         let mut queue = stderr_collection.lock().unwrap();

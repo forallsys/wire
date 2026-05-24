@@ -191,6 +191,7 @@ pub(crate) async fn interactive_command_with_env<S: AsRef<str>>(
             log_stdout: arguments.log_stdout,
             status_sender,
             build_name_map: arguments.build_name_map.clone(),
+            print_build_logs: arguments.modifiers.print_build_logs,
         };
 
         tokio::task::spawn_blocking(move || handle_pty_stdout(arguments))

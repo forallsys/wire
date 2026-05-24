@@ -300,8 +300,8 @@ mod tests {
     };
 
     use super::*;
-    use std::env;
     use std::assert_matches;
+    use std::env;
 
     // flake should always come before hive.nix
     #[tokio::test]

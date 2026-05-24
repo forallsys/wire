@@ -161,7 +161,12 @@ impl WireCommandChip for Either<InteractiveChildChip, NonInteractiveChildChip> {
 impl ChildOutputMode {
     /// this function is by far the biggest hotspot in the whole tree
     /// Returns a string if this log is notable to be stored as an error message
-    fn trace_slice(self, line: &mut [u8], build_name_map: &BuildNameMap) -> Option<String> {
+    fn trace_slice(
+        self,
+        line: &mut [u8],
+        build_name_map: &BuildNameMap,
+        print_build_logs: bool,
+    ) -> Option<String> {
         let slice = match self {
             Self::Generic | Self::Interactive => {
                 let string = String::from_utf8_lossy(line);
@@ -201,6 +206,7 @@ impl ChildOutputMode {
                     && matches!(r#type, nix_compat::log::ActivityType::Build)
                     // first field of start log contains the build name.
                     && let Some(Field::String(name)) = fields.first()
+                    && print_build_logs
                 {
                     build_name_map
                         .lock()
@@ -221,6 +227,10 @@ impl ChildOutputMode {
                 id,
                 ..
             } => {
+                if !print_build_logs {
+                    return None;
+                }
+
                 let Some(Field::String(msg)) = fields.into_iter().next() else {
                     return None;
                 };

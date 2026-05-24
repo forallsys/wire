@@ -98,6 +98,7 @@ pub(crate) async fn non_interactive_command_with_env<S: AsRef<str>>(
             true,
             true,
             arguments.build_name_map.clone(),
+            arguments.modifiers.print_build_logs,
         )
         .in_current_span(),
     );
@@ -109,6 +110,7 @@ pub(crate) async fn non_interactive_command_with_env<S: AsRef<str>>(
             false,
             arguments.log_stdout,
             arguments.build_name_map.clone(),
+            arguments.modifiers.print_build_logs,
         )
         .in_current_span(),
     );
@@ -164,6 +166,7 @@ pub async fn handle_io<R>(
     is_error: bool,
     should_log: bool,
     build_name_map: BuildNameMap,
+    print_build_logs: bool,
 ) where
     R: tokio::io::AsyncRead + Unpin,
 {
@@ -173,7 +176,7 @@ pub async fn handle_io<R>(
         let mut line = line.into_bytes();
 
         let log = if should_log {
-            Some(output_mode.trace_slice(&mut line, &build_name_map))
+            Some(output_mode.trace_slice(&mut line, &build_name_map, print_build_logs))
         } else {
             None
         };
