@@ -18,7 +18,7 @@ use tokio::{
     process::{ChildStdin, ChildStdout, Command},
     sync::{AcquireError, Semaphore, SemaphorePermit, mpsc::UnboundedSender, oneshot},
 };
-use tracing::{info, instrument, trace};
+use tracing::{debug, info, instrument, trace};
 use wire_nix_client::{
     NixClient, NixDaemonClientError, WireAddToStoreNarRequest, store_path::SafeStorePath,
 };

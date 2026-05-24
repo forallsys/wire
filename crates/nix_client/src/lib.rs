@@ -10,6 +10,7 @@ use std::{
 
 use itertools::Itertools;
 use miette::Diagnostic;
+use nix_compat::wire::read_string;
 use nix_compat::{
     log::VerbosityLevel,
     narinfo::Signature,
@@ -18,7 +19,6 @@ use nix_compat::{
     wire::{
         ProtocolVersion,
         de::{NixRead, NixReader, NixReaderBuilder},
-        read_string,
         ser::{NixWrite, NixWriter, NixWriterBuilder},
     },
     worker_protocol::Operation,
@@ -40,7 +40,7 @@ use crate::store_path::SafeStorePath;
 pub mod store_path;
 
 // https://snix.dev/docs/reference/nix-daemon-protocol/changelog/
-const CLIENT_VERSION: ProtocolVersion = ProtocolVersion::from_parts(1, 37);
+const CLIENT_VERSION: ProtocolVersion = ProtocolVersion::from_parts(1, 35);
 const CLIENT_ONE: u64 = 0x6e69_7863;
 const SERVER_ONE: u64 = 0x6478_696f;
 
@@ -219,29 +219,28 @@ where
                 NixDaemonClientError::NixDaemonInvalidResponse(error.to_string())
             })?;
 
-        // send our version
+        // match server's protocol version
         writer
-            .write_u64_le(u64::from(CLIENT_VERSION))
+            .write_u64_le(CLIENT_VERSION.into())
             .await
             .map_err(NixDaemonClientError::NixDaemonIO)?;
 
-        // sendCpu, hardcoded to false
+        // write obsolete `sendCpu` & `cpuAffinity`
         writer
-            .write_u8(0)
+            .write_u64_le(0)
             .await
             .map_err(NixDaemonClientError::NixDaemonIO)?;
-
-        // reserveSpace, obsolete
         writer
-            .write_u8(0)
+            .write_u64_le(0)
             .await
             .map_err(NixDaemonClientError::NixDaemonIO)?;
 
         let nix_version = read_string(&mut reader, 0..=10)
             .await
             .map_err(NixDaemonClientError::NixDaemonIO)?;
+
         let trusted = reader
-            .read_u8()
+            .read_u64_le()
             .await
             .map_err(NixDaemonClientError::NixDaemonIO)?;
 
@@ -394,11 +393,11 @@ where
                 STDERR_READ => {
                     let _desired_len: u64 = self.read_value().await?;
 
-                    warn!("STDERR_READ is not implemented")
+                    warn!("STDERR_READ is not implemented");
                 }
                 STDERR_WRITE => {
                     // todo: read bytes here
-                    warn!("STDERR_WRITE is not implemented")
+                    warn!("STDERR_WRITE is not implemented");
                 }
                 _ => {
                     return Err(NixDaemonClientError::NixDaemonInvalidResponse(format!(
