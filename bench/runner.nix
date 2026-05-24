@@ -77,7 +77,7 @@ in
                 colmena_args="apply test --config $bench_dir/colmena/hive.nix -v -p 10"
                 colmena_args_flake="apply test --config $HOME/colmena-flake/flake.nix -v -p 10"
 
-                ${lib.getExe pkgs.hyperfine} --warmup 1 --show-output --runs 5 \
+                ${lib.getExe pkgs.hyperfine} --warmup 2 --runs 5 \
                   --export-markdown stats.md \
                   --export-json run.json \
                   "${lib.getExe self'.packages.wire-small} $wire_args_flake" -n "wire@HEAD - flake" \
@@ -111,13 +111,6 @@ in
         defaults =
           _:
           let
-            # hive = builtins.scopedImport {
-            #   __nixPath = _b: null;
-            #   __findFile = _path: name: if name == "nixpkgs" then pkgs.path else throw "oops!!";
-            # } "${injectedFlakeDir}/${path}/hive.nix";
-
-            # fetch **all** dependencies of a flake
-            # it's called fetchLayer because my naming skills are awful
             fetchLayer =
               input:
               let
@@ -160,10 +153,3 @@ in
       };
     };
 }
-
-# "${
-#   lib.getExe (builtins.getFlake "github:mrshmllow/wire/stable").packages.${system}.wire-small
-# } $wire_args" -n "wire@stable - hive.nix" \
-# "${
-#   lib.getExe (builtins.getFlake "github:mrshmllow/wire/stable").packages.${system}.wire-small
-# } $wire_args_flake" -n "wire@stable - flake" \
