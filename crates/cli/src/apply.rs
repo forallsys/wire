@@ -216,7 +216,7 @@ where
         info!(
             "Successfully applied goal to {} node(s): {:?}",
             successful.len(),
-            successful
+            successful.into_iter().map(|x| x.0).collect_vec()
         );
     }
 
