@@ -59,6 +59,13 @@ pub struct Cli {
     #[arg(long, global = true, default_value_t = false)]
     pub show_trace: bool,
 
+    /// Use the experimental native Nix Daemon Client instead of the nix CLI commands.
+    ///
+    /// This enables native protocol-level optimisations but may not be compatible with all Nix versions
+    /// and is still a work in progress cause issues.
+    #[arg(long, global = true, default_value_t = false)]
+    pub experimental_nix_client: bool,
+
     #[cfg(debug_assertions)]
     #[arg(long, hide = true, global = true)]
     pub markdown_help: bool,
@@ -334,6 +341,7 @@ impl ToSubCommandModifiers for Cli {
         SubCommandModifiers {
             show_trace: self.show_trace,
             non_interactive: self.non_interactive,
+            experimental_nix_client: self.experimental_nix_client,
             ssh_accept_host: match &self.command {
                 Commands::Apply(args) if args.ssh_accept_host => {
                     wire_core::StrictHostKeyChecking::No

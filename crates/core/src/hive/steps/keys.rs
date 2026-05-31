@@ -30,7 +30,7 @@ use crate::commands::builder::CommandStringBuilder;
 use crate::commands::{CommandArguments, WireCommandChip, run_command};
 use crate::errors::KeyError;
 use crate::hive::node::{Context, ExecuteStep, Push, SharedTarget};
-use crate::{HiveLibError, SafeStorePath, push};
+use crate::{HiveLibError, SafeStorePath, push_with_daemon};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Hash)]
 #[serde(tag = "t", content = "c")]
@@ -327,7 +327,7 @@ impl ExecuteStep for PushKeyAgent {
                 .map_err(HiveLibError::StorePath)?;
 
         if let Some(ref target) = self.target {
-            push(
+            push_with_daemon(
                 ctx,
                 target,
                 Push::Path(&agent_store_path),

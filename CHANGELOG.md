@@ -11,9 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `--print-build-logs` / `-L` argument.
 - `nix copy` & `nix build` operations are now manually implemented through a native
-  rust nix daemon client.
+  rust nix daemon client if `--experimental-nix-client` is passed.
 - Node `target` liveliness is now determined directly by initiating a nix daemon
-  handshake.
+  handshake if `--experimental-nix-client` is passed.
 
 ### Changed
 

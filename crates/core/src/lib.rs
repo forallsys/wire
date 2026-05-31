@@ -18,7 +18,7 @@ use tokio::{
     process::{ChildStdin, ChildStdout, Command},
     sync::{AcquireError, Semaphore, SemaphorePermit, mpsc::UnboundedSender, oneshot},
 };
-use tracing::{debug, info, instrument, trace};
+use tracing::{info, instrument, trace};
 use wire_nix_client::{
     NixClient, NixDaemonClientError, WireAddToStoreNarRequest, store_path::SafeStorePath,
 };
@@ -54,12 +54,14 @@ pub enum StrictHostKeyChecking {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct SubCommandModifiers {
     pub show_trace: bool,
     pub non_interactive: bool,
     pub ssh_accept_host: StrictHostKeyChecking,
     pub ssh_verbosity: usize,
     pub print_build_logs: bool,
+    pub experimental_nix_client: bool,
 }
 
 impl Default for SubCommandModifiers {
@@ -70,6 +72,7 @@ impl Default for SubCommandModifiers {
             ssh_accept_host: StrictHostKeyChecking::default(),
             ssh_verbosity: 0,
             print_build_logs: false,
+            experimental_nix_client: false,
         }
     }
 }
@@ -168,7 +171,8 @@ fn get_common_copy_path_help(error: &NixDaemonClientError) -> Option<String> {
     }
 }
 
-pub async fn push(
+/// Pushes the path with a native daemon.
+pub async fn push_with_daemon(
     context: &Context,
     target: &SharedTarget,
     push: Push<'_>,

@@ -242,7 +242,34 @@ pub enum HiveLibError {
     #[diagnostic(transparent)]
     StorePath(StorePathError),
 
-    #[diagnostic(code(wire::CopyPath))]
+    #[error("Failed to apply key {}", .0)]
+    KeyError(
+        String,
+        #[source]
+        #[diagnostic_source]
+        KeyError,
+    ),
+
+    /// Regular nix build error
+    #[diagnostic(code(wire::BuildNodeDaemon))]
+    #[error("failed to build node {name}")]
+    NixBuildError {
+        name: Name,
+        #[source]
+        source: NixDaemonClientError,
+    },
+
+    /// Nix daemon nix build error
+    #[diagnostic(code(wire::BuildNodeCli))]
+    #[error("failed to build node {name}")]
+    NixBuildCliError {
+        name: Name,
+        #[source]
+        source: CommandError,
+    },
+
+    /// Regular nix copy error
+    #[diagnostic(code(wire::CopyPathDaemon))]
     #[error("failed to copy path {} to node {name}", path.to_absolute_path())]
     NixCopyError {
         name: Name,
@@ -253,20 +280,16 @@ pub enum HiveLibError {
         help: Option<String>,
     },
 
-    #[error("Failed to apply key {}", .0)]
-    KeyError(
-        String,
-        #[source]
-        #[diagnostic_source]
-        KeyError,
-    ),
-
-    #[diagnostic(code(wire::BuildNode))]
-    #[error("failed to build node {name}")]
-    NixBuildError {
+    /// Experimental nix daemon client copy error
+    #[diagnostic(code(wire::CopyPathCli))]
+    #[error("failed to copy path {} to node {name}", path.to_absolute_path())]
+    NixCopyCliError {
         name: Name,
+        path: SafeStorePath<String>,
         #[source]
-        source: NixDaemonClientError,
+        error: Box<CommandError>,
+        #[help]
+        help: Option<Box<String>>,
     },
 
     #[diagnostic(code(wire::Evaluate))]
@@ -288,4 +311,10 @@ pub enum HiveLibError {
     #[diagnostic(code(wire::SIGINT))]
     #[error("SIGINT received, shut down")]
     Sigint,
+}
+
+impl From<StorePathError> for HiveLibError {
+    fn from(e: StorePathError) -> Self {
+        HiveLibError::StorePath(e)
+    }
 }
