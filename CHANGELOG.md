@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Use `AssertPathExists` instead of conditional path existence checks for key services.
+- Built paths printed to stdout being clobbered with the status bar.
 
 ## [v1.3.0] - 2026-05-02
 

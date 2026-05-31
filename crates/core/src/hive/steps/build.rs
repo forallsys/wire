@@ -7,13 +7,10 @@ use tracing::{debug, info, instrument};
 use wire_nix_client::{DerivedPath, DerivedPathOutput, NixClient, NixDaemonClientError};
 
 use crate::{
-    HiveLibError, SafeStorePath,
-    commands::{
+    HiveLibError, SafeStorePath, acquire_stdin_lock, commands::{
         CommandArguments, Either, WireCommandChip, builder::CommandStringBuilder,
         run_command_with_env, trace_nix_log_message,
-    },
-    hive::node::{Context, ExecuteStep, SharedTarget},
-    open_remote_client,
+    }, hive::node::{Context, ExecuteStep, SharedTarget}, open_remote_client
 };
 
 const SYSTEM_OUTPUT: &str = "out";
@@ -101,7 +98,9 @@ impl ExecuteStep for Build {
             info!("Built output: {output_path:?}");
 
             // print built path to stdout
+            let clobber_guard = acquire_stdin_lock().await;
             println!("{}", output_path.to_absolute_path());
+            drop(clobber_guard);
 
             ctx.state.build = Some(output_path);
         } else {
@@ -139,8 +138,9 @@ impl ExecuteStep for Build {
 
             info!("Built output: {stdout:?}");
 
-            // print built path to stdout
+            let clobber_guard = acquire_stdin_lock().await;
             println!("{stdout}");
+            drop(clobber_guard);
 
             ctx.state.build = Some(SafeStorePath::<String>::from_absolute_path(
                 stdout.as_bytes(),
