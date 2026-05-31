@@ -11,7 +11,7 @@ use std::{
 use itertools::Itertools;
 use sqlx::{
     Pool, Sqlite,
-    migrate::{Migrator, MigrateError},
+    migrate::{MigrateError, Migrator},
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
 };
 use tokio::fs::create_dir_all;
@@ -93,11 +93,11 @@ impl InspectionCache {
         Some(Self { pool })
     }
 
-    async fn reset_migration(
-        pool: Pool<Sqlite>,
-        cache_path: &Path,
-    ) -> Option<Pool<Sqlite>> {
-        info!("failed to run cache migrations, resetting {}", cache_path.to_string_lossy());
+    async fn reset_migration(pool: Pool<Sqlite>, cache_path: &Path) -> Option<Pool<Sqlite>> {
+        info!(
+            "failed to run cache migrations, resetting {}",
+            cache_path.to_string_lossy()
+        );
 
         pool.close().await;
 

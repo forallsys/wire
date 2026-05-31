@@ -73,6 +73,7 @@ in
 
                 wire_args="apply test --path $bench_dir/wire -vv --ssh-accept-host -p 10"
                 wire_args_flake="apply test --path $HOME/wire-flake -vv --ssh-accept-host -p 10"
+                wire_args_flake_exp_client="apply test --path $HOME/wire-flake -vv --ssh-accept-host -p 10 --experimental-nix-client"
 
                 colmena_args="apply test --config $bench_dir/colmena/hive.nix -v -p 10"
                 colmena_args_flake="apply test --config $HOME/colmena-flake/flake.nix -v -p 10"
@@ -81,6 +82,7 @@ in
                   --export-markdown stats.md \
                   --export-json run.json \
                   "${lib.getExe self'.packages.wire-small} $wire_args_flake" -n "wire@HEAD - flake" \
+                  "${lib.getExe self'.packages.wire-small} $wire_args_flake_exp_client" -n "wire@HEAD & --experimental-nix-client - flake" \
                   "${lib.getExe' inputs.colmena_benchmarking.packages.x86_64-linux.colmena "colmena"} $colmena_args_flake" \
                       -n "colmena@pinned - flake" \
                   "${lib.getExe self'.packages.wire-small} $wire_args" -n "wire@HEAD - hive.nix"

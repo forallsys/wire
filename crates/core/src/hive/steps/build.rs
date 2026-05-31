@@ -7,10 +7,13 @@ use tracing::{debug, info, instrument};
 use wire_nix_client::{DerivedPath, DerivedPathOutput, NixClient, NixDaemonClientError};
 
 use crate::{
-    HiveLibError, SafeStorePath, acquire_stdin_lock, commands::{
+    HiveLibError, SafeStorePath, acquire_stdin_lock,
+    commands::{
         CommandArguments, Either, WireCommandChip, builder::CommandStringBuilder,
         run_command_with_env, trace_nix_log_message,
-    }, hive::node::{Context, ExecuteStep, SharedTarget}, open_remote_client
+    },
+    hive::node::{Context, ExecuteStep, SharedTarget},
+    open_remote_client,
 };
 
 const SYSTEM_OUTPUT: &str = "out";
