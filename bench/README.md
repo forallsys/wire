@@ -15,10 +15,9 @@ You can adjust the number of nodes in `num-nodes.nix`
 
 The hive has around 20 nodes and 200 keys each. 80% of the keys are pre-activation, 20% post-activation.
 
-| Command                  |        Mean [s] | Min [s] | Max [s] |    Relative |
-| :----------------------- | --------------: | ------: | ------: | ----------: |
-| `wire@HEAD - flake`      | 89.825 ± 22.941 |  78.190 | 130.831 |        1.00 |
-| `wire@stable - flake`    | 133.664 ± 0.303 | 133.219 | 134.044 | 1.49 ± 0.38 |
-| `colmena@pinned - flake` | 131.544 ± 1.076 | 130.330 | 133.211 | 1.46 ± 0.37 |
-| `wire@stable - hive.nix` | 133.070 ± 0.805 | 132.166 | 134.209 | 1.48 ± 0.38 |
-| `wire@HEAD - hive.nix`   | 130.287 ± 1.456 | 128.980 | 132.699 | 1.45 ± 0.37 |
+| Command                                         |        Mean [s] | Min [s] | Max [s] |     Relative |
+| :---------------------------------------------- | --------------: | ------: | ------: | -----------: |
+| `wire@HEAD - flake`                             |   5.467 ± 0.061 |   5.406 |   5.561 |  1.15 ± 0.02 |
+| `wire@HEAD & --experimental-nix-client - flake` |   4.773 ± 0.083 |   4.693 |   4.870 |         1.00 |
+| `colmena@pinned - flake`                        | 125.852 ± 0.528 | 125.242 | 126.404 | 26.37 ± 0.47 |
+| `wire@HEAD - hive.nix`                          | 122.832 ± 1.216 | 121.555 | 124.179 | 25.73 ± 0.52 |
