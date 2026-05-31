@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "select rowid, flake_path_digest, flake_path_name, output_path_digest, output_path_name from evaluation_cache where rowid > $1 order by rowid asc limit 50",
+  "describe": {
+    "columns": [
+      {
+        "name": "rowid",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "evaluation_cache",
+            "name": "rowid"
+          }
+        }
+      },
+      {
+        "name": "flake_path_digest",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "evaluation_cache",
+            "name": "flake_path_digest"
+          }
+        }
+      },
+      {
+        "name": "flake_path_name",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "evaluation_cache",
+            "name": "flake_path_name"
+          }
+        }
+      },
+      {
+        "name": "output_path_digest",
+        "ordinal": 3,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "evaluation_cache",
+            "name": "output_path_digest"
+          }
+        }
+      },
+      {
+        "name": "output_path_name",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "evaluation_cache",
+            "name": "output_path_name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "6e4989977a0257d5f67151d58936f863ece674126914d7146a75a79c0c79aa6f"
+}

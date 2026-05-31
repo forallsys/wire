@@ -767,7 +767,7 @@ where
             return Err(NixDaemonClientError::NixDaemonProtocolVersion {
                 wanted: ProtocolVersion::from_parts(1, 19),
                 have: self.writer.version(),
-                operation: "QueryMissing".into(),
+                operation: "QueryDerivationOutputMap".into(),
             });
         }
 

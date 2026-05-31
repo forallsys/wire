@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            select\n                evaluation_cache.output_path_digest,\n                evaluation_cache.output_path_name,\n                evaluation_cache.node_name\n            from\n                evaluation_cache\n            where\n                evaluation_cache.flake_path_digest = $1\n                and evaluation_cache.flake_path_name = $2\n                and evaluation_cache.flake_hash_sri = $3\n                and evaluation_cache.node_name in (select value from json_each($4))\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "output_path_digest",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "evaluation_cache",
+            "name": "output_path_digest"
+          }
+        }
+      },
+      {
+        "name": "output_path_name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "evaluation_cache",
+            "name": "output_path_name"
+          }
+        }
+      },
+      {
+        "name": "node_name",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "evaluation_cache",
+            "name": "node_name"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "7b75a4af74b33f56f2ceeea1e462d28066719fab4319880dfdd2de215c08ba6a"
+}

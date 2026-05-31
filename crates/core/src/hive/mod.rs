@@ -53,12 +53,12 @@ impl Hive {
     #[instrument(skip_all, name = "eval_hive")]
     pub async fn new_from_path(
         location: &HiveLocation,
-        cache: Option<InspectionCache>,
+        cache: Arc<Option<InspectionCache>>,
         modifiers: SubCommandModifiers,
     ) -> Result<Hive, HiveLibError> {
         info!("evaluating hive {location:?}");
 
-        if let Some(ref cache) = cache
+        if let Some(ref cache) = *cache
             && let HiveLocation::Flake { prefetch, .. } = location
             && let Some(hive) = cache.get_hive(prefetch).await
         {
@@ -71,7 +71,7 @@ impl Hive {
             HiveLibError::HiveInitialisationError(HiveInitialisationError::ParseEvaluateError(err))
         })?;
 
-        if let Some(cache) = cache
+        if let Some(ref cache) = *cache
             && let HiveLocation::Flake { prefetch, .. } = location
         {
             cache.store_hive(prefetch, &output).await;
@@ -316,7 +316,7 @@ mod tests {
     async fn test_hive_file() {
         let location = location!(get_test_path!());
 
-        let hive = Hive::new_from_path(&location, None, SubCommandModifiers::default())
+        let hive = Hive::new_from_path(&location, None.into(), SubCommandModifiers::default())
             .await
             .unwrap();
 
@@ -342,7 +342,7 @@ mod tests {
     async fn non_trivial_hive() {
         let location = location!(get_test_path!());
 
-        let hive = Hive::new_from_path(&location, None, SubCommandModifiers::default())
+        let hive = Hive::new_from_path(&location, None.into(), SubCommandModifiers::default())
             .await
             .unwrap();
 
@@ -389,7 +389,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let hive = Hive::new_from_path(&location, None, SubCommandModifiers::default())
+        let hive = Hive::new_from_path(&location, None.into(), SubCommandModifiers::default())
             .await
             .unwrap();
 
@@ -416,7 +416,7 @@ mod tests {
         let location = location!(get_test_path!());
 
         assert_matches!(
-            Hive::new_from_path(&location, None, SubCommandModifiers::default()).await,
+            Hive::new_from_path(&location, None.into(), SubCommandModifiers::default()).await,
             Err(HiveLibError::NixEvalError {
                 source: CommandError::CommandFailed {
                     logs,
@@ -433,7 +433,7 @@ mod tests {
         let location = location!(get_test_path!());
 
         assert_matches!(
-            Hive::new_from_path(&location, None, SubCommandModifiers::default()).await,
+            Hive::new_from_path(&location, None.into(), SubCommandModifiers::default()).await,
             Err(HiveLibError::NixEvalError {
                 source: CommandError::CommandFailed {
                     logs,
@@ -451,7 +451,7 @@ mod tests {
         location.push("non_trivial_hive");
         let location = location!(location);
 
-        let mut hive = Hive::new_from_path(&location, None, SubCommandModifiers::default())
+        let mut hive = Hive::new_from_path(&location, None.into(), SubCommandModifiers::default())
             .await
             .unwrap();
 

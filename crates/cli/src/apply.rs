@@ -10,7 +10,9 @@ use std::io::Read;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use thiserror::Error;
+use tokio::sync::oneshot;
 use tracing::{error, info};
+use wire_core::cache::InspectionCache;
 use wire_core::hive::executor::execute;
 use wire_core::hive::node::{Name, Node};
 use wire_core::hive::plan::{Goal, plan_for_node};
@@ -102,6 +104,7 @@ pub async fn apply<F>(
     partition: Partitions,
     make_goal: F,
     mut modifiers: SubCommandModifiers,
+    cache: Arc<Option<InspectionCache>>,
 ) -> Result<()>
 where
     F: Fn(&Name, &Node) -> Goal,
@@ -122,6 +125,16 @@ where
         .map(|(name, _)| name.clone())
         .collect();
 
+    let mut cached_evaluations = if let Some(ref cache) = *cache.clone()
+        && let HiveLocation::Flake { ref prefetch, .. } = *location
+    {
+        cache
+            .get_evaluations(prefetch, &selected_names, should_quit.clone())
+            .await
+    } else {
+        None
+    };
+
     let num_selected = selected_names.len();
 
     let partitioned_names = partition_arr(selected_names, &partition);
@@ -137,6 +150,8 @@ where
         let _ = tx.send(UiMessage::AddMany(partitioned_names.clone()));
     }
 
+    let mut evaluation_cache_tasks = Vec::new();
+
     let mut set = hive
         .nodes
         .iter_mut()
@@ -151,8 +166,30 @@ where
                 location.clone(),
                 &modifiers,
                 should_quit.clone(),
+                cached_evaluations
+                    .as_mut()
+                    .and_then(|cache| cache.remove(name)),
             );
-            execute(plan).map(move |result| (name, result))
+
+            let (sender, receiver) = oneshot::channel();
+
+            let location = location.clone();
+            let cache = cache.clone();
+            let cache_name = name.clone();
+
+            evaluation_cache_tasks.push(tokio::spawn(async move {
+                if let Some(ref cache) = *cache
+                    && let HiveLocation::Flake { ref prefetch, .. } = *location
+                    && let Ok(evaluated_path) = receiver.await
+                {
+                    cache
+                        .store_evaluation(prefetch, &cache_name, evaluated_path)
+                        .await;
+                }
+            }));
+
+            let name_clone = name.clone();
+            execute(plan, sender).map(move |result| (name_clone, result))
         })
         .peekable();
 
@@ -162,6 +199,10 @@ where
 
     let futures = futures::stream::iter(set).buffer_unordered(args.parallel);
     let result = futures.collect::<Vec<_>>().await;
+
+    for task in evaluation_cache_tasks {
+        let _ = task.await;
+    }
 
     let (successful, errors): (Vec<_>, Vec<_>) =
         result

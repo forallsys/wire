@@ -3,15 +3,18 @@
 
 use std::fmt::Display;
 
-use tracing::instrument;
+use tracing::{info, instrument};
 
 use crate::{
-    HiveLibError,
+    HiveLibError, SafeStorePath,
     hive::node::{Context, ExecuteStep},
 };
 
 #[derive(Debug, PartialEq)]
-pub struct Evaluate;
+pub struct Evaluate {
+    /// evaluation that was previously built & cached
+    pub cached_evaluation: Option<SafeStorePath<String>>,
+}
 
 impl Display for Evaluate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -22,9 +25,17 @@ impl Display for Evaluate {
 impl ExecuteStep for Evaluate {
     #[instrument(skip_all, name = "eval")]
     async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
-        let rx = ctx.state.evaluation_rx.take().unwrap();
+        if let Some(ref cached_evaluation) = self.cached_evaluation {
+            info!(
+                "Skipping evaluation, cached as {}",
+                cached_evaluation.to_absolute_path()
+            );
+            ctx.state.evaluation = Some(cached_evaluation.clone());
+        } else {
+            let rx = ctx.state.evaluation_rx.take().unwrap();
 
-        ctx.state.evaluation = Some(rx.await.unwrap()?);
+            ctx.state.evaluation = Some(rx.await.unwrap()?);
+        }
 
         Ok(())
     }
