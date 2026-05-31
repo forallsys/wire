@@ -110,7 +110,7 @@ impl InspectionCache {
             .max_connections(1)
             .connect_with(
                 SqliteConnectOptions::new()
-                    .filename(&cache_path)
+                    .filename(cache_path)
                     .create_if_missing(true),
             )
             .await
@@ -496,10 +496,7 @@ where
                 break;
             }
 
-            previous_rowid = evaluation_paths
-                .last()
-                .map(|r| r.rowid)
-                .unwrap_or(previous_rowid);
+            previous_rowid = evaluation_paths.last().map_or(previous_rowid, |r| r.rowid);
 
             // build list of all store paths to check
             let mut all_paths: Vec<SafeStorePath<String>> = Vec::new();
