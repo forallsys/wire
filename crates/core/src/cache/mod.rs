@@ -8,11 +8,11 @@ use std::{
 
 use sqlx::{
     Pool, Sqlite,
-    migrate::Migrator,
+    migrate::{Migrator, MigrateError},
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
 };
 use tokio::fs::create_dir_all;
-use tracing::{debug, error, trace};
+use tracing::{debug, error, info, trace};
 
 use crate::{
     SafeStorePath,
@@ -59,20 +59,66 @@ impl InspectionCache {
             .max_connections(1)
             .connect_with(
                 SqliteConnectOptions::new()
-                    .filename(cache_path)
+                    .filename(&cache_path)
                     .create_if_missing(true),
             )
             .await
             .inspect_err(|x| error!("failed to open cache db: {x}"))
             .ok()?;
 
+        let result = MIGRATOR.run(&pool).await;
+
+        if let Err(ref err) = result {
+            let recovered_pool = match err {
+                MigrateError::VersionMissing(_) | MigrateError::VersionTooOld(_, _) => {
+                    Some(Self::reset_migration(pool, &cache_path).await?)
+                }
+                _ => {
+                    error!("failed to run cache migrations: {:?}", result);
+                    return None;
+                }
+            };
+            if let Some(pool) = recovered_pool {
+                return Some(Self { pool });
+            }
+            error!("failed to run cache migrations: {:?}", result);
+            return None;
+        }
+
+        Some(Self { pool })
+    }
+
+    async fn reset_migration(
+        pool: Pool<Sqlite>,
+        cache_path: &Path,
+    ) -> Option<Pool<Sqlite>> {
+        info!("failed to run cache migrations, resetting {}", cache_path.to_string_lossy());
+
+        pool.close().await;
+
+        tokio::fs::remove_file(cache_path)
+            .await
+            .inspect_err(|e| error!("failed to remove stale cache db: {e}"))
+            .ok();
+
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(
+                SqliteConnectOptions::new()
+                    .filename(&cache_path)
+                    .create_if_missing(true),
+            )
+            .await
+            .inspect_err(|x| error!("failed to create cache db after failed migrations: {x}"))
+            .ok()?;
+
         MIGRATOR
             .run(&pool)
             .await
-            .inspect_err(|err| error!("failed to run cache migrations: {err:?}"))
+            .inspect_err(|err| error!("failed to run cache migrations after recreation: {err:?}"))
             .ok()?;
 
-        Some(Self { pool })
+        Some(pool)
     }
 
     fn is_cache_invalid(store_path_name: &str, store_path_digest: &[u8]) -> bool {
