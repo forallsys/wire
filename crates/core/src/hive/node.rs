@@ -13,7 +13,8 @@ use std::sync::nonpoison::Mutex;
 use tokio::sync::{RwLock, oneshot};
 use tracing::instrument;
 
-use crate::commands::trace_nix_log_message;
+use crate::commands::builder::CommandStringBuilder;
+use crate::commands::{CommandArguments, WireCommandChip, run_command, trace_nix_log_message};
 use crate::errors::NetworkError;
 use crate::hive::HiveLocation;
 use crate::hive::steps::build::Build;
@@ -111,9 +112,31 @@ impl Target {
         modifiers: SubCommandModifiers,
         should_quit: Arc<AtomicBool>,
     ) -> Result<(), HiveLibError> {
-        open_remote_client(&self, modifiers, trace_nix_log_message, should_quit).await?;
+        if modifiers.experimental_nix_client {
+            open_remote_client(&self, modifiers, trace_nix_log_message, should_quit).await?;
+            return Ok(());
+        }
 
-        // connection established
+        let host = self.get_preferred_host()?;
+
+        let mut command_string = CommandStringBuilder::new("ssh");
+        command_string.arg(format!("{}@{host}", self.user));
+        command_string.arg(self.create_ssh_opts(modifiers)?);
+        command_string.arg("exit");
+
+        let output = run_command(
+            &CommandArguments::new(command_string, modifiers)
+                .log_stdout()
+                .mode(crate::commands::ChildOutputMode::Generic),
+        )
+        .await?;
+
+        output.wait_till_success().await.map_err(|source| {
+            HiveLibError::NetworkError(NetworkError::HostUnreachable {
+                host: host.to_string(),
+                source,
+            })
+        })?;
 
         Ok(())
     }
