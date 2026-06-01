@@ -315,11 +315,7 @@ impl ExecuteStep for PushKeyAgent {
 
         let agent_directory = match env::var_os(&arg_name) {
             Some(agent) => agent.into_string().unwrap(),
-            None => panic!(
-                "{arg_name} environment variable not set! \n
-                wire was not built with the ability to deploy keys to this platform. \n
-                Please create an issue: https://github.com/forallsys/wire/issues/new?template=bug_report.md"
-            ),
+            None => return Err(HiveLibError::KeyArchitectureNotFound { arg_name }),
         };
 
         let agent_store_path =

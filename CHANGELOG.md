@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flake evaluation caching now use `snix`'s `StorePath` native digests and name field
   as primary keys instead of full sqlite `text`.
 - Wire's cache is now deleted and recreated if migrations fail.
+- No longer panics on key agent env var not found.
 
 ### Fixed
 

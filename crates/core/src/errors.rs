@@ -304,6 +304,14 @@ pub enum HiveLibError {
         help: Option<Box<String>>,
     },
 
+    #[diagnostic(code(wire::KeyArchitectureNotFound))]
+    #[error("{arg_name} environment variable not set! \n
+                wire was not built with the ability to deploy keys to this platform. \n
+                Please create an issue: https://github.com/forallsys/wire/issues/new?template=bug_report.md")]
+    KeyArchitectureNotFound {
+        arg_name: String
+    },
+
     #[diagnostic(code(wire::Encoding))]
     #[error("error encoding length delimited data")]
     Encoding(#[source] std::io::Error),
