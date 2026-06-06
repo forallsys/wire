@@ -85,23 +85,22 @@ pub enum ApplyTarget {
 impl From<String> for ApplyTarget {
     fn from(value: String) -> Self {
         if value == "-" {
-            return ApplyTarget::Stdin;
+            return Self::Stdin;
         }
 
-        if let Some(stripped) = value.strip_prefix("@") {
-            ApplyTarget::Tag(stripped.to_string())
-        } else {
-            ApplyTarget::Node(Name(Arc::from(value.as_str())))
-        }
+        value.strip_prefix("@").map_or_else(
+            || Self::Node(Name(Arc::from(value.as_str()))),
+            |stripped| Self::Tag(stripped.to_string()),
+        )
     }
 }
 
 impl Display for ApplyTarget {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            ApplyTarget::Node(name) => name.fmt(f),
-            ApplyTarget::Tag(tag) => write!(f, "@{tag}"),
-            ApplyTarget::Stdin => write!(f, "#stdin"),
+            Self::Node(name) => name.fmt(f),
+            Self::Tag(tag) => write!(f, "@{tag}"),
+            Self::Stdin => write!(f, "#stdin"),
         }
     }
 }
@@ -313,21 +312,17 @@ impl TryFrom<Goal> for HiveGoal {
 
     fn try_from(value: Goal) -> Result<Self, Self::Error> {
         match value {
-            Goal::Build => Ok(HiveGoal::Build),
-            Goal::Push => Ok(HiveGoal::Push),
-            Goal::Boot => Ok(HiveGoal::SwitchToConfiguration(
-                SwitchToConfigurationGoal::Boot,
-            )),
-            Goal::Switch => Ok(HiveGoal::SwitchToConfiguration(
+            Goal::Build => Ok(Self::Build),
+            Goal::Push => Ok(Self::Push),
+            Goal::Boot => Ok(Self::SwitchToConfiguration(SwitchToConfigurationGoal::Boot)),
+            Goal::Switch => Ok(Self::SwitchToConfiguration(
                 SwitchToConfigurationGoal::Switch,
             )),
-            Goal::Test => Ok(HiveGoal::SwitchToConfiguration(
-                SwitchToConfigurationGoal::Test,
-            )),
-            Goal::DryActivate => Ok(HiveGoal::SwitchToConfiguration(
+            Goal::Test => Ok(Self::SwitchToConfiguration(SwitchToConfigurationGoal::Test)),
+            Goal::DryActivate => Ok(Self::SwitchToConfiguration(
                 SwitchToConfigurationGoal::DryActivate,
             )),
-            Goal::Keys => Ok(HiveGoal::Keys),
+            Goal::Keys => Ok(Self::Keys),
         }
     }
 }

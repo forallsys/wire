@@ -66,7 +66,7 @@ pub struct SubCommandModifiers {
 
 impl Default for SubCommandModifiers {
     fn default() -> Self {
-        SubCommandModifiers {
+        Self {
             show_trace: false,
             non_interactive: !std::io::stdin().is_terminal(),
             ssh_accept_host: StrictHostKeyChecking::default(),
@@ -124,8 +124,8 @@ pub async fn open_remote_client<D, T>(
     should_quit: Arc<AtomicBool>,
 ) -> Result<(NixClient<ChildStdout, ChildStdin, T>, String), HiveLibError>
 where
-    D: Deref<Target = crate::hive::node::Target> + std::fmt::Debug,
-    T: Fn(LogMessage, &Arc<Mutex<HashMap<u64, Arc<String>>>>, bool) -> Option<String>,
+    D: Deref<Target = crate::hive::node::Target> + std::fmt::Debug + Sync,
+    T: Fn(LogMessage, &Arc<Mutex<HashMap<u64, Arc<String>>>>, bool) -> Option<String> + Send,
 {
     let mut command = Command::new("ssh")
         .args(target.create_ssh_args(modifiers, true)?)

@@ -44,7 +44,7 @@ const THREAD_QUIT_SIGNAL: &[u8; 1] = b"q";
 
 type Child = Box<dyn portable_pty::Child + Send + Sync>;
 
-pub(crate) struct InteractiveChildChip {
+pub struct InteractiveChildChip {
     child: Child,
 
     cancel_stdin_pipe_w: OwnedFd,
@@ -101,7 +101,7 @@ fn create_starting_segment(start_needle: &Arc<Vec<u8>>) -> String {
 }
 
 #[instrument(skip_all, name = "run-int", fields(elevated = %arguments.is_elevated(), mode = ?arguments.output_mode))]
-pub(crate) async fn interactive_command_with_env<S: AsRef<str>>(
+pub async fn interactive_command_with_env<S: AsRef<str> + Sync>(
     arguments: &CommandArguments<S>,
     envs: std::collections::HashMap<String, String>,
 ) -> Result<InteractiveChildChip, HiveLibError> {
@@ -221,7 +221,8 @@ pub(crate) async fn interactive_command_with_env<S: AsRef<str>>(
     })
 }
 
-async fn print_authenticate_warning<S: AsRef<str>>(
+#[allow(clippy::significant_drop_tightening)]
+async fn print_authenticate_warning<S: AsRef<str> + Sync>(
     arguments: &CommandArguments<S>,
 ) -> Result<(), HiveLibError> {
     let Some(ref escalation_command) = arguments.privilege_escalation_command else {
@@ -297,7 +298,7 @@ fn setup_master(pty_pair: &PtyPair) -> Result<(), HiveLibError> {
     Ok(())
 }
 
-async fn build_command<S: AsRef<str>>(
+async fn build_command<S: AsRef<str> + Sync>(
     arguments: &CommandArguments<S>,
     command_string: &str,
 ) -> Result<CommandBuilder, HiveLibError> {
@@ -353,7 +354,7 @@ impl WireCommandChip for InteractiveChildChip {
 
         let _ = posix_write(&self.cancel_stdin_pipe_w, THREAD_QUIT_SIGNAL);
 
-        if let Status::Done { success: true } = *status {
+        if matches!(*status, Status::Done { success: true }) {
             let logs = self
                 .stdout_collection
                 .lock()
@@ -408,7 +409,7 @@ impl StdinTermiosAttrGuard {
         termios.local_flags &= !(LocalFlags::ECHO | LocalFlags::ICANON);
         tcsetattr(stdin_fd, SetArg::TCSANOW, &termios).map_err(CommandError::TermAttrs)?;
 
-        Ok(StdinTermiosAttrGuard(original_termios))
+        Ok(Self(original_termios))
     }
 }
 
@@ -421,6 +422,7 @@ impl Drop for StdinTermiosAttrGuard {
     }
 }
 
+#[allow(clippy::significant_drop_tightening)]
 async fn create_int_ssh_command(
     target: &SharedTarget,
     modifiers: SubCommandModifiers,

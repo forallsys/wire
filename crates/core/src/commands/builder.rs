@@ -3,7 +3,7 @@
 
 use std::fmt;
 
-pub(crate) struct CommandStringBuilder {
+pub struct CommandStringBuilder {
     command: String,
 }
 

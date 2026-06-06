@@ -81,16 +81,13 @@ impl Target {
             "-p".to_string(),
             self.port.to_string(),
         ];
-        let mut options = vec![
-            format!(
-                "StrictHostKeyChecking={}",
-                match modifiers.ssh_accept_host {
-                    StrictHostKeyChecking::AcceptNew => "accept-new",
-                    StrictHostKeyChecking::No => "no",
-                }
-            )
-            .to_string(),
-        ];
+        let mut options = vec![format!(
+            "StrictHostKeyChecking={}",
+            match modifiers.ssh_accept_host {
+                StrictHostKeyChecking::AcceptNew => "accept-new",
+                StrictHostKeyChecking::No => "no",
+            }
+        )];
 
         options.extend(["BatchMode=yes".to_string()]);
 

@@ -207,8 +207,10 @@ fn handle_normal_data(
             output_mode.trace_slice(stripped, build_name_map, print_build_logs);
         }
 
-        let mut queue = stdout_collection.lock().unwrap();
-        queue.push_front(String::from_utf8_lossy(stripped).to_string());
+        stdout_collection
+            .lock()
+            .unwrap()
+            .push_front(String::from_utf8_lossy(stripped).to_string());
         return;
     }
 

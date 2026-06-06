@@ -22,7 +22,7 @@ use tokio::{
 };
 use tracing::{Instrument, debug, instrument, trace};
 
-pub(crate) struct NonInteractiveChildChip {
+pub struct NonInteractiveChildChip {
     error_collection: Arc<Mutex<VecDeque<String>>>,
     stdout_collection: Arc<Mutex<VecDeque<String>>>,
     child: Child,
@@ -32,7 +32,7 @@ pub(crate) struct NonInteractiveChildChip {
 }
 
 #[instrument(skip_all, name = "run", fields(elevated = %arguments.is_elevated()))]
-pub(crate) async fn non_interactive_command_with_env<S: AsRef<str>>(
+pub async fn non_interactive_command_with_env<S: AsRef<str> + Sync>(
     arguments: &CommandArguments<S>,
     envs: HashMap<String, String>,
 ) -> Result<NonInteractiveChildChip, HiveLibError> {
@@ -57,11 +57,10 @@ pub(crate) async fn non_interactive_command_with_env<S: AsRef<str>>(
 
     let command_string = command_string.replace('\'', "'\''");
 
-    let command_string = if let Some(escalation_command) = &arguments.privilege_escalation_command {
-        format!("{escalation_command} bash -c '{command_string}'")
-    } else {
-        format!("bash -c '{command_string}'")
-    };
+    let command_string = arguments.privilege_escalation_command.as_ref().map_or_else(
+        || format!("bash -c '{command_string}'"),
+        |escalation_command| format!("{escalation_command} bash -c '{command_string}'"),
+    );
 
     debug!("{command_string}");
 
@@ -105,7 +104,7 @@ pub(crate) async fn non_interactive_command_with_env<S: AsRef<str>>(
     joinset.spawn(
         handle_io(
             stdout_handle,
-            output_mode.clone(),
+            output_mode,
             stdout_collection.clone(),
             false,
             arguments.log_stdout,
@@ -138,10 +137,9 @@ impl WireCommandChip for NonInteractiveChildChip {
             return Err(CommandError::CommandFailed {
                 command_ran: self.original_command,
                 logs,
-                code: match status.code() {
-                    Some(code) => format!("code {code}"),
-                    None => "no exit code".to_string(),
-                },
+                code: status
+                    .code()
+                    .map_or_else(|| "no exit code".to_string(), |code| format!("code {code}")),
                 reason: "known-status",
             });
         }
@@ -195,6 +193,7 @@ pub async fn handle_io<R>(
     debug!("io_handler: goodbye!");
 }
 
+#[allow(clippy::significant_drop_tightening)]
 async fn create_sync_ssh_command(
     target: &SharedTarget,
     modifiers: SubCommandModifiers,

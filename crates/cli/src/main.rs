@@ -170,15 +170,14 @@ fn check_nix_available() -> bool {
     {
         Ok(_) => true,
         Err(e) => {
-            if let std::io::ErrorKind::NotFound = e.kind() {
-                false
-            } else {
+            if e.kind() != std::io::ErrorKind::NotFound {
                 error!(
                     "Something weird happened checking for nix availability, {}",
                     e
                 );
-                false
             }
+
+            false
         }
     }
 }

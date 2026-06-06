@@ -26,7 +26,7 @@ struct NonClobberingWriter;
 
 impl NonClobberingWriter {
     const fn new() -> Self {
-        NonClobberingWriter
+        Self
     }
 }
 
@@ -196,6 +196,7 @@ where
             .unwrap();
 
         write!(writer, "{node_name}")?;
+        drop(parent_ext);
 
         // write the step name
         if let Some(step) = ctx.event_scope().unwrap().from_root().nth(1) {

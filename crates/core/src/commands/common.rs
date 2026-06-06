@@ -64,6 +64,8 @@ pub async fn push(
     )
     .await?;
 
+    drop(target);
+
     let status = child.wait_till_success().await;
 
     let help = if let Err(ref error) = status {

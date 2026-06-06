@@ -308,9 +308,7 @@ pub enum HiveLibError {
     #[error("{arg_name} environment variable not set! \n
                 wire was not built with the ability to deploy keys to this platform. \n
                 Please create an issue: https://github.com/forallsys/wire/issues/new?template=bug_report.md")]
-    KeyArchitectureNotFound {
-        arg_name: String
-    },
+    KeyArchitectureNotFound { arg_name: String },
 
     #[diagnostic(code(wire::Encoding))]
     #[error("error encoding length delimited data")]
@@ -323,6 +321,6 @@ pub enum HiveLibError {
 
 impl From<StorePathError> for HiveLibError {
     fn from(e: StorePathError) -> Self {
-        HiveLibError::StorePath(e)
+        Self::StorePath(e)
     }
 }

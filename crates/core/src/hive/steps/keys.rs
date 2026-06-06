@@ -159,7 +159,7 @@ async fn process_key(key: &Key) -> Result<(wire_key_agent::keys::KeySpec, Vec<u8
 
     let destination: PathBuf = [key.dest_dir.clone(), key.name.clone()].iter().collect();
 
-    debug!("Staging push to {}", destination.clone().display());
+    debug!("Staging push to {}", destination.display());
 
     Ok((
         wire_key_agent::keys::KeySpec {

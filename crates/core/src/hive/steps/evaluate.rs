@@ -10,7 +10,7 @@ use crate::{
     hive::node::{Context, ExecuteStep},
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Evaluate {
     /// evaluation that was previously built & cached
     pub cached_evaluation: Option<SafeStorePath<String>>,
