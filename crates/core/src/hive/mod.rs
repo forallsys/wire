@@ -28,7 +28,7 @@ pub mod node;
 pub mod plan;
 pub mod steps;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct Hive {
     pub nodes: HashMap<Name, Node>,
@@ -55,7 +55,7 @@ impl Hive {
         location: &HiveLocation,
         cache: Arc<Option<InspectionCache>>,
         modifiers: SubCommandModifiers,
-    ) -> Result<Hive, HiveLibError> {
+    ) -> Result<Self, HiveLibError> {
         info!("evaluating hive {location:?}");
 
         if let Some(ref cache) = *cache
@@ -67,7 +67,7 @@ impl Hive {
 
         let output = evaluate_hive_attribute(location, &EvalGoal::Inspect, modifiers).await?;
 
-        let hive: Hive = serde_json::from_str(&output).map_err(|err| {
+        let hive: Self = serde_json::from_str(&output).map_err(|err| {
             HiveLibError::HiveInitialisationError(HiveInitialisationError::ParseEvaluateError(err))
         })?;
 
@@ -157,21 +157,20 @@ impl Display for Hive {
             .nodes
             .values()
             .flat_map(|node| node.keys.iter())
-            .collect::<Vec<_>>();
+            .count();
         let distinct_keys = self
             .nodes
             .values()
             .flat_map(|node| node.keys.iter())
             .unique()
-            .collect::<Vec<_>>()
-            .len();
+            .count();
 
         write!(f, "{}", "Summary:".bold())?;
         writeln!(
             f,
             " {} total node(s), totalling {} keys ({distinct_keys} distinct).",
             self.nodes.len(),
-            total_keys.len()
+            total_keys
         )?;
         writeln!(
             f,
@@ -200,10 +199,7 @@ pub enum HiveLocation {
 }
 
 impl HiveLocation {
-    async fn get_flake(
-        uri: String,
-        modifiers: SubCommandModifiers,
-    ) -> Result<HiveLocation, HiveLibError> {
+    async fn get_flake(uri: String, modifiers: SubCommandModifiers) -> Result<Self, HiveLibError> {
         let mut command_string = CommandStringBuilder::nix();
         command_string.args(&[
             "flake",
@@ -238,7 +234,7 @@ impl HiveLocation {
 
         debug!(prefetch = ?prefetch);
 
-        Ok(HiveLocation::Flake { uri, prefetch })
+        Ok(Self::Flake { uri, prefetch })
     }
 }
 

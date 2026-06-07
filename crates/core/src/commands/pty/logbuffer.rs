@@ -2,7 +2,7 @@
 // Copyright 2024-2025 wire Contributors
 
 /// Split into its own struct to be tested nicer
-pub(crate) struct LogBuffer {
+pub struct LogBuffer {
     buffer: Vec<u8>,
 }
 

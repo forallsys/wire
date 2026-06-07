@@ -145,7 +145,7 @@ pub struct NixClient<R, W, T> {
 
 impl<T> NixClient<UnixStream, UnixStream, T>
 where
-    T: Fn(LogMessage, &Arc<Mutex<HashMap<u64, Arc<String>>>>, bool) -> Option<String>,
+    T: Fn(LogMessage, &Arc<Mutex<HashMap<u64, Arc<String>>>>, bool) -> Option<String> + Send,
 {
     #[instrument(skip(trace_callback))]
     pub async fn open_local(
@@ -173,7 +173,8 @@ where
 
 impl<R, W, T> NixClient<R, W, T>
 where
-    T: Fn(LogMessage, &Arc<Mutex<HashMap<u64, Arc<String>>>>, bool) -> Option<String>,
+    T: Fn(LogMessage, &Arc<Mutex<HashMap<u64, Arc<String>>>>, bool) -> Option<String> + Send,
+    R: Send,
 {
     #[instrument(skip_all)]
     pub async fn handshake(
@@ -182,7 +183,7 @@ where
         trace_callback: T,
         should_quit: Arc<AtomicBool>,
         print_build_logs: bool,
-    ) -> Result<NixClient<R, W, T>, NixDaemonClientError>
+    ) -> Result<Self, NixDaemonClientError>
     where
         R: AsyncReadExt + std::fmt::Debug + Unpin + Send,
         W: AsyncWriteExt + std::fmt::Debug + Unpin + Send,
@@ -285,7 +286,7 @@ where
     async fn write_value<V>(&mut self, value: &V) -> Result<(), NixDaemonClientError>
     where
         W: AsyncWriteExt + std::fmt::Debug + Unpin + Send,
-        V: NixSerialize + std::fmt::Debug + Send,
+        V: NixSerialize + std::fmt::Debug + Send + Sync,
     {
         self.shutdown_guard()?;
 
@@ -995,7 +996,7 @@ impl NixDeserialize for QueryMissingResult {
             && let Some(download_size) = download_size
             && let Some(nar_size) = nar_size
         {
-            Ok(Some(QueryMissingResult {
+            Ok(Some(Self {
                 will_build: will_build.into_iter().collect(),
                 will_substitute: will_substitute.into_iter().collect(),
                 _unknown: unknown.into_iter().collect(),

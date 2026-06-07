@@ -27,6 +27,7 @@ impl Display for SwitchToConfiguration {
     }
 }
 
+#[allow(clippy::significant_drop_tightening)]
 async fn wait_for_ping(target: &SharedTarget, ctx: &Context) -> Result<(), HiveLibError> {
     let target = target.0.read().await;
     let host = target.get_preferred_host()?;

@@ -43,8 +43,7 @@ async fn get_cache_directory() -> Option<PathBuf> {
     let cache_home = env::var("XDG_CACHE_HOME")
         .inspect_err(|_| debug!("XDG_CACHE_HOME not found"))
         .ok()
-        .map(PathBuf::from)
-        .unwrap_or(home.join(".cache"));
+        .map_or_else(|| home.join(".cache"), PathBuf::from);
 
     let cache_directory = cache_home.join("wire");
 
@@ -529,23 +528,23 @@ where
 
             // delete invalid evaluation_cache entries
             for path in &evaluation_paths {
-                let mut is_invalid = false;
-
-                if let Ok(p) = SafeStorePath::<String>::from_name_and_digest(
+                // is invalid if either the output or the flake path are not in
+                // the valid set
+                let is_invalid = if let Ok(p) = SafeStorePath::<String>::from_name_and_digest(
                     &path.flake_path_name,
                     &path.flake_path_digest,
                 ) && !valid_set.contains(&p)
                 {
-                    is_invalid = true;
-                }
-
-                if let Ok(p) = SafeStorePath::<String>::from_name_and_digest(
+                    true
+                } else if let Ok(p) = SafeStorePath::<String>::from_name_and_digest(
                     &path.output_path_name,
                     &path.output_path_digest,
                 ) && !valid_set.contains(&p)
                 {
-                    is_invalid = true;
-                }
+                    true
+                } else {
+                    false
+                };
 
                 if !is_invalid {
                     continue;

@@ -196,7 +196,7 @@ fn apply_plan(
             target: if *should_apply_locally {
                 None
             } else {
-                Some(target.clone())
+                Some(target)
             },
             privilege_escalation_command: node.privilege_escalation_command.clone(),
         }));

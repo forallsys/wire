@@ -13,10 +13,11 @@ pub struct StorePathError {
     error: nix_compat::store_path::Error,
 }
 
+/// A restricted `StorePath`.
+///
 /// This type exists to restrict `StorePath` usage to only methods that deal with
 /// absolute paths. By default, the `StorePath` type implements Display that
 /// does not include `/nix/store/` can introduce many hard to catch bugs.
-///
 ///
 /// If <https://github.com/rust-lang/rust-clippy/issues/8581>
 /// is ever closed, this can be dropped from the codebase.
@@ -26,7 +27,7 @@ pub struct SafeStorePath<S>(pub nix_compat::store_path::StorePath<S>);
 
 #[allow(clippy::disallowed_types)]
 impl<S> SafeStorePath<S> {
-    pub fn from_absolute_path<'a>(s: &'a [u8]) -> Result<SafeStorePath<S>, StorePathError>
+    pub fn from_absolute_path<'a>(s: &'a [u8]) -> Result<Self, StorePathError>
     where
         S: From<&'a str> + AsRef<str>,
     {
@@ -90,9 +91,9 @@ where
     where
         D: serde::Deserializer<'de>,
     {
-        Ok(SafeStorePath(
-            nix_compat::store_path::StorePath::deserialize(deserializer)?,
-        ))
+        Ok(Self(nix_compat::store_path::StorePath::deserialize(
+            deserializer,
+        )?))
     }
 }
 
@@ -145,24 +146,23 @@ impl nix_compat::wire::de::NixDeserialize for SafeStorePath<String> {
     where
         R: ?Sized + nix_compat::wire::de::NixRead + Send,
     {
-        if let Some(store_path) = reader.try_read_value().await? {
-            Ok(Some(SafeStorePath(store_path)))
-        } else {
-            Ok(None)
-        }
+        reader
+            .try_read_value()
+            .await?
+            .map_or_else(|| Ok(None), |store_path| Ok(Some(Self(store_path))))
     }
 }
 
 #[allow(clippy::disallowed_types)]
 impl<S> From<nix_compat::store_path::StorePath<S>> for SafeStorePath<S> {
     fn from(value: nix_compat::store_path::StorePath<S>) -> Self {
-        SafeStorePath(value)
+        Self(value)
     }
 }
 
 #[allow(clippy::disallowed_types)]
 impl<S> From<SafeStorePath<S>> for nix_compat::store_path::StorePath<S> {
-    fn from(value: SafeStorePath<S>) -> nix_compat::store_path::StorePath<S> {
+    fn from(value: SafeStorePath<S>) -> Self {
         value.into_inner()
     }
 }

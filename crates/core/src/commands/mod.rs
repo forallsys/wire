@@ -105,13 +105,13 @@ impl<S: AsRef<str>> CommandArguments<S> {
     }
 }
 
-pub(crate) async fn run_command<S: AsRef<str>>(
+pub(crate) async fn run_command<S: AsRef<str> + Sync>(
     arguments: &CommandArguments<S>,
 ) -> Result<Either<InteractiveChildChip, NonInteractiveChildChip>, HiveLibError> {
     run_command_with_env(arguments, HashMap::new()).await
 }
 
-pub(crate) async fn run_command_with_env<S: AsRef<str>>(
+pub(crate) async fn run_command_with_env<S: AsRef<str> + Sync>(
     arguments: &CommandArguments<S>,
     envs: HashMap<String, String>,
 ) -> Result<Either<InteractiveChildChip, NonInteractiveChildChip>, HiveLibError> {
@@ -214,10 +214,11 @@ pub(crate) fn trace_nix_log_message(
                 },
             };
 
-            let lock = build_name_map.lock();
-            let build_name = lock.get(&id).cloned();
-
-            (msg, VerbosityLevel::Info, build_name)
+            (
+                msg,
+                VerbosityLevel::Info,
+                build_name_map.lock().get(&id).cloned(),
+            )
         }
         _ => return None,
     };

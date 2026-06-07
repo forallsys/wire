@@ -194,6 +194,7 @@ pub async fn status_tick_worker(mut rx: UnboundedReceiver<UiMessage>, show_progr
                     },
                     UiMessage::Release => {
                         taken_over = false;
+                        #[allow(clippy::iter_with_drain)]
                         for buf in log_queue.drain(..) {
                             let _ = std::io::Write::write_all(&mut stderr, &buf);
                         }
@@ -207,7 +208,8 @@ pub async fn status_tick_worker(mut rx: UnboundedReceiver<UiMessage>, show_progr
                             log_queue.push_back(line);
                         } else {
                             status.clear(&mut stderr);
-                            for buf in log_queue.drain(..) {
+                            #[allow(clippy::iter_with_drain)]
+                        for buf in log_queue.drain(..) {
                                 let _ = std::io::Write::write_all(&mut stderr, &buf);
                             }
                             let _ = std::io::Write::write_all(&mut stderr, &line);

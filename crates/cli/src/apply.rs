@@ -38,8 +38,10 @@ struct NodeErrors(#[related] Vec<NodeError>);
 // returns Names and Tags
 fn read_apply_targets_from_stdin() -> Result<(Vec<String>, Vec<Name>)> {
     let mut buf = String::new();
-    let mut stdin = std::io::stdin().lock();
-    stdin.read_to_string(&mut buf).into_diagnostic()?;
+    std::io::stdin()
+        .lock()
+        .read_to_string(&mut buf)
+        .into_diagnostic()?;
 
     Ok(buf
         .split_whitespace()
@@ -107,7 +109,7 @@ pub async fn apply<F>(
     cache: Arc<Option<InspectionCache>>,
 ) -> Result<()>
 where
-    F: Fn(&Name, &Node) -> Goal,
+    F: Fn(&Name, &Node) -> Goal + Send + Sync,
 {
     let location = Arc::new(location);
 
@@ -229,7 +231,7 @@ where
         return Err(NodeErrors(
             errors
                 .into_iter()
-                .map(|(name, error)| NodeError(name.clone(), error))
+                .map(|(name, error)| NodeError(name, error))
                 .collect(),
         )
         .into());
