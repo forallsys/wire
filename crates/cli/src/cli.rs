@@ -229,19 +229,10 @@ pub struct ApplyArgs {
     pub ssh_verbose: u8,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Partitions {
-    pub current: usize,
-    pub maximum: usize,
-}
-
-impl Default for Partitions {
-    fn default() -> Self {
-        Self {
-            current: 1,
-            maximum: 1,
-        }
-    }
+    pub current: usize = 1,
+    pub maximum: usize = 1,
 }
 
 #[derive(Args)]

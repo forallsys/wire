@@ -2,6 +2,7 @@
 // Copyright 2024-2025 wire Contributors
 
 #![deny(clippy::pedantic)]
+#![feature(default_field_values)]
 
 use std::process::Command;
 use std::sync::Arc;

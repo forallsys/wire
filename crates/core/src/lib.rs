@@ -4,6 +4,7 @@
 #![feature(iter_intersperse)]
 #![feature(sync_nonpoison)]
 #![feature(nonpoison_mutex)]
+#![feature(default_field_values)]
 
 use std::{
     collections::{HashMap, HashSet},
@@ -56,23 +57,20 @@ pub enum StrictHostKeyChecking {
 #[derive(Debug, Clone, Copy)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct SubCommandModifiers {
-    pub show_trace: bool,
+    pub show_trace: bool = false,
     pub non_interactive: bool,
     pub ssh_accept_host: StrictHostKeyChecking,
-    pub ssh_verbosity: usize,
-    pub print_build_logs: bool,
-    pub experimental_nix_client: bool,
+    pub ssh_verbosity: usize = 0,
+    pub print_build_logs: bool = false,
+    pub experimental_nix_client: bool = false,
 }
 
 impl Default for SubCommandModifiers {
     fn default() -> Self {
         Self {
-            show_trace: false,
             non_interactive: !std::io::stdin().is_terminal(),
             ssh_accept_host: StrictHostKeyChecking::default(),
-            ssh_verbosity: 0,
-            print_build_logs: false,
-            experimental_nix_client: false,
+            ..
         }
     }
 }
