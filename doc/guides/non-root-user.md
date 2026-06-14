@@ -76,3 +76,14 @@ For example, doas:
   ];
 }
 ```
+
+Note that `run0` requires the `--pipe` argument:
+```nix
+{
+  deployment.privilegeEscalationCommand = [
+    "run0"
+    "--pipe" # [!code ++]
+    "--"
+  ];
+}
+```
