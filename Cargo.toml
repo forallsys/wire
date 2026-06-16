@@ -18,7 +18,7 @@ missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 
 [workspace.dependencies]
-itertools = "0.14.0"
+itertools = "0.15.0"
 futures-util = { version = "0.3.31", features = ["sink", "std"] }
 clap = { version = "4.5.51", features = ["derive", "string", "cargo"] }
 clap-verbosity-flag = "3.0.4"
