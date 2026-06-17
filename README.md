@@ -6,6 +6,13 @@ wire is a tool to deploy nixos systems. its usage is inspired by colmena however
 
 Read the [The Tutorial](https://wire.forall.systems/tutorial/overview.html), [Guides](https://wire.forall.systems/guides/installation.html), or continue reading this readme for development information.
 
+## Support
+
+Thank you to my GitHub sponsors. You can support development
+[here](https://github.com/sponsors/mrshmllow).
+
+![Supporter Graph](./doc/assets/graph.png)
+
 ## Development
 
 Please use `nix develop` for access to the development environment and to ensure
