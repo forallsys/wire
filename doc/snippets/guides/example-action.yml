@@ -26,8 +26,9 @@ jobs:
           nix_path: nixpkgs=channel:nixos-unstable
           extra_nix_config: |
             # Install binary cache as described in the install wire guide
-            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g=
-            substituters = https://cache.nixos.org/ https://cache.garnix.io
+            # TODO: update
+            # trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g=
+            substituters = https://cache.nixos.org/ https://cache.forall.systems
 
             # Again, include additional architectures if you have multiple
             # architectures in your hive

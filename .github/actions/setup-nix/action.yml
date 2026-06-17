@@ -14,8 +14,8 @@ runs:
           echo 'config<<EOF'
           echo "system-features = nixos-test benchmark big-parallel kvm"
 
-          echo "substituters = https://cache.nixos.org?priority=1 https://cache.althaea.zone?priority=2 https://cache.garnix.io?priority=3"
-          echo "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g= cache.althaea.zone:BelRpa863X9q3Y+AOnl5SM7QFzre3qb+5I7g2s/mqHI="
+          echo "substituters = https://cache.nixos.org?priority=1 https://cache.forall.systems?priority=2"
+          # todo: update for new key. echo "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g= cache.althaea.zone:BelRpa863X9q3Y+AOnl5SM7QFzre3qb+5I7g2s/mqHI="
 
           echo EOF
         } >> "$GITHUB_OUTPUT"

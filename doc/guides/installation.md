@@ -19,7 +19,7 @@ It is recommended you stick to either using a tagged version of wire, or the `st
 
 ## Binary Cache
 
-You should enable the [garnix binary cache](https://garnix.io/docs/ci/caching) _before_
+You should enable the binary cache _before_
 continuing otherwise you will be compiling from source:
 
 ::: code-group
