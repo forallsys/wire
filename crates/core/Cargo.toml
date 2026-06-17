@@ -47,4 +47,4 @@ tempdir = "0.3"
 miette = { workspace = true }
 syn = "2.0.109"
 proc-macro2 = "1.0.103"
-itertools = "0.14.0"
+itertools = "0.15.0"
