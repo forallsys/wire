@@ -24,6 +24,13 @@ Ready? Skip to [Nix Setup](./part-one/nix-setup).
 
 </div>
 
+## Support
+
+Thank you to my GitHub sponsors. You can support development
+[here](https://github.com/sponsors/mrshmllow).
+
+![Supporter Graph](/assets/graph.png)
+
 ## What features does wire have?
 
 | Features                                                      | wire               | Colmena            |
