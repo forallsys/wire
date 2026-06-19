@@ -62,7 +62,7 @@ pub struct Cli {
     /// Use the experimental native Nix Daemon Client instead of the nix CLI commands.
     ///
     /// This enables native protocol-level optimisations but may not be compatible with all Nix versions
-    /// and is still a work in progress cause issues.
+    /// and is still a work in progress and can cause issues.
     #[arg(long, global = true, default_value_t = false)]
     pub experimental_nix_client: bool,
 
