@@ -6,8 +6,7 @@
     ];
     trusted-public-keys = [
       # ...
-      # TODO: update
-      "cache.garnix.io:CTFPyKSLcx5RMJKfLo5EEPUObbA78b0YQ2DTCJXqr9g="
+      "cache.forall.systems:5PmD7QO4MSF8YgyRZtkSGXRDo96H3bybIf2SsQh8ScI="
     ];
   };
 }

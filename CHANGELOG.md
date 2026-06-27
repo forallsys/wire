@@ -7,10 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - yyyy-mm-dd
 
-In this release garnix has been replaced with our own
-`https://cache.forall.systems` as garnix has shutdown.
+In this release garnix has been replaced with our own binary cache as garnix has shutdown.
 This is a breaking change to your configuration if you previously 
 used garnix to download wire.
+
+Please read https://wire.forall.systems/guides/installation.html#binary-cache
+for the up to date details!
 
 ### Added
 
