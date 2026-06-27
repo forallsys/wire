@@ -49,7 +49,7 @@ pub async fn push(
             host = target.get_preferred_host()?,
         ),
         match push {
-            Push::Derivation(drv) => format!("{}^* --derivation", drv.to_absolute_path()),
+            Push::Derivation(drv) => format!("{}^out --derivation", drv.to_absolute_path()),
             Push::Path(path) => path.to_absolute_path(),
         },
     ]);
