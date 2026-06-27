@@ -4,7 +4,7 @@
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use futures::future::join_all;
-use itertools::{Itertools, Position};
+use itertools::Itertools;
 use owo_colors::OwoColorize;
 use prost::Message;
 use prost::bytes::BytesMut;
