@@ -142,7 +142,7 @@ impl Target {
 #[cfg(test)]
 impl Default for Target {
     fn default() -> Self {
-        Target {
+        Self {
             hosts: vec!["NAME".into()],
             user: "root".into(),
             port: 22,
@@ -165,7 +165,7 @@ impl Target {
     #[cfg(test)]
     #[must_use]
     pub fn from_host(host: &str) -> Self {
-        Target {
+        Self {
             hosts: vec![host.into()],
             ..Default::default()
         }
@@ -216,7 +216,7 @@ pub struct Node {
 #[cfg(test)]
 impl Default for Node {
     fn default() -> Self {
-        Node {
+        Self {
             target: Target::default(),
             keys: Vec::new(),
             tags: im::HashSet::new(),
@@ -232,7 +232,7 @@ impl Node {
     #[cfg(test)]
     #[must_use]
     pub fn from_host(host: &str) -> Self {
-        Node {
+        Self {
             target: Target::from_host(host),
             ..Default::default()
         }

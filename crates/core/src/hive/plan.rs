@@ -314,9 +314,9 @@ mod tests {
             &node,
             name.clone(),
             &Goal::Build,
-            location.clone().into(),
+            location.into(),
             &SubCommandModifiers::default(),
-            should_quit.clone(),
+            should_quit,
             None,
         );
 
@@ -399,9 +399,9 @@ mod tests {
                 host_platform: "x86_64-linux".into(),
                 handle_unreachable: HandleUnreachable::default(),
             }),
-            location.clone().into(),
+            location.into(),
             &SubCommandModifiers::default(),
-            should_quit.clone(),
+            should_quit,
             None,
         );
 
@@ -419,7 +419,7 @@ mod tests {
                 crate::hive::steps::build::Build { target: None }.into(),
                 crate::hive::steps::push::PushBuildOutput {
                     substitute_on_destination: true,
-                    target: target.clone()
+                    target
                 }
                 .into(),
             ]
@@ -442,7 +442,7 @@ mod tests {
         let should_quit = Arc::new(AtomicBool::new(false));
         let target = SharedTarget(Arc::new(RwLock::new(node.target.clone())));
         let plan_apply_keys = plan_for_node(
-            &node.clone(),
+            &node,
             name.clone(),
             &Goal::Apply(ApplyGoalArgs {
                 goal: ApplyGoal::Keys,
@@ -453,9 +453,9 @@ mod tests {
                 host_platform: "x86_64-linux".into(),
                 handle_unreachable: HandleUnreachable::default(),
             }),
-            location.clone().into(),
+            location.into(),
             &SubCommandModifiers::default(),
-            should_quit.clone(),
+            should_quit,
             None,
         );
 
@@ -473,10 +473,10 @@ mod tests {
                 }
                 .into(),
                 Keys {
-                    target: Some(target.clone()),
+                    target: Some(target),
                     // test that all keys are included
                     keys: node.keys.clone(),
-                    privilege_escalation_command: node.privilege_escalation_command.clone()
+                    privilege_escalation_command: node.privilege_escalation_command
                 }
                 .into(),
             ]
@@ -514,9 +514,9 @@ mod tests {
                 host_platform: "x86_64-linux".into(),
                 handle_unreachable: HandleUnreachable::default(),
             }),
-            location.clone().into(),
+            location.into(),
             &SubCommandModifiers::default(),
-            should_quit.clone(),
+            should_quit,
             None,
         );
 
@@ -570,7 +570,7 @@ mod tests {
         let should_quit = Arc::new(AtomicBool::new(false));
         let target = SharedTarget(Arc::new(RwLock::new(node.target.clone())));
         let plan = plan_for_node(
-            &node.clone(),
+            &node,
             name.clone(),
             &Goal::Apply(ApplyGoalArgs {
                 goal: ApplyGoal::Push,
@@ -581,9 +581,9 @@ mod tests {
                 host_platform: "x86_64-linux".into(),
                 handle_unreachable: HandleUnreachable::default(),
             }),
-            location.clone().into(),
+            location.into(),
             &SubCommandModifiers::default(),
-            should_quit.clone(),
+            should_quit,
             None,
         );
 
@@ -600,7 +600,7 @@ mod tests {
                 .into(),
                 PushEvaluatedOutput {
                     substitute_on_destination: true,
-                    target: target.clone()
+                    target
                 }
                 .into()
             ]
@@ -618,7 +618,7 @@ mod tests {
         let should_quit = Arc::new(AtomicBool::new(false));
         let target = SharedTarget(Arc::new(RwLock::new(node.target.clone())));
         let plan = plan_for_node(
-            &node.clone(),
+            &node,
             name.clone(),
             &Goal::Apply(ApplyGoalArgs {
                 goal: ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch),
@@ -629,9 +629,9 @@ mod tests {
                 host_platform: "x86_64-linux".into(),
                 handle_unreachable: HandleUnreachable::default(),
             }),
-            location.clone().into(),
+            location.into(),
             &SubCommandModifiers::default(),
-            should_quit.clone(),
+            should_quit,
             None,
         );
 
@@ -658,7 +658,7 @@ mod tests {
                 SwitchToConfiguration {
                     goal: SwitchToConfigurationGoal::Switch,
                     reboot: false,
-                    target: Some(target.clone()),
+                    target: Some(target),
                     privilege_escalation_command: node.privilege_escalation_command,
                 }
                 .into(),
@@ -678,7 +678,7 @@ mod tests {
         let should_quit = Arc::new(AtomicBool::new(false));
         let target = SharedTarget(Arc::new(RwLock::new(node.target.clone())));
         let plan = plan_for_node(
-            &node.clone(),
+            &node,
             name.clone(),
             &Goal::Apply(ApplyGoalArgs {
                 goal: ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch),
@@ -689,9 +689,9 @@ mod tests {
                 host_platform: "x86_64-linux".into(),
                 handle_unreachable: HandleUnreachable::default(),
             }),
-            location.clone().into(),
+            location.into(),
             &SubCommandModifiers::default(),
-            should_quit.clone(),
+            should_quit,
             None,
         );
 
@@ -718,7 +718,7 @@ mod tests {
                 SwitchToConfiguration {
                     goal: SwitchToConfigurationGoal::Switch,
                     reboot: false,
-                    target: Some(target.clone()),
+                    target: Some(target),
                     privilege_escalation_command: node.privilege_escalation_command,
                 }
                 .into(),
@@ -733,7 +733,7 @@ mod tests {
         let name = &Name(function_name!().into());
         let should_quit = Arc::new(AtomicBool::new(false));
         let plan = plan_for_node(
-            &node.clone(),
+            &node,
             name.clone(),
             &Goal::Apply(ApplyGoalArgs {
                 goal: ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch),
@@ -744,9 +744,9 @@ mod tests {
                 host_platform: "x86_64-linux".into(),
                 handle_unreachable: HandleUnreachable::default(),
             }),
-            location.clone().into(),
+            location.into(),
             &SubCommandModifiers::default(),
-            should_quit.clone(),
+            should_quit,
             None,
         );
 

@@ -291,7 +291,7 @@ mod tests {
         assert_eq!(
             vec![6, 7, 8, 9],
             partition_arr(
-                arr.clone(),
+                arr,
                 &Partitions {
                     current: 2,
                     maximum: 2

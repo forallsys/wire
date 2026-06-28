@@ -55,7 +55,7 @@ mod tests {
             String::from_utf8_lossy(lines.first().unwrap()),
             "Writing key KeySpec { destination: \"/etc/keys/buildbot.aws.key\", user: \"buildbot\", group: \"buildbot-worker\", permissions: 384, length: 32, last: false, crc: 1370815231 }, 32 bytes of data"
         );
-        assert_eq!(lines.get(1), Some(&"xxxxx_WIRE_QUIT".as_bytes().to_vec()));
+        assert_eq!(lines.get(1), Some(&b"xxxxx_WIRE_QUIT".to_vec()));
 
         // taking leaves none
         assert_eq!(log_buffer.take_lines().len(), 0);

@@ -457,7 +457,7 @@ mod tests {
         let (status_sender, _) = watch::channel(Status::Running);
 
         // each "Bla" is 4 bytes.
-        let buffer = "bla bla bla START_NEEDLE bla bla bla".as_bytes();
+        let buffer = b"bla bla bla START_NEEDLE bla bla bla";
         let mut raw_mode_buffer = vec![];
 
         // handle 1 "bla"
@@ -521,7 +521,7 @@ mod tests {
         assert_matches!(*status_sender.borrow(), Status::Running);
 
         // test failed needle
-        let buffer = "bla FAILED_NEEDLE bla".as_bytes();
+        let buffer = b"bla FAILED_NEEDLE bla";
         let mut raw_mode_buffer = vec![];
 
         let n = buffer.len();
@@ -540,7 +540,7 @@ mod tests {
         assert_matches!(*status_sender.borrow(), Status::Done { success: false });
 
         // test succeed needle
-        let buffer = "bla SUCCEEDED_NEEDLE bla".as_bytes();
+        let buffer = b"bla SUCCEEDED_NEEDLE bla";
         let mut raw_mode_buffer = vec![];
         let (status_sender, _) = watch::channel(Status::Running);
 
