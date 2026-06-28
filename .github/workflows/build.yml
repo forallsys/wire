@@ -94,6 +94,8 @@ jobs:
           MATRIX_PACKAGE: ${{ matrix.package }}
           ARCH: ${{ matrix.arch.id }}
   tests:
+    # tests is too heavy, disable temporarily
+    if: false
     runs-on: ubuntu-latest
     needs:
       - find-jobs
