@@ -18,7 +18,8 @@ jobs:
         uses: fkirc/skip-duplicate-actions@04a1aebece824b56e6ad6a401d015479cd1c50b3
   deploy:
     runs-on: ubuntu-latest
-    permissions: {}
+    permissions:
+      id-token: write
     environment:
       name: production
       url: https://wire.forall.systems/

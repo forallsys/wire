@@ -38,7 +38,8 @@ jobs:
         run: echo "tests=$(nix eval .#hydraJobs.tests --apply "builtins.attrNames" --json)" >> "$GITHUB_OUTPUT"
   build-key-agent-aarch64:
     runs-on: ubuntu-26.04-arm
-    permissions: {}
+    permissions:
+      id-token: write
     needs: pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
     steps:
@@ -50,7 +51,8 @@ jobs:
         run: nix build --print-build-logs --print-out-paths .#packages.aarch64-linux.agent
   build-key-agent-x86_64:
     runs-on: ubuntu-latest
-    permissions: {}
+    permissions:
+      id-token: write
     needs: pre-job
     if: needs.pre-job.outputs.should_skip != 'true'
     steps:
@@ -66,7 +68,8 @@ jobs:
       - find-jobs
       - build-key-agent-x86_64
       - build-key-agent-aarch64
-    permissions: {}
+    permissions:
+      id-token: write
     strategy:
       matrix:
         package: ${{ fromJSON(needs.find-jobs.outputs.packages) }}
@@ -95,7 +98,8 @@ jobs:
     needs:
       - find-jobs
       - build-key-agent-x86_64
-    permissions: {}
+    permissions:
+      id-token: write
     strategy:
       matrix:
         test: ${{ fromJSON(needs.find-jobs.outputs.tests) }}
