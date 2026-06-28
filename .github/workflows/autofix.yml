@@ -23,7 +23,7 @@ jobs:
             docs-pnpm:
               - 'doc/pnpm-lock.yaml'
   autofix:
-    runs-on: blacksmith-2vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     needs: check-changes
     env:
       UV_CACHE_DIR: /tmp/.uv-cache
