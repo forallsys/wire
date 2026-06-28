@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - yyyy-mm-dd
 
+In this release garnix has been replaced with our own binary cache as garnix has shutdown.
+This is a breaking change to your configuration if you previously 
+used garnix to download wire.
+
+Please read https://wire.forall.systems/guides/installation.html#binary-cache
+for the up to date details!
+
 ### Added
 
 - `--print-build-logs` / `-L` argument.
@@ -19,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed public cache to `https://cache.forall.systems`, as noted above.
 - The pre-activation key stage is now scheduled after the evaluation stage. The
   rationale for this is that while iterating on evaluation errors it was often quite
   annoying to repeatedly enter your password for key deployment.
