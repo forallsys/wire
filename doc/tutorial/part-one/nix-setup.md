@@ -31,7 +31,7 @@ nix (Nix) 2.11.0
 Because wire can be heavy to compile, it is distributed with a [binary
 cache](https://wiki.nixos.org/wiki/Binary_Cache).
 
-You must enable the binary cache or you will be 
+You must enable the binary cache or you will be
 compiling everything from source:
 
 ::: code-group
