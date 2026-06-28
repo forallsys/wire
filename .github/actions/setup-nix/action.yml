@@ -12,10 +12,8 @@ runs:
       run: |
         {
           echo 'config<<EOF'
-          echo "system-features = nixos-test benchmark big-parallel kvm"
 
-          echo "substituters = https://cache.nixos.org?priority=1 https://cache.forall.systems?priority=2"
-          echo "trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= cache.forall.systems:5PmD7QO4MSF8YgyRZtkSGXRDo96H3bybIf2SsQh8ScI="
+          echo "system-features = nixos-test benchmark big-parallel kvm"
 
           echo EOF
         } >> "$GITHUB_OUTPUT"
@@ -27,3 +25,6 @@ runs:
       if: ${{ runner.debug == '1' }}
       shell: bash
       run: cat /etc/nix/nix.conf
+    - uses: Mic92/niks3-action@12d3e320b2a99b7938f9634bd337cd9fec104609
+      with:
+        server-url: https://niks3.forall.systems
