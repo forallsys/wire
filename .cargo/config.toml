@@ -1,6 +1,3 @@
 [profile.profiling]
 inherits = "release"
 debug = true
-
-[build]
-rustflags = ["--cfg=sqlx_macros_unstable"]
