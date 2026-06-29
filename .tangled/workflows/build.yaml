@@ -1,0 +1,29 @@
+when:
+  - event: ["pull_request"]
+    branch: ["trunk"]
+
+engine: "nixery"
+
+clone:
+  skip: false
+  depth: 1
+  submodules: false
+
+dependencies:
+  nixpkgs:
+    - nix
+
+steps:
+  - name: setup substituter
+    command: |
+      echo 'extra-substituters = https://cache.forall.systems' >> /etc/nix/nix.conf
+      echo 'extra-trusted-public-keys = cache.forall.systems:5PmD7QO4MSF8YgyRZtkSGXRDo96H3bybIf2SsQh8ScI=' >> /etc/nix/nix.conf
+  - name: build-key-agent-x86_64
+    command: nix build -L --print-out-paths .#packages.x86_64-linux.agent
+  - name: build-key-agent-aarch64
+    command: nix build -L --print-out-paths .#packages.aarch64-linux.agent
+  - name: build-wire
+    command: nix build -L --print-out-paths .#packages.x86_64-linux.wire
+  - name: build-wire-small
+    command: nix build -L --print-out-paths .#packages.x86_64-linux.wire-small
+
