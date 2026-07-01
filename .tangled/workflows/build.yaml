@@ -26,4 +26,3 @@ steps:
     command: nix build -L --print-out-paths .#packages.x86_64-linux.wire
   - name: build-wire-small
     command: nix build -L --print-out-paths .#packages.x86_64-linux.wire-small
-
