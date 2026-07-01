@@ -46,8 +46,12 @@
       ];
       systems = import systems;
 
-      flake = {
+      flake = rec {
         makeHive = import ./runtime/makeHive.nix;
+
+        # re-export makeHive under `lib` which matches other tools a bit nicer
+        lib = { inherit makeHive; };
+
         hydraJobs =
           let
             inherit (inputs.nixpkgs) lib;

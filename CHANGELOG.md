@@ -45,6 +45,7 @@ for the up to date details!
 
 - Use `AssertPathExists` instead of conditional path existence checks for key services.
 - Built paths printed to stdout being clobbered with the status bar.
+- Not re-exporting `outputs.makeHive` under `outputs.lib.makeHive`.
 
 ## [v1.3.0] - 2026-05-02
 
