@@ -88,7 +88,7 @@ impl Hive {
             info!("Forcing a local build for {node}");
 
             self.nodes
-                .get_mut(&Name(Arc::from(node.clone())))
+                .get_mut(&Name(Arc::from(node.as_str())))
                 .ok_or(HiveLibError::HiveInitialisationError(
                     HiveInitialisationError::NodeDoesNotExist(node.clone()),
                 ))?
