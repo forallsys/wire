@@ -283,6 +283,8 @@ mod tests {
         },
         location,
     };
+    use quickcheck::{Arbitrary, Gen};
+    use quickcheck_macros::quickcheck;
     use std::path::PathBuf;
     use std::{
         env,
