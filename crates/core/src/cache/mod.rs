@@ -307,6 +307,13 @@ impl InspectionCache {
         .inspect_err(|x| error!("failed to fetch cached node evaluations: {x}"))
         .ok()?;
 
+        // hashmap that maps the &str versions of the node `Name`s to their
+        // `Name` reference.
+        let node_names = nodes
+            .iter()
+            .map(|name| (name.0.as_ref(), name.clone()))
+            .collect::<HashMap<_, _>>();
+
         let evaluation_cache: HashMap<_, _> = evaluation_cache
             .into_iter()
             .map(|x| {
@@ -322,9 +329,8 @@ impl InspectionCache {
             })
             .filter_map(|(name, path)| path.map(|path| (name, path)))
             .filter_map(|(name, path)| {
-                nodes
-                    .iter()
-                    .find(|x| x.0.as_ref() == name.as_str())
+                node_names
+                    .get(name.as_str())
                     .map(|name| (name.clone(), path))
             })
             .collect();
