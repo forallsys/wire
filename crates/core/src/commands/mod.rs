@@ -13,8 +13,8 @@ use std::{
     sync::{Arc, LazyLock, nonpoison::Mutex},
 };
 
-use aho_corasick::AhoCorasick;
 use itertools::Itertools;
+use memchr::memmem;
 use nix_compat::log::{AT_NIX_PREFIX, Field, LogMessage, ResultType, VerbosityLevel};
 use tracing::{debug, error, info, trace, warn};
 
@@ -28,6 +28,9 @@ pub(crate) mod builder;
 pub mod common;
 pub(crate) mod noninteractive;
 pub(crate) mod pty;
+
+static AT_NIX_FINDER: LazyLock<memmem::Finder> =
+    LazyLock::new(|| memmem::Finder::new(AT_NIX_PREFIX));
 
 #[derive(Copy, Clone, Debug)]
 pub(crate) enum ChildOutputMode {
@@ -52,14 +55,6 @@ pub(crate) struct CommandArguments<S: AsRef<str>> {
     log_stdout: bool,
     build_name_map: BuildNameMap,
 }
-
-static AHO_CORASICK: LazyLock<AhoCorasick> = LazyLock::new(|| {
-    AhoCorasick::builder()
-        .ascii_case_insensitive(false)
-        .match_kind(aho_corasick::MatchKind::LeftmostFirst)
-        .build([AT_NIX_PREFIX])
-        .unwrap()
-});
 
 impl<S: AsRef<str>> CommandArguments<S> {
     pub(crate) fn new(command_string: S, modifiers: SubCommandModifiers) -> Self {
@@ -255,7 +250,9 @@ impl ChildOutputMode {
                 return Some(string.to_string());
             }
             Self::Nix => {
-                let position = AHO_CORASICK.find(&line).map(|x| &mut line[x.end()..]);
+                let position = AT_NIX_FINDER.find(line).map(|starting_position| {
+                    &mut line[(starting_position + AT_NIX_PREFIX.len())..]
+                });
 
                 if let Some(json_buf) = position {
                     json_buf

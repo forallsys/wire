@@ -3034,6 +3034,7 @@ dependencies = [
  "gethostname",
  "im",
  "itertools 0.15.0",
+ "memchr",
  "miette",
  "nix 0.31.3",
  "nix-compat",
