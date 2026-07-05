@@ -116,9 +116,8 @@ fn parse_partitions(s: &str) -> Result<Partitions, String> {
         .try_into()
         .map_err(|_| "partition must contain exactly one '/'")?;
 
-    let (current, maximum) =
-        std::array::from_fn(|i| parts[i].parse::<usize>().map_err(|x| x.to_string())).into();
-    let (current, maximum) = (current?, maximum?);
+    let current = parts[0].parse::<usize>().map_err(|e| e.to_string())?;
+    let maximum = parts[1].parse::<usize>().map_err(|e| e.to_string())?;
 
     if current > maximum {
         return Err("current is more than total".to_string());
