@@ -38,9 +38,9 @@ sha2 = "0.11.0"
 tokio-util = { version = "0.7.17", features = ["codec"] }
 base64 = "0.22.1"
 nix-compat = { git = "https://git.snix.dev/snix/snix.git", features = [
-        "serde",
-        "flakeref",
-        "daemon",
+  "serde",
+  "flakeref",
+  "daemon",
 ] }
 # simd-json = { version = "0.17.0", features = [
 #   "serde_impl",
