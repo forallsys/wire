@@ -265,7 +265,7 @@ where
 
         result.drain_stderr().await?;
 
-        return Ok(result);
+        Ok(result)
     }
 
     #[instrument(level = Level::TRACE, skip_all, ret)]
@@ -440,14 +440,14 @@ where
 
         let parent: u64 = self.read_value().await?;
 
-        return Ok(LogMessage::Start {
+        Ok(LogMessage::Start {
             fields: Some(fields),
             id,
             level,
             parent,
             text: text.into(),
             r#type: activity_type,
-        });
+        })
     }
 
     // https://snix.dev/docs/reference/nix-daemon-protocol/types/#field
@@ -515,7 +515,7 @@ where
         #[allow(clippy::disallowed_types)]
         let valid_paths: Vec<nix_compat::store_path::StorePath<String>> = self.read_value().await?;
 
-        return Ok(valid_paths.into_iter().map(SafeStorePath).collect());
+        Ok(valid_paths.into_iter().map(SafeStorePath).collect())
     }
 
     #[instrument(skip(self))]
@@ -671,7 +671,7 @@ where
                 (false, Vec::new(), None)
             };
 
-        return Ok(Some(UnkeyedValidPathInfo {
+        Ok(Some(UnkeyedValidPathInfo {
             deriver,
             nar_hash,
             references,
@@ -680,7 +680,7 @@ where
             ultimate,
             signatures,
             ca,
-        }));
+        }))
     }
 
     #[instrument(skip(self))]
@@ -786,10 +786,10 @@ where
         let map: BTreeMap<String, Option<nix_compat::store_path::StorePath<String>>> =
             self.read_value().await?;
 
-        return Ok(map
+        Ok(map
             .into_iter()
             .map(|(key, value)| (key, value.map(SafeStorePath)))
-            .collect());
+            .collect())
     }
 
     #[instrument(skip(self))]
