@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright 2024-2025 wire Contributors
 
-use std::{fmt::Display, sync::Arc};
+use std::{fmt::Display, sync::Arc, time::Duration};
 
 use tracing::{error, info, instrument, warn};
 
@@ -29,11 +29,16 @@ impl Display for SwitchToConfiguration {
 
 #[allow(clippy::significant_drop_tightening)]
 async fn wait_for_ping(target: &SharedTarget, ctx: &Context) -> Result<(), HiveLibError> {
+    // try to regain connection for 5-ish minutes after a reboot, waiting 30s between
+    // attempts to give the machine time to come back up
+    const PING_INTERVAL: Duration = Duration::from_secs(30);
+    const MAX_ATTEMPTS: u32 = 10;
+
     let target = target.0.read().await;
     let host = target.get_preferred_host()?;
 
-    for num in 0..3 {
-        warn!("Trying to ping {host} (attempt {}/3)", num + 1);
+    for num in 0..MAX_ATTEMPTS {
+        warn!("Trying to ping {host} (attempt {}/{MAX_ATTEMPTS})", num + 1);
 
         let result = target.ping(ctx.modifiers, ctx.should_quit.clone()).await;
 
@@ -41,6 +46,10 @@ async fn wait_for_ping(target: &SharedTarget, ctx: &Context) -> Result<(), HiveL
             info!("Regained connection to {} via {host}", ctx.name);
 
             return Ok(());
+        }
+
+        if num + 1 < MAX_ATTEMPTS {
+            tokio::time::sleep(PING_INTERVAL).await;
         }
     }
 
