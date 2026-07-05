@@ -1,10 +1,10 @@
 {
   nix.settings = {
-    substituters = [
+    extra-substituters = [
       # ...
       "https://cache.forall.systems"
     ];
-    trusted-public-keys = [
+    extra-trusted-public-keys = [
       # ...
       "cache.forall.systems:5PmD7QO4MSF8YgyRZtkSGXRDo96H3bybIf2SsQh8ScI="
     ];
