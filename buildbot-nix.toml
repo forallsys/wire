@@ -1,3 +1,0 @@
-attribute = "hydraJobs"
-flake_dir = "."
-lock_file = "flake.lock"
