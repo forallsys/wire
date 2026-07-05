@@ -6,6 +6,7 @@ use nix_compat::flakeref::FlakeRef;
 use nix_compat::nixhash::NixHash;
 use node::{Name, Node};
 use owo_colors::{OwoColorize, Stream};
+use semver::{Version, VersionReq};
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
@@ -14,7 +15,7 @@ use std::fmt::Display;
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use tracing::{debug, info, instrument};
 
 use crate::cache::InspectionCache;
@@ -28,27 +29,88 @@ pub mod node;
 pub mod plan;
 pub mod steps;
 
+#[derive(Debug, Eq, PartialEq)]
+pub enum SchemaVersion {
+    Semver(semver::Version),
+    DeprecatedInteger(u64),
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
 pub struct Hive {
     pub nodes: HashMap<Name, Node>,
 
     #[serde(deserialize_with = "check_schema_version", rename = "_schema")]
-    pub schema: u32,
+    pub schema: SchemaVersion,
 }
 
-fn check_schema_version<'de, D: Deserializer<'de>>(d: D) -> Result<u32, D::Error> {
-    let version = u32::deserialize(d)?;
-    if version != Hive::SCHEMA_VERSION {
-        return Err(D::Error::custom(
-            "Version mismatch for Hive. Please ensure the binary and your wire input match!",
-        ));
+impl Serialize for SchemaVersion {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match self {
+            Self::Semver(version) => serializer.serialize_str(&version.to_string()),
+            Self::DeprecatedInteger(integer) => serializer.serialize_u64(*integer),
+        }
     }
-    Ok(version)
+}
+
+fn check_schema_version<'de, D: Deserializer<'de>>(d: D) -> Result<SchemaVersion, D::Error> {
+    let value = serde_json::Value::deserialize(d)?;
+
+    if value.is_number() {
+        let number = value.as_u64().ok_or(D::Error::custom(
+            "failed to read deprecated integer schema version into an u64",
+        ))?;
+
+        if number != Hive::DEPRECATED_SCHEMA_VERSION {
+            return Err(D::Error::custom(format!(
+                "your `makeHive` function can't be read (schema verison {number:?}, required {:?}). please upgrade it or downgrade this binary",
+                Hive::DEPRECATED_SCHEMA_VERSION
+            )));
+        }
+
+        return Ok(SchemaVersion::DeprecatedInteger(number));
+    }
+
+    let semver_string = value.as_str().ok_or(D::Error::custom(
+        "failed to read schema version into a &str. this is likely a bug you should report",
+    ))?;
+
+    let version = Version::parse(semver_string).map_err(|err| {
+        D::Error::custom(format!(
+            "failed to parse schema semver. this is likely a bug you should report: {err:?}"
+        ))
+    })?;
+
+    if !Hive::SCHEMA_VERSION_SEMVER.matches(&version) {
+        return Err(D::Error::custom(format!(
+            "your `makeHive`'s version ({version}) did not match {}. please upgrade it or downgrade this binary",
+            *Hive::SCHEMA_VERSION_SEMVER
+        )));
+    }
+
+    Ok(SchemaVersion::Semver(
+        Version::parse(semver_string).map_err(|err| {
+            D::Error::custom(format!(
+                "failed to parse schema semver. this is likely a bug you should report: {err:?}"
+            ))
+        })?,
+    ))
 }
 
 impl Hive {
-    pub const SCHEMA_VERSION: u32 = 1;
+    /// The schema version that was previously used before the semver schema
+    /// versions where implemented
+    pub const DEPRECATED_SCHEMA_VERSION: u64 = 1;
+
+    /// Semver version requirement for schemas that this wire binary can read.
+    pub const SCHEMA_VERSION_SEMVER: LazyLock<VersionReq> = LazyLock::new(|| {
+        VersionReq::parse("^1.0.0").expect("hive version requirement failed to parse")
+    });
+
+    pub const SCHEMA_VERSION_STRING: LazyLock<String> =
+        LazyLock::new(|| Hive::SCHEMA_VERSION_SEMVER.to_string());
 
     #[instrument(skip_all, name = "eval_hive")]
     pub async fn new_from_path(
@@ -330,7 +392,7 @@ mod tests {
             hive,
             Hive {
                 nodes,
-                schema: Hive::SCHEMA_VERSION
+                schema: SchemaVersion::DeprecatedInteger(Hive::DEPRECATED_SCHEMA_VERSION)
             }
         );
     }
@@ -372,7 +434,7 @@ mod tests {
             hive,
             Hive {
                 nodes,
-                schema: Hive::SCHEMA_VERSION
+                schema: SchemaVersion::DeprecatedInteger(Hive::DEPRECATED_SCHEMA_VERSION)
             }
         );
     }
@@ -404,7 +466,7 @@ mod tests {
             hive,
             Hive {
                 nodes,
-                schema: Hive::SCHEMA_VERSION
+                schema: SchemaVersion::DeprecatedInteger(Hive::DEPRECATED_SCHEMA_VERSION)
             }
         );
 

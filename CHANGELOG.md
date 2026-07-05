@@ -23,6 +23,9 @@ for the up to date details!
   handshake if `--experimental-nix-client` is passed.
 - Node evaluations are now cached between wire invocations in flake hives,
   invalidating old caches with a connection to the local nix daemon.
+- Parsing the output generated from `makeHive` now supports reading the schema version in semver
+  format alongside the previous integer-based system. Currently, it still reports `1` to maintain
+  backwards compatibility with v1.3.0.
 
 ### Changed
 
@@ -43,6 +46,7 @@ for the up to date details!
 - Building & Pushing derivation outputs now explicitly operate on the `^out`
   output instead of incorrectly pushing all outputs (`^*`). This results in a
   roughly 12% speed increase in benchmarking.
+- Unknown fields in the hive schema are now ignored rather than rejected.
 
 ### Fixed
 

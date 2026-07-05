@@ -41,6 +41,7 @@ sqlx = { version = "0.9", features = ["runtime-tokio", "sqlite"] }
 zstd = "0.13.3"
 wire-nix-client = { path = "../nix_client" }
 memchr = { version = "2", default-features = false }
+semver = "1.0.28"
 
 [dev-dependencies]
 tempdir = "0.3"

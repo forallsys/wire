@@ -30,7 +30,7 @@ use std::{
     name = "wire",
     bin_name = "wire",
     about = "a tool to deploy nixos systems",
-    version = format!("{}\nDebug: Hive::SCHEMA_VERSION {}", crate_version!(), Hive::SCHEMA_VERSION)
+    version = format!("{}, supports hives within {}", crate_version!(), *Hive::SCHEMA_VERSION_SEMVER)
 )]
 pub struct Cli {
     #[command(subcommand)]
