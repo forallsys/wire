@@ -3,7 +3,7 @@
     flake-parts.url = "github:hercules-ci/flake-parts";
     flake-compat.url = "https://git.lix.systems/lix-project/flake-compat/archive/main.tar.gz";
     git-hooks.url = "github:cachix/git-hooks.nix";
-    systems.url = "github:nix-systems/default";
+    systems.url = "github:nix-systems/default/future-26.11";
     crane.url = "github:ipetkov/crane";
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     fenix.url = "github:nix-community/fenix";
