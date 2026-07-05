@@ -1,0 +1,3 @@
+# yaml-language-server: $schema=https://www.schemastore.org/pnpm-workspace.json
+allowBuilds:
+  esbuild: false
