@@ -8,6 +8,7 @@ workspace = true
 
 [features]
 no_web_tests = []
+no_eval_tests = []
 
 [dependencies]
 tokio = { workspace = true }

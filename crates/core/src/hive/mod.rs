@@ -301,6 +301,7 @@ mod tests {
 
     // flake should always come before hive.nix
     #[tokio::test]
+    #[cfg_attr(feature = "no_eval_tests", ignore)]
     async fn test_hive_dot_nix_priority() {
         let location = location!(get_test_path!());
 
@@ -309,6 +310,7 @@ mod tests {
 
     #[tokio::test]
     #[cfg_attr(feature = "no_web_tests", ignore)]
+    #[cfg_attr(feature = "no_eval_tests", ignore)]
     async fn test_hive_file() {
         let location = location!(get_test_path!());
 
@@ -335,6 +337,7 @@ mod tests {
 
     #[tokio::test]
     #[cfg_attr(feature = "no_web_tests", ignore)]
+    #[cfg_attr(feature = "no_eval_tests", ignore)]
     async fn non_trivial_hive() {
         let location = location!(get_test_path!());
 
@@ -376,6 +379,7 @@ mod tests {
 
     #[tokio::test]
     #[cfg_attr(feature = "no_web_tests", ignore)]
+    #[cfg_attr(feature = "no_eval_tests", ignore)]
     async fn flake_hive() {
         let tmp_dir = make_flake_sandbox(&get_test_path!()).unwrap();
 
@@ -408,6 +412,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(feature = "no_eval_tests", ignore)]
     async fn no_nixpkgs() {
         let location = location!(get_test_path!());
 
@@ -425,6 +430,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(feature = "no_eval_tests", ignore)]
     async fn _keys_should_fail() {
         let location = location!(get_test_path!());
 
@@ -442,6 +448,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg_attr(feature = "no_eval_tests", ignore)]
     async fn test_force_always_local() {
         let mut location: PathBuf = env::var("WIRE_TEST_DIR").unwrap().into();
         location.push("non_trivial_hive");

@@ -174,6 +174,7 @@ mod tests {
     };
 
     #[tokio::test]
+    #[cfg_attr(feature = "no_eval_tests", ignore)]
     async fn plan_executor_quits_sigint() {
         let location = location!(get_test_path!());
         let node = Node::default();
