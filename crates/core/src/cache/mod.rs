@@ -350,16 +350,16 @@ impl InspectionCache {
             .map(|(_, path)| (path.digest().to_vec(), path.name().clone()))
             .collect();
 
-        for (output_path_digest, output_path_name) in invalid_paths {
-            if let Err(err) = sqlx::query!(
-                "delete from evaluation_cache where output_path_digest = $1 and output_path_name = $2",
-                output_path_digest,
-                output_path_name
-            )
-            .execute(&self.pool)
-            .await
-            {
-                error!(err = ?err, "failed to delete invalid evaluation cache entry");
+        if !invalid_paths.is_empty() {
+            let mut query_builder = sqlx::QueryBuilder::new(
+                "delete from evaluation_cache where (output_path_digest, output_path_name) in ",
+            );
+            query_builder.push_tuples(invalid_paths.into_iter(), |mut b, (digest, name)| {
+                b.push_bind(digest).push_bind(name);
+            });
+
+            if let Err(err) = query_builder.build().execute(&self.pool).await {
+                error!(err = ?err, "failed to delete invalid evaluation cache entries");
             }
         }
 
@@ -533,39 +533,48 @@ where
             let valid_set: std::collections::HashSet<_> = valid_paths.into_iter().collect();
 
             // delete invalid evaluation_cache entries
-            for path in &evaluation_paths {
-                // is invalid if either the output or the flake path are not in
-                // the valid set
-                let is_invalid = if let Ok(p) = SafeStorePath::<String>::from_name_and_digest(
-                    &path.flake_path_name,
-                    &path.flake_path_digest,
-                ) && !valid_set.contains(&p)
-                {
-                    true
-                } else if let Ok(p) = SafeStorePath::<String>::from_name_and_digest(
-                    &path.output_path_name,
-                    &path.output_path_digest,
-                ) && !valid_set.contains(&p)
-                {
-                    true
-                } else {
-                    false
-                };
+            let invalid_entries: Vec<(&Vec<u8>, &String, &Vec<u8>, &String)> = evaluation_paths
+                .iter()
+                .filter(|path| {
+                    // is invalid if either the output or the flake path are not in
+                    // the valid set
+                    if let Ok(p) = SafeStorePath::<String>::from_name_and_digest(
+                        &path.flake_path_name,
+                        &path.flake_path_digest,
+                    ) && !valid_set.contains(&p)
+                    {
+                        true
+                    } else if let Ok(p) = SafeStorePath::<String>::from_name_and_digest(
+                        &path.output_path_name,
+                        &path.output_path_digest,
+                    ) && !valid_set.contains(&p)
+                    {
+                        true
+                    } else {
+                        false
+                    }
+                })
+                .map(|path| {
+                    (
+                        &path.flake_path_digest,
+                        &path.flake_path_name,
+                        &path.output_path_digest,
+                        &path.output_path_name,
+                    )
+                })
+                .collect();
 
-                if !is_invalid {
-                    continue;
+            if !invalid_entries.is_empty() {
+                let mut query_builder = sqlx::QueryBuilder::new(
+                    "delete from evaluation_cache where (flake_path_digest, flake_path_name, output_path_digest, output_path_name) in ",
+                );
+                query_builder.push_tuples(invalid_entries, |mut b, (fd, fn_, od, on_)| {
+                    b.push_bind(fd).push_bind(fn_).push_bind(od).push_bind(on_);
+                });
+
+                if let Err(err) = query_builder.build().execute(&self.pool).await {
+                    error!(err = ?err, "failed to delete from evaluation path");
                 }
-
-                let _ = sqlx::query!(
-                    "delete from evaluation_cache where flake_path_digest = $1 and flake_path_name = $2 and output_path_digest = $3 and output_path_name = $4",
-                    path.flake_path_digest.clone(),
-                    path.flake_path_name,
-                    path.output_path_digest.clone(),
-                    path.output_path_name
-                )
-                .execute(&self.pool)
-                .await
-                .inspect_err(|err| error!(err = ?err, "failed to delete from evaluation path"));
             }
         }
 
