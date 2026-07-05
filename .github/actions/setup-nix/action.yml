@@ -1,8 +1,8 @@
----
+# yaml-language-server: $schema=https://www.schemastore.org/github-action.json
 name: Set up Nix
 description: |
-  Sets up the Nix environment for wire, removing unnecessary bloat and installing Nix along with proper
-  substituters being set
+  Sets up the Nix environment for wire, removing unnecessary bloat
+  and installing Nix along with proper substituters being set
 runs:
   using: "composite"
   steps:

@@ -1,4 +1,4 @@
----
+# yaml-language-server: $schema=https://www.schemastore.org/github-workflow.json
 name: "Pages"
 on:
   push:
@@ -18,12 +18,14 @@ jobs:
         uses: fkirc/skip-duplicate-actions@04a1aebece824b56e6ad6a401d015479cd1c50b3
   deploy:
     runs-on: ubuntu-latest
+    needs: pre-job
     permissions:
       id-token: write
     environment:
       name: production
       url: https://wire.forall.systems/
-    if: github.actor != 'dependabot[bot]' && needs.pre-job.outputs.should_skip != 'true'
+    if: github.actor != 'dependabot[bot]'
+      && needs.pre-job.outputs.should_skip != 'true'
     steps:
       - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:

@@ -1,4 +1,4 @@
----
+# yaml-language-server: $schema=https://www.schemastore.org/github-workflow.json
 name: autofix.ci
 on:
   pull_request:
@@ -50,7 +50,9 @@ jobs:
             uv-${{ runner.os }}-${{ hashFiles('**/uv.lock') }}
             uv-${{ runner.os }}
       - name: setup sqlx
-        run: nix develop -L -v -c sqlx database setup --source ./crates/core/src/cache/migrations/
+        run: |
+          nix develop -L -v -c sqlx database setup \
+            --source ./crates/core/src/cache/migrations/
       - name: autofix sqlx
         run: nix develop -L -v -c cargo sqlx prepare --workspace
       - name: clippy --fix

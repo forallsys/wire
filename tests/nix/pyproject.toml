@@ -1,3 +1,4 @@
+#:schema https://json.schemastore.org/pyproject.json
 [project]
 name = "wire-vm-tests"
 version = "0.0.0"
