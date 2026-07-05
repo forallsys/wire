@@ -40,6 +40,9 @@ for the up to date details!
   as primary keys instead of full sqlite `text`.
 - Wire's cache is now deleted and recreated if migrations fail.
 - No longer panics on key agent env var not found.
+- Building & Pushing derivation outputs now explicitly operate on the `^out`
+  output instead of incorrectly pushing all outputs (`^*`). This results in a
+  roughly 12% speed increase in benchmarking.
 
 ### Fixed
 

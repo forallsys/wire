@@ -117,7 +117,7 @@ impl ExecuteStep for Build {
                 "--print-out-paths",
             ]);
             command_string.opt_arg(ctx.modifiers.print_build_logs, "--print-build-logs");
-            command_string.arg(format!("{}^*", top_level.to_absolute_path()));
+            command_string.arg(format!("{}^out", top_level.to_absolute_path()));
 
             let status = run_command_with_env(
                 &CommandArguments::new(command_string, ctx.modifiers)
