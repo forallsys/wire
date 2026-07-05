@@ -21,7 +21,7 @@ use wire_nix_client::NixClient;
 use crate::{
     SafeStorePath,
     commands::trace_nix_log_message,
-    hive::{FlakePrefetch, Hive, node::Name},
+    hive::{FlakePrefetch, Hive, SCHEMA_VERSION_STRING, node::Name},
 };
 
 #[derive(Clone)]
@@ -174,7 +174,7 @@ impl InspectionCache {
             ",
             store_path_digest,
             hash,
-            &**Hive::SCHEMA_VERSION_STRING,
+            &**SCHEMA_VERSION_STRING,
             store_path_name
         )
         .fetch_optional(&self.pool)
@@ -228,7 +228,7 @@ impl InspectionCache {
             returning inspection_blobs.id
             ",
             json_value,
-            &**Hive::SCHEMA_VERSION_STRING
+            &**SCHEMA_VERSION_STRING
         )
         .fetch_one(&self.pool)
         .await
@@ -438,7 +438,7 @@ where
     offset
       30
   )",
-            &**Hive::SCHEMA_VERSION_STRING
+            &**SCHEMA_VERSION_STRING
         )
         .execute(&self.pool)
         .await?;

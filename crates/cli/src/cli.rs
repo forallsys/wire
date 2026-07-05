@@ -14,7 +14,7 @@ use wire_core::commands::common::get_hive_node_names;
 use wire_core::hive::node::{
     ApplyGoal as HiveGoal, HandleUnreachable, Name, SwitchToConfigurationGoal,
 };
-use wire_core::hive::{Hive, get_hive_location};
+use wire_core::hive::{SCHEMA_VERSION_SEMVER, get_hive_location};
 
 use std::io::IsTerminal;
 #[cfg(debug_assertions)]
@@ -30,7 +30,7 @@ use std::{
     name = "wire",
     bin_name = "wire",
     about = "a tool to deploy nixos systems",
-    version = format!("{}, supports hives within {}", crate_version!(), *Hive::SCHEMA_VERSION_SEMVER)
+    version = format!("{}, supports hives within {}", crate_version!(), *SCHEMA_VERSION_SEMVER)
 )]
 pub struct Cli {
     #[command(subcommand)]
