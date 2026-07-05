@@ -1,3 +1,4 @@
+#:schema https://json.schemastore.org/cargo.json
 [package]
 name = "wire-nix-client"
 edition.workspace = true

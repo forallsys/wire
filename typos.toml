@@ -1,3 +1,4 @@
+#:schema https://raw.githubusercontent.com/crate-ci/typos/master/config.schema.json
 [files]
 extend-exclude = ["COPYING"]
 

@@ -1,4 +1,5 @@
 {
+  "$schema": "https://json.schemastore.org/package.json",
   "name": "wire-docs",
   "version": "1.3.0",
   "type": "module",

@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://www.schemastore.org/pull-request-labeler.json
 docs-page:
   - changed-files:
       - any-glob-to-any-file:

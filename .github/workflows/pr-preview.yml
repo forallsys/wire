@@ -1,4 +1,4 @@
----
+# yaml-language-server: $schema=https://www.schemastore.org/github-workflow.json
 name: "PR Preview"
 on:
   push:
@@ -26,7 +26,10 @@ jobs:
       - name: Locate Base Ref
         id: base-ref
         run: |
-          echo "base-ref=$(gh api /repos/${{ github.repository }}/pulls/${NEEDS_GET_PR_OUTPUTS_NUMBER} | jq -r '.base.ref')" >> "$GITHUB_OUTPUT"
+          repo="${{ github.repository }}"
+          echo "base-ref=$(gh api /repos/"$repo"/pulls/\
+            "${NEEDS_GET_PR_OUTPUTS_NUMBER}" \
+            | jq -r '.base.ref')" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NEEDS_GET_PR_OUTPUTS_NUMBER: ${{ needs.get-pr.outputs.number }}
@@ -82,4 +85,5 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy ./result/ --project-name wire-docs --branch pr-${{ needs.get-pr.outputs.number }}
+          command: pages deploy ./result/ --project-name wire-docs
+            --branch pr-${{ needs.get-pr.outputs.number }}

@@ -45,6 +45,16 @@
                 ''
               );
             };
+            taplo = {
+              enable = true;
+              name = "taplo check";
+              files = "\\.toml$";
+              entry = lib.getExe (
+                pkgs.writeShellScriptBin "taplo-check" ''
+                  ${lib.getExe pkgs.taplo} check
+                ''
+              );
+            };
             machete = {
               enable = true;
               name = "cargo-machete";
@@ -56,6 +66,14 @@
               settings = {
                 configPath = "typos.toml";
               };
+            };
+            actionlint = {
+              enable = true;
+              files = "^\\.github/workflows/.*\\.(yml|yaml)$";
+            };
+            yamllint = {
+              enable = true;
+              settings.configPath = ".yamllint.yaml";
             };
 
           };
