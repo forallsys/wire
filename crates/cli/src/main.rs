@@ -70,7 +70,9 @@ async fn main() -> Result<()> {
     }
 
     if !check_nix_available() {
-        miette::bail!("Nix is not available on this system.");
+        miette::bail!(
+            "The Nix binary could not be started. If you have not installed Nix (or compatable tool, such as Lix) yet, consider obtaining it through the instructions found here https://lix.systems/install/ or here https://nixos.org/download/."
+        );
     }
 
     let signals = Signals::new([SIGINT]).into_diagnostic()?;
