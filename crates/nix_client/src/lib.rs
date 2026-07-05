@@ -268,7 +268,6 @@ where
         Ok(result)
     }
 
-    #[instrument(level = Level::TRACE, skip_all, ret)]
     async fn read_value<V>(&mut self) -> Result<V, NixDaemonClientError>
     where
         R: AsyncReadExt + std::fmt::Debug + Unpin + Send,
@@ -282,7 +281,6 @@ where
             .map_err(NixDaemonClientError::NixDaemonIO)
     }
 
-    #[instrument(level = Level::TRACE, skip(self), ret)]
     async fn write_value<V>(&mut self, value: &V) -> Result<(), NixDaemonClientError>
     where
         W: AsyncWriteExt + std::fmt::Debug + Unpin + Send,
@@ -451,7 +449,6 @@ where
     }
 
     // https://snix.dev/docs/reference/nix-daemon-protocol/types/#field
-    #[instrument(skip(self))]
     async fn read_activity_fields<'a>(&mut self) -> Result<Vec<Field<'a>>, NixDaemonClientError>
     where
         R: AsyncReadExt + std::fmt::Debug + Unpin + Send,
