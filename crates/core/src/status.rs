@@ -67,39 +67,35 @@ impl Status {
     }
 
     #[must_use]
-    fn num_finished(&self) -> usize {
-        self.statuses
-            .iter()
-            .filter(|(_, status)| matches!(status, NodeStatus::Succeeded | NodeStatus::Failed))
-            .count()
-    }
-
-    #[must_use]
-    fn num_running(&self) -> usize {
-        self.statuses
-            .iter()
-            .filter(|(_, status)| matches!(status, NodeStatus::Running(..)))
-            .count()
-    }
-
-    #[must_use]
-    fn num_failed(&self) -> usize {
-        self.statuses
-            .iter()
-            .filter(|(_, status)| matches!(status, NodeStatus::Failed))
-            .count()
-    }
-
-    #[must_use]
     pub fn get_msg(&self) -> String {
         if self.statuses.is_empty() {
             return String::new();
         }
 
-        let mut msg = format!("[{} / {}", self.num_finished(), self.statuses.len());
+        let (num_finished, num_running, num_failed) = self.statuses.values().fold(
+            (0, 0, 0),
+            |(mut finished, mut running, mut failed), status| {
+                let did_fail = matches!(status, NodeStatus::Failed);
+                let is_running = matches!(status, NodeStatus::Running(..));
+                let did_succeeded = matches!(status, NodeStatus::Succeeded | NodeStatus::Failed);
 
-        let num_failed = self.num_failed();
-        let num_running = self.num_running();
+                if did_fail {
+                    failed += 1;
+                }
+
+                if is_running {
+                    running += 1;
+                }
+
+                if did_succeeded || did_fail {
+                    finished += 1;
+                }
+
+                (finished, running, failed)
+            },
+        );
+
+        let mut msg = format!("[{} / {}", num_finished, self.statuses.len());
 
         let failed = if num_failed >= 1 {
             Some(format!("{} Failed", num_failed.red()))
