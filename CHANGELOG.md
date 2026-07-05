@@ -47,6 +47,7 @@ for the up to date details!
   output instead of incorrectly pushing all outputs (`^*`). This results in a
   roughly 12% speed increase in benchmarking.
 - Unknown fields in the hive schema are now ignored rather than rejected.
+- Cache database now uses `SqliteJournalMode::Wal` & `SqliteSynchronous::Normal`.
 
 ### Fixed
 

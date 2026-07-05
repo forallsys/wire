@@ -12,7 +12,7 @@ use itertools::Itertools;
 use sqlx::{
     Pool, Sqlite,
     migrate::{MigrateError, Migrator},
-    sqlite::{SqliteConnectOptions, SqlitePoolOptions},
+    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous},
 };
 use tokio::fs::create_dir_all;
 use tracing::{Level, debug, error, info, instrument, trace};
@@ -64,6 +64,8 @@ impl InspectionCache {
             .connect_with(
                 SqliteConnectOptions::new()
                     .filename(&cache_path)
+                    .journal_mode(SqliteJournalMode::Wal)
+                    .synchronous(SqliteSynchronous::Normal)
                     .create_if_missing(true),
             )
             .await
