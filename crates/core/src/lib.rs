@@ -26,7 +26,7 @@ use wire_nix_client::{
 
 use crate::{
     commands::trace_nix_log_message,
-    errors::HiveLibError,
+    errors::{HiveLibError, get_common_copy_path_help},
     hive::node::{Context, Name, Push, SharedTarget},
     status::{UI_SENDER, UiMessage},
 };
@@ -157,16 +157,6 @@ where
         .map_err(HiveLibError::NixDaemonClientError)?,
         target.get_preferred_host()?.to_string(),
     ))
-}
-
-fn get_common_copy_path_help(error: &NixDaemonClientError) -> Option<String> {
-    if let NixDaemonClientError::NixDaemonOperationError { msg, .. } = error
-        && (msg.contains("error: unexpected end-of-file"))
-    {
-        Some("wire requires the deploying user or wire binary cache is trusted on the remote server. if you're attempting to make that change, skip keys with --no-keys. please read https://wire.forall.systems/guides/keys for more information".to_string())
-    } else {
-        None
-    }
 }
 
 /// Pushes the path with a native daemon.

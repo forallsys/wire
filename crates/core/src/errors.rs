@@ -16,6 +16,40 @@ use crate::{
     hive::node::{Name, SwitchToConfigurationGoal},
 };
 
+/// Extracts the actual error message content used to determine whether a copy-path failure should have help text placed on it
+pub(crate) trait CopyPathHelpError {
+    fn copy_path_error_message(&self) -> Option<&str>;
+}
+
+impl CopyPathHelpError for NixDaemonClientError {
+    fn copy_path_error_message(&self) -> Option<&str> {
+        if let Self::NixDaemonOperationError { msg, .. } = self {
+            Some(msg)
+        } else {
+            None
+        }
+    }
+}
+
+impl CopyPathHelpError for CommandError {
+    fn copy_path_error_message(&self) -> Option<&str> {
+        if let Self::CommandFailed { logs, .. } = self {
+            Some(logs)
+        } else {
+            None
+        }
+    }
+}
+
+/// Shared help text for error mesasges.
+pub(crate) fn get_common_copy_path_help<E: CopyPathHelpError + ?Sized>(
+    error: &E,
+) -> Option<String> {
+    let msg = error.copy_path_error_message()?;
+    let needle = "error: unexpected end-of-file";
+    msg.contains(needle).then(|| "wire requires the deploying user or wire binary cache is trusted on the remote server. if you're attempting to make that change, skip keys with --no-keys. please read https://wire.forall.systems/guides/keys for more information".to_string())
+}
+
 #[derive(Debug, Diagnostic, Error)]
 pub enum KeyError {
     #[diagnostic(code(wire::key::File))]
@@ -322,5 +356,104 @@ pub enum HiveLibError {
 impl From<StorePathError> for HiveLibError {
     fn from(e: StorePathError) -> Self {
         Self::StorePath(e)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::assert_matches;
+
+    const EXPECTED_HELP: &str = "wire requires the deploying user or wire binary cache is trusted on the remote server. if you're attempting to make that change, skip keys with --no-keys. please read https://wire.forall.systems/guides/keys for more information";
+
+    #[test]
+    fn daemon_error_with_eof_produces_help() {
+        let error = NixDaemonClientError::NixDaemonOperationError {
+            name: "copy".into(),
+            msg: "error: unexpected end-of-file".into(),
+        };
+
+        assert_eq!(
+            get_common_copy_path_help(&error).as_deref(),
+            Some(EXPECTED_HELP)
+        );
+    }
+
+    #[test]
+    fn command_error_with_eof_produces_help() {
+        let error = CommandError::CommandFailed {
+            command_ran: "nix copy".into(),
+            logs: "info: something\nerror: unexpected end-of-file".into(),
+            code: "1".into(),
+            reason: "exit",
+        };
+
+        assert_eq!(
+            get_common_copy_path_help(&error).as_deref(),
+            Some(EXPECTED_HELP)
+        );
+    }
+
+    #[test]
+    fn daemon_error_message_extraction() {
+        let error = NixDaemonClientError::NixDaemonOperationError {
+            name: "query".into(),
+            msg: "unrelated".into(),
+        };
+        assert_eq!(
+            CopyPathHelpError::copy_path_error_message(&error),
+            Some("unrelated")
+        );
+
+        let other = NixDaemonClientError::Sigint;
+        assert_eq!(CopyPathHelpError::copy_path_error_message(&other), None);
+    }
+
+    #[test]
+    fn command_error_message_extraction() {
+        let error = CommandError::CommandFailed {
+            command_ran: "nix copy".into(),
+            logs: "anything".into(),
+            code: "1".into(),
+            reason: "exit",
+        };
+        assert_eq!(
+            CopyPathHelpError::copy_path_error_message(&error),
+            Some("anything")
+        );
+
+        let other = CommandError::NoHandle;
+        assert_eq!(CopyPathHelpError::copy_path_error_message(&other), None);
+    }
+
+    #[test]
+    fn daemon_error_without_eof_returns_none() {
+        let error = NixDaemonClientError::NixDaemonOperationError {
+            name: "copy".into(),
+            msg: "some other failure".into(),
+        };
+
+        assert_matches!(get_common_copy_path_help(&error), None);
+    }
+
+    #[test]
+    fn command_error_without_eof_returns_none() {
+        let error = CommandError::CommandFailed {
+            command_ran: "nix copy".into(),
+            logs: "unrelated log output".into(),
+            code: "1".into(),
+            reason: "exit",
+        };
+
+        assert_matches!(get_common_copy_path_help(&error), None);
+    }
+
+    #[test]
+    fn non_matching_error_variants_return_none() {
+        let daemon = NixDaemonClientError::Sigint;
+        assert_matches!(get_common_copy_path_help(&daemon), None);
+
+        let command = CommandError::NoHandle;
+        assert_matches!(get_common_copy_path_help(&command), None);
     }
 }
