@@ -33,7 +33,7 @@ use tokio::{
     io::{AsyncReadExt, AsyncWriteExt, ReadHalf, Take, WriteHalf, split},
     net::UnixStream,
 };
-use tracing::{Level, debug, info, instrument, trace, warn};
+use tracing::{debug, info, instrument, trace, warn};
 
 use crate::store_path::SafeStorePath;
 
