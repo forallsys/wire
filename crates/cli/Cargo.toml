@@ -3,6 +3,7 @@
 name = "wire"
 version.workspace = true
 edition.workspace = true
+default-run = "wire"
 
 [lints]
 workspace = true
