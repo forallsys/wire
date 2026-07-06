@@ -48,6 +48,8 @@ for the up to date details!
   roughly 12% speed increase in benchmarking.
 - Unknown fields in the hive schema are now ignored rather than rejected.
 - Cache database now uses `SqliteJournalMode::Wal` & `SqliteSynchronous::Normal`.
+- Attempting to reconnect to a rebooting node will now wait far longer before
+  giving up.
 
 ### Fixed
 
