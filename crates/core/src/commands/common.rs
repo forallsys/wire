@@ -11,22 +11,12 @@ use crate::{
         CommandArguments, Either, WireCommandChip, builder::CommandStringBuilder, run_command,
         run_command_with_env,
     },
-    errors::{CommandError, HiveInitialisationError, HiveLibError},
+    errors::{CommandError, HiveInitialisationError, HiveLibError, get_common_copy_path_help},
     hive::{
         HiveLocation,
         node::{Context, Push, SharedTarget},
     },
 };
-
-fn get_common_copy_path_help(error: &CommandError) -> Option<String> {
-    if let CommandError::CommandFailed { logs, .. } = error
-        && (logs.contains("error: unexpected end-of-file"))
-    {
-        Some("wire requires the deploying user or wire binary cache is trusted on the remote server. if you're attempting to make that change, skip keys with --no-keys. please read https://wire.forall.systems/guides/keys for more information".to_string())
-    } else {
-        None
-    }
-}
 
 /// Pushes the path with the regular nix commands.
 pub async fn push(
