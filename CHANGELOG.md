@@ -26,6 +26,8 @@ for the up to date details!
 - Parsing the output generated from `makeHive` now supports reading the schema version in semver
   format alongside the previous integer-based system. Currently, it still reports `1` to maintain
   backwards compatibility with v1.3.0.
+- A list of nodes that are currently deploying, failed, or waiting on a specific
+  step are displayed below the status bar.
 
 ### Changed
 
