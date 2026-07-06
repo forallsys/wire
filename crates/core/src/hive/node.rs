@@ -282,10 +282,7 @@ pub enum HandleUnreachable {
 
 #[derive(Default)]
 pub struct StepState {
-    pub evaluation: Option<SafeStorePath<String>>,
     pub evaluation_rx: Option<oneshot::Receiver<Result<SafeStorePath<String>, HiveLibError>>>,
-    pub build: Option<SafeStorePath<String>>,
-    pub key_agent_directory: Option<SafeStorePath<String>>,
 }
 
 pub type BuildNameMap = Arc<Mutex<HashMap<u64, Arc<String>>>>;
@@ -298,21 +295,6 @@ pub struct Context {
     pub name: Name,
 
     pub build_id_names: BuildNameMap,
-}
-
-impl Context {
-    /// Resolves the evaluated top-level drv, either from an already
-    /// cached result in [`StepState::evaluation`] or by awaiting a result
-    /// from the spawned evaluation task.
-    pub(crate) async fn top_level(&mut self) -> Result<&SafeStorePath<String>, HiveLibError> {
-        if self.state.evaluation.is_none() {
-            let rx = self.state.evaluation_rx.take().unwrap();
-            let evaluation = rx.await.unwrap()?;
-            self.state.evaluation = Some(evaluation);
-        }
-
-        Ok(self.state.evaluation.as_ref().unwrap())
-    }
 }
 
 #[enum_dispatch(ExecuteStep)]

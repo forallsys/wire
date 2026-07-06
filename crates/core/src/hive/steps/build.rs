@@ -14,6 +14,7 @@ use crate::{
     },
     hive::{
         HiveLocation,
+        executor::{BuildOutputHandle, EvaluationOutputHandle},
         node::{Context, ExecuteStep, SharedTarget},
     },
     open_remote_client,
@@ -23,8 +24,32 @@ const SYSTEM_OUTPUT: &str = "out";
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
+pub(crate) enum NixCommandBuildMetadata {
+    Locally {
+        cached_derivation: Option<EvaluationOutputHandle>,
+    },
+    Remotely {
+        target: SharedTarget,
+        derivation: EvaluationOutputHandle,
+    },
+}
+
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+pub(crate) enum BuildMetadata {
+    NixCommand(NixCommandBuildMetadata),
+    BuildWithNixDaemon {
+        target: Option<SharedTarget>,
+        derivation: EvaluationOutputHandle,
+    },
+}
+
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
 pub struct Build {
-    pub(crate) target: Option<SharedTarget>,
+    pub(crate) metadata: BuildMetadata,
+    /// the handle this step places its produced path to
+    pub(crate) output: BuildOutputHandle,
 }
 
 impl Display for Build {
@@ -37,139 +62,159 @@ impl ExecuteStep for Build {
     #[allow(clippy::too_many_lines)]
     #[instrument(skip_all, name = "build")]
     async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
-        if ctx.modifiers.experimental_nix_client {
-            let top_level = ctx.top_level().await?.clone();
+        match &self.metadata {
+            BuildMetadata::BuildWithNixDaemon { target, derivation } => {
+                let top_level = derivation.require().await?;
 
-            // use experimental nix daemon client
-            let mut connection = if let Some(ref target) = self.target {
-                let target = target.0.read().await;
+                // use experimental nix daemon client
+                let mut connection = if let Some(target) = target {
+                    let target = target.0.read().await;
 
-                Either::Left(
-                    open_remote_client(
-                        &target,
-                        ctx.modifiers,
-                        trace_nix_log_message,
-                        ctx.should_quit.clone(),
+                    Either::Left(
+                        open_remote_client(
+                            &target,
+                            ctx.modifiers,
+                            trace_nix_log_message,
+                            ctx.should_quit.clone(),
+                        )
+                        .await?
+                        .0,
                     )
-                    .await?
-                    .0,
-                )
-            } else {
-                Either::Right(
-                    NixClient::open_local(
-                        trace_nix_log_message,
-                        ctx.should_quit.clone(),
-                        ctx.modifiers.print_build_logs,
+                } else {
+                    Either::Right(
+                        NixClient::open_local(
+                            trace_nix_log_message,
+                            ctx.should_quit.clone(),
+                            ctx.modifiers.print_build_logs,
+                        )
+                        .await
+                        .map_err(HiveLibError::NixDaemonClientError)?,
                     )
-                    .await
-                    .map_err(HiveLibError::NixDaemonClientError)?,
-                )
-            };
+                };
 
-            let mut output_map = match connection {
-                Either::Left(ref mut conn) => conn.query_derivation_output_map(&top_level).await,
-                Either::Right(ref mut conn) => conn.query_derivation_output_map(&top_level).await,
-            }
-            .map_err(|err| HiveLibError::NixBuildError {
-                name: ctx.name.clone(),
-                source: err,
-            })?;
+                let mut output_map = match connection {
+                    Either::Left(ref mut conn) => {
+                        conn.query_derivation_output_map(&top_level).await
+                    }
+                    Either::Right(ref mut conn) => {
+                        conn.query_derivation_output_map(&top_level).await
+                    }
+                }
+                .map_err(|err| HiveLibError::NixBuildError {
+                    name: ctx.name.clone(),
+                    source: err,
+                })?;
 
-            debug!(output_map = ?output_map, "got output map");
+                debug!(output_map = ?output_map, "got output map");
 
-            let output_path =
-                output_map
-                    .remove(SYSTEM_OUTPUT)
-                    .flatten()
-                    .ok_or(HiveLibError::NixBuildError {
+                let output_path = output_map.remove(SYSTEM_OUTPUT).flatten().ok_or(
+                    HiveLibError::NixBuildError {
                         name: ctx.name.clone(),
                         source: NixDaemonClientError::NixDaemonInvalidResponse(format!(
                             "Derivation {top_level:?} did not have output {SYSTEM_OUTPUT:?}"
                         )),
-                    })?;
+                    },
+                )?;
 
-            let derived_path = DerivedPath {
-                store_path: &top_level,
-                outputs: DerivedPathOutput::OutputNames(&[SYSTEM_OUTPUT]),
-            };
+                let derived_path = DerivedPath {
+                    store_path: &top_level,
+                    outputs: DerivedPathOutput::OutputNames(&[SYSTEM_OUTPUT]),
+                };
 
-            match connection {
-                Either::Left(mut conn) => conn.build(&vec![derived_path]).await,
-                Either::Right(mut conn) => conn.build(&vec![derived_path]).await,
+                match connection {
+                    Either::Left(mut conn) => conn.build(&vec![derived_path]).await,
+                    Either::Right(mut conn) => conn.build(&vec![derived_path]).await,
+                }
+                .map_err(|source| HiveLibError::NixBuildError {
+                    name: ctx.name.clone(),
+                    source,
+                })?;
+
+                info!("Built output: {output_path:?}");
+
+                // print built path to stdout
+                let clobber_guard = acquire_stdin_lock().await;
+                println!("{}", output_path.to_absolute_path());
+                drop(clobber_guard);
+
+                self.output.set(output_path).await;
             }
-            .map_err(|source| HiveLibError::NixBuildError {
-                name: ctx.name.clone(),
-                source,
-            })?;
-
-            info!("Built output: {output_path:?}");
-
-            // print built path to stdout
-            let clobber_guard = acquire_stdin_lock().await;
-            println!("{}", output_path.to_absolute_path());
-            drop(clobber_guard);
-
-            ctx.state.build = Some(output_path);
-        } else {
-            let attribute = if self.target.is_some() {
-                let top_level = ctx.top_level().await?;
-                format!("{}^out", top_level.to_absolute_path())
-            } else {
-                match &*ctx.hive_location {
-                    HiveLocation::Flake { uri, .. } => {
-                        format!("{uri}#wire.nodes.{}.config.system.build.toplevel", ctx.name)
-                    }
-                    HiveLocation::HiveNix(path) => {
+            BuildMetadata::NixCommand(metadata) => {
+                let attribute = match metadata {
+                    NixCommandBuildMetadata::Remotely { derivation, .. }
+                    | NixCommandBuildMetadata::Locally {
+                        cached_derivation: Some(derivation),
+                    } => {
                         format!(
-                            "--file {} nodes.{}.config.system.build.toplevel",
-                            path.to_string_lossy(),
-                            ctx.name
+                            "{}^{SYSTEM_OUTPUT}",
+                            derivation.require().await?.to_absolute_path()
                         )
                     }
-                }
-            };
+                    NixCommandBuildMetadata::Locally {
+                        cached_derivation: None,
+                    } => match &*ctx.hive_location {
+                        HiveLocation::Flake { uri, .. } => {
+                            format!("{uri}#wire.nodes.{}.config.system.build.toplevel", ctx.name)
+                        }
+                        HiveLocation::HiveNix(path) => {
+                            format!(
+                                "--file {} nodes.{}.config.system.build.toplevel",
+                                path.to_string_lossy(),
+                                ctx.name
+                            )
+                        }
+                    },
+                };
 
-            // use regular nix build command
-            let mut command_string = CommandStringBuilder::nix();
-            command_string.args(&[
-                "--extra-experimental-features",
-                "nix-command",
-                "build",
-                "--no-link",
-                "--print-out-paths",
-            ]);
-            command_string.opt_arg(ctx.modifiers.print_build_logs, "--print-build-logs");
-            command_string.arg(&attribute);
+                // use regular nix build command
+                let mut command_string = CommandStringBuilder::nix();
+                command_string.args(&[
+                    "--extra-experimental-features",
+                    "nix-command",
+                    "build",
+                    "--no-link",
+                    "--print-out-paths",
+                ]);
+                command_string.opt_arg(ctx.modifiers.print_build_logs, "--print-build-logs");
+                command_string.arg(&attribute);
 
-            let status = run_command_with_env(
-                &CommandArguments::new(command_string, ctx.modifiers)
-                    // build remotely if asked for AND we isnt applying locally
-                    .execute_on_remote(self.target.clone())
-                    .mode(crate::commands::ChildOutputMode::Nix)
-                    .log_stdout(),
-                std::collections::HashMap::new(),
-            )
-            .await?
-            .wait_till_success()
-            .await
-            .map_err(|source| HiveLibError::NixBuildCliError {
-                name: ctx.name.clone(),
-                source,
-            })?;
+                let status = run_command_with_env(
+                    &CommandArguments::new(command_string, ctx.modifiers)
+                        // build remotely if asked for AND we isnt applying locally
+                        .execute_on_remote(match metadata {
+                            NixCommandBuildMetadata::Remotely { target, .. } => {
+                                Some(target.clone())
+                            }
+                            NixCommandBuildMetadata::Locally { .. } => None,
+                        })
+                        .mode(crate::commands::ChildOutputMode::Nix)
+                        .log_stdout(),
+                    std::collections::HashMap::new(),
+                )
+                .await?
+                .wait_till_success()
+                .await
+                .map_err(|source| HiveLibError::NixBuildCliError {
+                    name: ctx.name.clone(),
+                    source,
+                })?;
 
-            let stdout = match status {
-                Either::Left((_, stdout)) | Either::Right((_, stdout)) => stdout,
-            };
+                let stdout = match status {
+                    Either::Left((_, stdout)) | Either::Right((_, stdout)) => stdout,
+                };
 
-            info!("Built output: {stdout:?}");
+                info!("Built output: {stdout:?}");
 
-            let clobber_guard = acquire_stdin_lock().await;
-            println!("{stdout}");
-            drop(clobber_guard);
+                let clobber_guard = acquire_stdin_lock().await;
+                println!("{stdout}");
+                drop(clobber_guard);
 
-            ctx.state.build = Some(SafeStorePath::<String>::from_absolute_path(
-                stdout.as_bytes(),
-            )?);
+                self.output
+                    .set(SafeStorePath::<String>::from_absolute_path(
+                        stdout.as_bytes(),
+                    )?)
+                    .await;
+            }
         }
 
         Ok(())

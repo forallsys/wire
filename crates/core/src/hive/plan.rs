@@ -9,13 +9,14 @@ use crate::{
     SafeStorePath, SubCommandModifiers,
     hive::{
         HiveLocation,
+        executor::{BuildOutputHandle, EvaluationOutputHandle, OutputHandle},
         node::{
             ApplyGoal, Context, HandleUnreachable, Name, Node, SharedTarget, Step, StepState,
             SwitchToConfigurationGoal,
         },
         steps::{
             activate::SwitchToConfiguration,
-            build::Build,
+            build::{Build, BuildMetadata, NixCommandBuildMetadata},
             evaluate::Evaluate,
             keys::{Keys, PushKeyAgent, UploadKeyAt},
             ping::Ping,
@@ -61,6 +62,7 @@ fn apply_plan_keys(
     } = args;
     let mut front_steps = Vec::new();
     let mut end_steps = Vec::new();
+    let key_agent_directory = OutputHandle::new();
 
     let (pre_keys, post_keys) = match goal {
         ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch) => node
@@ -84,6 +86,7 @@ fn apply_plan_keys(
             } else {
                 Some(target.clone())
             },
+            key_agent_directory: key_agent_directory.clone(),
         }));
     }
 
@@ -96,6 +99,7 @@ fn apply_plan_keys(
                 Some(target.clone())
             },
             privilege_escalation_command: node.privilege_escalation_command.clone(),
+            key_agent_directory: key_agent_directory.clone(),
         }));
     }
 
@@ -108,12 +112,35 @@ fn apply_plan_keys(
                 Some(target.clone())
             },
             privilege_escalation_command: node.privilege_escalation_command.clone(),
+            key_agent_directory,
         }));
     }
 
     (front_steps, end_steps)
 }
 
+/// Push an `Evaluate` step onto `steps` when a real (non-cached) evaluation
+/// is required, writing its result into `output`.
+///
+/// Returns `true` when the step was pushed. This is also exactly the
+/// condition when callers should enable greedy evaluation.
+fn push_evaluate_step(
+    steps: &mut Vec<Step>,
+    output: &EvaluationOutputHandle,
+    needs_evaluate: bool,
+    has_cached_evaluation: bool,
+) -> bool {
+    if needs_evaluate && !has_cached_evaluation {
+        steps.push(Step::Evaluate(Evaluate {
+            output: output.clone(),
+        }));
+        true
+    } else {
+        false
+    }
+}
+
+#[allow(clippy::too_many_lines)]
 fn apply_plan(
     args: &ApplyGoalArgs,
     node: &Node,
@@ -121,7 +148,7 @@ fn apply_plan(
     modifiers: SubCommandModifiers,
     hive_location: Arc<HiveLocation>,
     should_quit: Arc<AtomicBool>,
-    cached_evaluation: Option<SafeStorePath<String>>,
+    cached_evaluation: Option<&SafeStorePath<String>>,
 ) -> NodePlan {
     let ApplyGoalArgs {
         goal,
@@ -137,6 +164,13 @@ fn apply_plan(
     let mut end: Vec<Step> = Vec::new();
     let target = SharedTarget(Arc::new(RwLock::new(node.target.clone())));
     let build_will_have_target = node.build_remotely && !*should_apply_locally;
+
+    let evaluation_output_handle = cached_evaluation
+        .map_or_else(EvaluationOutputHandle::new, |cached_evaluation| {
+            EvaluationOutputHandle::new_known(cached_evaluation.clone())
+        });
+
+    let build_output_handle = BuildOutputHandle::new();
 
     if !*should_apply_locally {
         steps.push(Step::Ping(Ping {
@@ -156,9 +190,12 @@ fn apply_plan(
     };
     let has_cached_evaluation = cached_evaluation.is_some();
 
-    if needs_separate_eval {
-        steps.push(Step::Evaluate(Evaluate { cached_evaluation }));
-    }
+    let greedy_evaluate = push_evaluate_step(
+        &mut steps,
+        &evaluation_output_handle,
+        needs_separate_eval,
+        has_cached_evaluation,
+    );
 
     if !matches!(goal, ApplyGoal::Keys)
         && !should_apply_locally
@@ -167,15 +204,37 @@ fn apply_plan(
         steps.push(Step::PushEvaluatedOutput(PushEvaluatedOutput {
             substitute_on_destination: *substitute_on_destination,
             target: target.clone(),
+            path: evaluation_output_handle.clone(),
         }));
     }
 
     if !matches!(goal, ApplyGoal::Keys | ApplyGoal::Push) {
         steps.push(Step::Build(Build {
-            target: if build_will_have_target {
-                Some(target.clone())
+            output: build_output_handle.clone(),
+            metadata: if modifiers.experimental_nix_client {
+                BuildMetadata::BuildWithNixDaemon {
+                    target: if build_will_have_target {
+                        Some(target.clone())
+                    } else {
+                        None
+                    },
+                    derivation: evaluation_output_handle,
+                }
             } else {
-                None
+                BuildMetadata::NixCommand(if build_will_have_target {
+                    NixCommandBuildMetadata::Remotely {
+                        target: target.clone(),
+                        derivation: evaluation_output_handle,
+                    }
+                } else {
+                    NixCommandBuildMetadata::Locally {
+                        cached_derivation: if cached_evaluation.is_some() {
+                            Some(evaluation_output_handle)
+                        } else {
+                            None
+                        },
+                    }
+                })
             },
         }));
     }
@@ -187,6 +246,7 @@ fn apply_plan(
         steps.push(Step::PushBuildOutput(PushBuildOutput {
             substitute_on_destination: *substitute_on_destination,
             target: target.clone(),
+            path: build_output_handle.clone(),
         }));
     }
 
@@ -211,6 +271,7 @@ fn apply_plan(
                 Some(target)
             },
             privilege_escalation_command: node.privilege_escalation_command.clone(),
+            top_level: build_output_handle,
         }));
     }
 
@@ -226,7 +287,7 @@ fn apply_plan(
             build_id_names: Arc::new(Mutex::new(HashMap::new())),
         },
         steps,
-        greedy_evaluate: needs_separate_eval && !has_cached_evaluation,
+        greedy_evaluate,
         ignore_failed_ping: matches!(handle_unreachable, HandleUnreachable::Ignore),
     }
 }
@@ -239,22 +300,56 @@ pub fn plan_for_node(
     hive_location: Arc<HiveLocation>,
     modifiers: &SubCommandModifiers,
     should_quit: Arc<AtomicBool>,
-    cached_evaluation: Option<SafeStorePath<String>>,
+    cached_evaluation: Option<&SafeStorePath<String>>,
 ) -> NodePlan {
     match goal {
-        Goal::Build => NodePlan {
-            context: Context {
-                state: StepState::default(),
-                modifiers: *modifiers,
-                hive_location,
-                should_quit,
-                name,
-                build_id_names: Arc::new(Mutex::new(HashMap::new())),
-            },
-            steps: vec![Step::Build(Build { target: None })],
-            greedy_evaluate: false,
-            ignore_failed_ping: false,
-        },
+        Goal::Build => {
+            let evaluation_output_handle = cached_evaluation
+                .map_or_else(EvaluationOutputHandle::new, |cached_evaluation| {
+                    EvaluationOutputHandle::new_known(cached_evaluation.clone())
+                });
+
+            let mut steps = Vec::new();
+
+            let greedy_evaluate = push_evaluate_step(
+                &mut steps,
+                &evaluation_output_handle,
+                modifiers.experimental_nix_client,
+                cached_evaluation.is_some(),
+            );
+
+            steps.push(Step::Build(Build {
+                output: BuildOutputHandle::new(),
+                metadata: if modifiers.experimental_nix_client {
+                    BuildMetadata::BuildWithNixDaemon {
+                        target: None,
+                        derivation: evaluation_output_handle,
+                    }
+                } else {
+                    BuildMetadata::NixCommand(NixCommandBuildMetadata::Locally {
+                        cached_derivation: if cached_evaluation.is_some() {
+                            Some(evaluation_output_handle)
+                        } else {
+                            None
+                        },
+                    })
+                },
+            }));
+
+            NodePlan {
+                context: Context {
+                    state: StepState::default(),
+                    modifiers: *modifiers,
+                    hive_location,
+                    should_quit,
+                    name,
+                    build_id_names: Arc::new(Mutex::new(HashMap::new())),
+                },
+                steps,
+                greedy_evaluate,
+                ignore_failed_ping: false,
+            }
+        }
         Goal::Apply(args) => apply_plan(
             args,
             node,
@@ -272,8 +367,9 @@ mod tests {
     use tokio::sync::RwLock;
 
     use crate::{
-        SubCommandModifiers, function_name, get_test_path,
+        SafeStorePath, SubCommandModifiers, function_name, get_test_path,
         hive::{
+            executor::{BuildOutputHandle, EvaluationOutputHandle, OutputHandle},
             node::{
                 ApplyGoal, HandleUnreachable, Name, Node, SharedTarget, Step,
                 SwitchToConfigurationGoal,
@@ -281,11 +377,11 @@ mod tests {
             plan::{ApplyGoalArgs, Goal, plan_for_node},
             steps::{
                 activate::SwitchToConfiguration,
-                build::Build,
+                build::{Build, BuildMetadata, NixCommandBuildMetadata},
                 evaluate::Evaluate,
                 keys::{Key, Keys, PushKeyAgent, Source, UploadKeyAt},
                 ping::Ping,
-                push::PushEvaluatedOutput,
+                push::{PushBuildOutput, PushEvaluatedOutput},
             },
         },
         location,
@@ -327,7 +423,19 @@ mod tests {
             None,
         );
 
-        assert_eq!(plan.steps, vec![Build { target: None }.into()]);
+        assert_eq!(
+            plan.steps,
+            vec![
+                Build {
+                    output: BuildOutputHandle::new(),
+                    metadata: BuildMetadata::NixCommand(NixCommandBuildMetadata::Locally {
+                        cached_derivation: None,
+                    }),
+                }
+                .into()
+            ]
+        );
+        assert!(!plan.greedy_evaluate);
     }
 
     #[tokio::test]
@@ -365,21 +473,27 @@ mod tests {
                     target: target.clone()
                 }
                 .into(),
-                crate::hive::steps::evaluate::Evaluate {
-                    cached_evaluation: None
+                Evaluate {
+                    output: EvaluationOutputHandle::new(),
                 }
                 .into(),
-                crate::hive::steps::push::PushEvaluatedOutput {
+                PushEvaluatedOutput {
                     substitute_on_destination: true,
-                    target: target.clone()
+                    target: target.clone(),
+                    path: EvaluationOutputHandle::new(),
                 }
                 .into(),
-                crate::hive::steps::build::Build {
-                    target: Some(target.clone())
+                Build {
+                    output: BuildOutputHandle::new(),
+                    metadata: BuildMetadata::NixCommand(NixCommandBuildMetadata::Remotely {
+                        target: target.clone(),
+                        derivation: EvaluationOutputHandle::new(),
+                    }),
                 }
                 .into(),
             ]
         );
+        assert!(plan.greedy_evaluate);
 
         let node = Node {
             build_remotely: false,
@@ -410,14 +524,22 @@ mod tests {
                     target: target.clone()
                 }
                 .into(),
-                crate::hive::steps::build::Build { target: None }.into(),
-                crate::hive::steps::push::PushBuildOutput {
+                Build {
+                    output: BuildOutputHandle::new(),
+                    metadata: BuildMetadata::NixCommand(NixCommandBuildMetadata::Locally {
+                        cached_derivation: None,
+                    }),
+                }
+                .into(),
+                PushBuildOutput {
                     substitute_on_destination: true,
-                    target
+                    target,
+                    path: BuildOutputHandle::new(),
                 }
                 .into(),
             ]
         );
+        assert!(!plan.greedy_evaluate);
     }
 
     #[tokio::test]
@@ -463,18 +585,21 @@ mod tests {
                 PushKeyAgent {
                     substitute_on_destination: true,
                     target: Some(target.clone()),
-                    host_platform: node.host_platform.clone()
+                    host_platform: node.host_platform.clone(),
+                    key_agent_directory: OutputHandle::new(),
                 }
                 .into(),
                 Keys {
                     target: Some(target),
                     // test that all keys are included
                     keys: node.keys.clone(),
-                    privilege_escalation_command: node.privilege_escalation_command
+                    privilege_escalation_command: node.privilege_escalation_command,
+                    key_agent_directory: OutputHandle::new(),
                 }
                 .into(),
             ]
         );
+        assert!(!plan_apply_keys.greedy_evaluate);
     }
 
     #[tokio::test]
@@ -527,7 +652,8 @@ mod tests {
                 PushKeyAgent {
                     substitute_on_destination: true,
                     target: None,
-                    host_platform: node.host_platform.clone()
+                    host_platform: node.host_platform.clone(),
+                    key_agent_directory: OutputHandle::new(),
                 }
                 .into(),
                 Keys {
@@ -538,7 +664,8 @@ mod tests {
                         .filter(|key| matches!(key.upload_at, UploadKeyAt::PreActivation))
                         .cloned()
                         .collect::<Vec<_>>(),
-                    privilege_escalation_command: node.privilege_escalation_command.clone()
+                    privilege_escalation_command: node.privilege_escalation_command.clone(),
+                    key_agent_directory: OutputHandle::new(),
                 }
                 .into(),
                 Keys {
@@ -549,7 +676,8 @@ mod tests {
                         .filter(|key| matches!(key.upload_at, UploadKeyAt::PostActivation))
                         .cloned()
                         .collect::<Vec<_>>(),
-                    privilege_escalation_command: node.privilege_escalation_command.clone()
+                    privilege_escalation_command: node.privilege_escalation_command.clone(),
+                    key_agent_directory: OutputHandle::new(),
                 }
                 .into(),
             ]
@@ -589,16 +717,18 @@ mod tests {
                 }
                 .into(),
                 Evaluate {
-                    cached_evaluation: None
+                    output: EvaluationOutputHandle::new(),
                 }
                 .into(),
                 PushEvaluatedOutput {
                     substitute_on_destination: true,
-                    target
+                    target,
+                    path: EvaluationOutputHandle::new(),
                 }
                 .into()
             ]
         );
+        assert!(plan.greedy_evaluate);
     }
 
     #[tokio::test]
@@ -637,16 +767,21 @@ mod tests {
                 }
                 .into(),
                 Evaluate {
-                    cached_evaluation: None
+                    output: EvaluationOutputHandle::new(),
                 }
                 .into(),
                 PushEvaluatedOutput {
                     substitute_on_destination: true,
-                    target: target.clone()
+                    target: target.clone(),
+                    path: EvaluationOutputHandle::new(),
                 }
                 .into(),
                 Build {
-                    target: Some(target.clone())
+                    output: BuildOutputHandle::new(),
+                    metadata: BuildMetadata::NixCommand(NixCommandBuildMetadata::Remotely {
+                        target: target.clone(),
+                        derivation: EvaluationOutputHandle::new(),
+                    }),
                 }
                 .into(),
                 SwitchToConfiguration {
@@ -654,10 +789,12 @@ mod tests {
                     reboot: false,
                     target: Some(target),
                     privilege_escalation_command: node.privilege_escalation_command,
+                    top_level: BuildOutputHandle::new(),
                 }
                 .into(),
             ]
         );
+        assert!(plan.greedy_evaluate);
     }
 
     #[tokio::test]
@@ -697,16 +834,21 @@ mod tests {
                 }
                 .into(),
                 Evaluate {
-                    cached_evaluation: None
+                    output: EvaluationOutputHandle::new(),
                 }
                 .into(),
                 PushEvaluatedOutput {
                     substitute_on_destination: true,
-                    target: target.clone()
+                    target: target.clone(),
+                    path: EvaluationOutputHandle::new(),
                 }
                 .into(),
                 Build {
-                    target: Some(target.clone())
+                    output: BuildOutputHandle::new(),
+                    metadata: BuildMetadata::NixCommand(NixCommandBuildMetadata::Remotely {
+                        target: target.clone(),
+                        derivation: EvaluationOutputHandle::new(),
+                    }),
                 }
                 .into(),
                 SwitchToConfiguration {
@@ -714,10 +856,12 @@ mod tests {
                     reboot: false,
                     target: Some(target),
                     privilege_escalation_command: node.privilege_escalation_command,
+                    top_level: BuildOutputHandle::new(),
                 }
                 .into(),
             ]
         );
+        assert!(plan.greedy_evaluate);
     }
 
     #[tokio::test]
@@ -747,15 +891,167 @@ mod tests {
         assert_eq!(
             plan.steps,
             vec![
-                Build { target: None }.into(),
+                Build {
+                    output: BuildOutputHandle::new(),
+                    metadata: BuildMetadata::NixCommand(NixCommandBuildMetadata::Locally {
+                        cached_derivation: None,
+                    }),
+                }
+                .into(),
                 SwitchToConfiguration {
                     goal: SwitchToConfigurationGoal::Switch,
                     reboot: false,
                     target: None,
                     privilege_escalation_command: node.privilege_escalation_command,
+                    top_level: BuildOutputHandle::new(),
                 }
                 .into(),
             ]
         );
+        assert!(!plan.greedy_evaluate);
+    }
+
+    #[tokio::test]
+    async fn order_build_cached_evaluation() {
+        let location = location!(get_test_path!());
+        let node = Node::default();
+        let name = &Name(function_name!().into());
+        let should_quit = Arc::new(AtomicBool::new(false));
+        let cached = SafeStorePath::<String>::from_absolute_path(b"/nix/store/name").unwrap();
+        let plan = plan_for_node(
+            &node,
+            name.clone(),
+            &Goal::Build,
+            location.into(),
+            &SubCommandModifiers::default(),
+            should_quit,
+            Some(&cached),
+        );
+
+        // a cached evaluation means no Evaluate step is scheduled, and the
+        // local build reuses the known derivation path.
+        assert_eq!(
+            plan.steps,
+            vec![
+                Build {
+                    output: BuildOutputHandle::new(),
+                    metadata: BuildMetadata::NixCommand(NixCommandBuildMetadata::Locally {
+                        cached_derivation: Some(EvaluationOutputHandle::new_known(cached)),
+                    }),
+                }
+                .into()
+            ]
+        );
+        assert!(!plan.greedy_evaluate);
+    }
+
+    #[tokio::test]
+    async fn order_build_experimental_nix_client() {
+        let location = location!(get_test_path!());
+        let node = Node::default();
+        let name = &Name(function_name!().into());
+        let should_quit = Arc::new(AtomicBool::new(false));
+        let plan = plan_for_node(
+            &node,
+            name.clone(),
+            &Goal::Build,
+            location.into(),
+            &SubCommandModifiers {
+                experimental_nix_client: true,
+                ..Default::default()
+            },
+            should_quit,
+            None,
+        );
+
+        // the experimental nix client needs a real `.drv`, so an Evaluate
+        // step is scheduled even for a local Build.
+        assert_eq!(
+            plan.steps,
+            vec![
+                Evaluate {
+                    output: EvaluationOutputHandle::new(),
+                }
+                .into(),
+                Build {
+                    output: BuildOutputHandle::new(),
+                    metadata: BuildMetadata::BuildWithNixDaemon {
+                        target: None,
+                        derivation: EvaluationOutputHandle::new(),
+                    },
+                }
+                .into(),
+            ]
+        );
+        assert!(plan.greedy_evaluate);
+    }
+
+    #[tokio::test]
+    async fn order_remote_build_experimental_nix_client() {
+        let location = location!(get_test_path!());
+        let node = Node {
+            build_remotely: true,
+            ..Default::default()
+        };
+        let name = &Name(function_name!().into());
+        let should_quit = Arc::new(AtomicBool::new(false));
+        let target = SharedTarget(Arc::new(RwLock::new(node.target.clone())));
+        let plan = plan_for_node(
+            &node,
+            name.clone(),
+            &Goal::Apply(ApplyGoalArgs {
+                goal: ApplyGoal::SwitchToConfiguration(SwitchToConfigurationGoal::Switch),
+                should_apply_locally: false,
+                no_keys: true,
+                substitute_on_destination: true,
+                reboot: false,
+                host_platform: "x86_64-linux".into(),
+                handle_unreachable: HandleUnreachable::default(),
+            }),
+            location.into(),
+            &SubCommandModifiers {
+                experimental_nix_client: true,
+                ..Default::default()
+            },
+            should_quit,
+            None,
+        );
+
+        assert_eq!(
+            plan.steps,
+            vec![
+                Ping {
+                    target: target.clone()
+                }
+                .into(),
+                Evaluate {
+                    output: EvaluationOutputHandle::new(),
+                }
+                .into(),
+                PushEvaluatedOutput {
+                    substitute_on_destination: true,
+                    target: target.clone(),
+                    path: EvaluationOutputHandle::new(),
+                }
+                .into(),
+                Build {
+                    output: BuildOutputHandle::new(),
+                    metadata: BuildMetadata::BuildWithNixDaemon {
+                        target: Some(target.clone()),
+                        derivation: EvaluationOutputHandle::new(),
+                    },
+                }
+                .into(),
+                SwitchToConfiguration {
+                    goal: SwitchToConfigurationGoal::Switch,
+                    reboot: false,
+                    target: Some(target),
+                    privilege_escalation_command: node.privilege_escalation_command,
+                    top_level: BuildOutputHandle::new(),
+                }
+                .into(),
+            ]
+        );
+        assert!(plan.greedy_evaluate);
     }
 }

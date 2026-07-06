@@ -30,7 +30,10 @@ for the up to date details!
 ### Changed
 
 - Changed public cache to `https://cache.forall.systems`, as noted above.
-- The pre-activation key stage is now scheduled after the evaluation stage. The
+- The Evaluate step is now only scheduled when the `.drv` output is actually
+  required. This means that when building locally the Build step can construct
+  the nix attribute directly skipping the Evaluate step.
+- The pre-activation key step is now scheduled after the evaluation step. The
   rationale for this is that while iterating on evaluation errors it was often quite
   annoying to repeatedly enter your password for key deployment.
 - Ipv6 addresses are now displayed in a nicer format in "Authenticate for ..."
@@ -50,9 +53,8 @@ for the up to date details!
 - Cache database now uses `SqliteJournalMode::Wal` & `SqliteSynchronous::Normal`.
 - Attempting to reconnect to a rebooting node will now wait far longer before
   giving up.
-- The Build step can now directly build an attribute if it is built locally, and
-  in some cases the Evaluate step can now be skipped. This can save some double
-  work when building and applying locally.
+- Internally, Step store path outputs are now passed between steps via handles
+  instead of mutable state.
 
 ### Fixed
 

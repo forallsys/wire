@@ -7,7 +7,10 @@ use tracing::instrument;
 
 use crate::{
     HiveLibError,
-    hive::node::{Context, ExecuteStep, SharedTarget},
+    hive::{
+        executor::{BuildOutputHandle, EvaluationOutputHandle},
+        node::{Context, ExecuteStep, SharedTarget},
+    },
 };
 
 #[derive(Debug)]
@@ -15,6 +18,7 @@ use crate::{
 pub struct PushEvaluatedOutput {
     pub substitute_on_destination: bool,
     pub target: SharedTarget,
+    pub path: EvaluationOutputHandle,
 }
 
 #[derive(Debug)]
@@ -22,6 +26,7 @@ pub struct PushEvaluatedOutput {
 pub struct PushBuildOutput {
     pub substitute_on_destination: bool,
     pub target: SharedTarget,
+    pub path: BuildOutputHandle,
 }
 
 impl Display for PushEvaluatedOutput {
@@ -39,13 +44,13 @@ impl Display for PushBuildOutput {
 impl ExecuteStep for PushEvaluatedOutput {
     #[instrument(skip_all, name = "push_eval")]
     async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
-        let top_level = ctx.state.evaluation.as_ref().unwrap();
+        let top_level = self.path.require().await?;
 
         if ctx.modifiers.experimental_nix_client {
             crate::push_with_daemon(
                 ctx,
                 &self.target,
-                crate::hive::node::Push::Derivation(top_level),
+                crate::hive::node::Push::Derivation(&top_level),
                 self.substitute_on_destination,
             )
             .await?;
@@ -53,7 +58,7 @@ impl ExecuteStep for PushEvaluatedOutput {
             crate::commands::common::push(
                 ctx,
                 &self.target,
-                crate::hive::node::Push::Derivation(top_level),
+                crate::hive::node::Push::Derivation(&top_level),
                 self.substitute_on_destination,
             )
             .await?;
@@ -66,13 +71,13 @@ impl ExecuteStep for PushEvaluatedOutput {
 impl ExecuteStep for PushBuildOutput {
     #[instrument(skip_all, name = "push_build")]
     async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
-        let built_path = ctx.state.build.as_ref().unwrap();
+        let built_path = self.path.require().await?;
 
         if ctx.modifiers.experimental_nix_client {
             crate::push_with_daemon(
                 ctx,
                 &self.target,
-                crate::hive::node::Push::Path(built_path),
+                crate::hive::node::Push::Path(&built_path),
                 self.substitute_on_destination,
             )
             .await?;
@@ -80,7 +85,7 @@ impl ExecuteStep for PushBuildOutput {
             crate::commands::common::push(
                 ctx,
                 &self.target,
-                crate::hive::node::Push::Path(built_path),
+                crate::hive::node::Push::Path(&built_path),
                 self.substitute_on_destination,
             )
             .await?;

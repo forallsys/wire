@@ -276,6 +276,9 @@ pub enum HiveLibError {
     #[diagnostic(transparent)]
     StorePath(StorePathError),
 
+    #[error("a step required output from a previous step that was not in the execution plan")]
+    MissingStepOutput,
+
     #[error("Failed to apply key {}", .0)]
     KeyError(
         String,

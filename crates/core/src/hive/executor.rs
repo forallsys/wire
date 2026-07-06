@@ -6,7 +6,7 @@ use crate::{
 use std::debug_assert_matches;
 use std::sync::Arc;
 
-use tokio::sync::oneshot;
+use tokio::sync::{RwLock, oneshot};
 use tracing::{Instrument, Span, debug, error, event, instrument};
 
 use crate::{
@@ -19,6 +19,70 @@ use crate::{
         plan::NodePlan,
     },
 };
+
+/// A shared struct that "Store Path Producing" steps place outputs into.
+///
+/// Steps such as Build, Evaluate, `PushKeyAgent` write their store path into
+/// this struct, and "Store Path Consuming" steps can
+/// read from (Build reads from Evaluate, Keys reads from `PushKeyAgent`, etc)
+///
+/// Cloning this value will keep pointing to the same handle.
+#[derive(Debug, Clone)]
+pub struct OutputHandle {
+    inner: Arc<RwLock<Option<SafeStorePath<String>>>>,
+}
+
+pub type BuildOutputHandle = OutputHandle;
+pub type EvaluationOutputHandle = OutputHandle;
+pub type KeyAgentPathHandle = OutputHandle;
+
+#[cfg(test)]
+impl PartialEq for OutputHandle {
+    fn eq(&self, other: &Self) -> bool {
+        if Arc::ptr_eq(&self.inner, &other.inner) {
+            return true;
+        }
+
+        // fall back to comparing the inner store path
+        match (self.inner.try_read(), other.inner.try_read()) {
+            (Ok(a), Ok(b)) => *a == *b,
+            _ => false,
+        }
+    }
+}
+
+#[cfg(test)]
+impl Eq for OutputHandle {}
+
+impl OutputHandle {
+    /// Create a handle for which the store path is not already known
+    pub(crate) fn new() -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(None)),
+        }
+    }
+
+    /// Create a handle for a store path which is already known
+    pub(crate) fn new_known(store_path: SafeStorePath<String>) -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(Some(store_path))),
+        }
+    }
+
+    pub(crate) async fn set(&self, store_path: SafeStorePath<String>) {
+        *self.inner.write().await = Some(store_path);
+    }
+
+    pub(crate) async fn get(&self) -> Option<SafeStorePath<String>> {
+        self.inner.read().await.clone()
+    }
+
+    /// Attempt to read the previously written store path. If the store path
+    /// producing step was never planned, this will fail.
+    pub(crate) async fn require(&self) -> Result<SafeStorePath<String>, HiveLibError> {
+        self.get().await.ok_or(HiveLibError::MissingStepOutput)
+    }
+}
 
 /// returns Err if the application should shut down.
 fn app_shutdown_guard(context: &Context) -> Result<(), HiveLibError> {
