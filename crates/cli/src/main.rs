@@ -71,7 +71,7 @@ async fn main() -> Result<()> {
 
     if !check_nix_available() {
         miette::bail!(
-            "The Nix binary could not be started. If you have not installed Nix (or compatable tool, such as Lix) yet, consider obtaining it through the instructions found here https://lix.systems/install/ or here https://nixos.org/download/."
+            "The Nix binary could not be started. If you have not installed Nix (or compatible tool, such as Lix) yet, consider obtaining it through the instructions found here https://lix.systems/install/ or here https://nixos.org/download/."
         );
     }
 
