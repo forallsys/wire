@@ -8,7 +8,6 @@ use std::{
     sync::OnceLock,
     time::{Duration, Instant},
 };
-use strip_ansi_escapes::strip_str;
 use termion::{clear, cursor, terminal_size};
 use tokio::sync::{
     mpsc::{self, UnboundedReceiver},
