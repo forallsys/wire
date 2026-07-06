@@ -136,7 +136,7 @@ fn apply_plan(
     let mut steps: Vec<Step> = Vec::new();
     let mut end: Vec<Step> = Vec::new();
     let target = SharedTarget(Arc::new(RwLock::new(node.target.clone())));
-    let has_cached_evaluation = cached_evaluation.is_some();
+    let build_will_have_target = node.build_remotely && !*should_apply_locally;
 
     if !*should_apply_locally {
         steps.push(Step::Ping(Ping {
@@ -144,7 +144,19 @@ fn apply_plan(
         }));
     }
 
-    if !matches!(goal, ApplyGoal::Keys) {
+    let needs_separate_eval = match goal {
+        ApplyGoal::Keys => false,
+        // a `.drv` must be known before so it can be pushed
+        ApplyGoal::Push => true,
+        // the experimental nix client still requires the path to build
+        _ if modifiers.experimental_nix_client => true,
+        // only evaluate if the build step will require a real `.drv` on the remote system
+        // or if it can use an attribute that exists on the local host directly
+        _ => build_will_have_target,
+    };
+    let has_cached_evaluation = cached_evaluation.is_some();
+
+    if needs_separate_eval {
         steps.push(Step::Evaluate(Evaluate { cached_evaluation }));
     }
 
@@ -160,7 +172,7 @@ fn apply_plan(
 
     if !matches!(goal, ApplyGoal::Keys | ApplyGoal::Push) {
         steps.push(Step::Build(Build {
-            target: if node.build_remotely && !*should_apply_locally {
+            target: if build_will_have_target {
                 Some(target.clone())
             } else {
                 None
@@ -214,7 +226,7 @@ fn apply_plan(
             build_id_names: Arc::new(Mutex::new(HashMap::new())),
         },
         steps,
-        greedy_evaluate: !matches!(&goal, ApplyGoal::Keys) && !has_cached_evaluation,
+        greedy_evaluate: needs_separate_eval && !has_cached_evaluation,
         ignore_failed_ping: matches!(handle_unreachable, HandleUnreachable::Ignore),
     }
 }
@@ -229,8 +241,6 @@ pub fn plan_for_node(
     should_quit: Arc<AtomicBool>,
     cached_evaluation: Option<SafeStorePath<String>>,
 ) -> NodePlan {
-    let greedy_evaluate = cached_evaluation.is_none();
-
     match goal {
         Goal::Build => NodePlan {
             context: Context {
@@ -241,11 +251,8 @@ pub fn plan_for_node(
                 name,
                 build_id_names: Arc::new(Mutex::new(HashMap::new())),
             },
-            steps: vec![
-                Step::Evaluate(Evaluate { cached_evaluation }),
-                Step::Build(Build { target: None }),
-            ],
-            greedy_evaluate,
+            steps: vec![Step::Build(Build { target: None })],
+            greedy_evaluate: false,
             ignore_failed_ping: false,
         },
         Goal::Apply(args) => apply_plan(
@@ -320,16 +327,7 @@ mod tests {
             None,
         );
 
-        assert_eq!(
-            plan.steps,
-            vec![
-                Evaluate {
-                    cached_evaluation: None
-                }
-                .into(),
-                Build { target: None }.into()
-            ]
-        );
+        assert_eq!(plan.steps, vec![Build { target: None }.into()]);
     }
 
     #[tokio::test]
@@ -410,10 +408,6 @@ mod tests {
             vec![
                 Ping {
                     target: target.clone()
-                }
-                .into(),
-                crate::hive::steps::evaluate::Evaluate {
-                    cached_evaluation: None
                 }
                 .into(),
                 crate::hive::steps::build::Build { target: None }.into(),
@@ -753,10 +747,6 @@ mod tests {
         assert_eq!(
             plan.steps,
             vec![
-                Evaluate {
-                    cached_evaluation: None
-                }
-                .into(),
                 Build { target: None }.into(),
                 SwitchToConfiguration {
                     goal: SwitchToConfigurationGoal::Switch,

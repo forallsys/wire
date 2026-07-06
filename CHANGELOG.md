@@ -50,6 +50,9 @@ for the up to date details!
 - Cache database now uses `SqliteJournalMode::Wal` & `SqliteSynchronous::Normal`.
 - Attempting to reconnect to a rebooting node will now wait far longer before
   giving up.
+- The Build step can now directly build an attribute if it is built locally, and
+  in some cases the Evaluate step can now be skipped. This can save some double
+  work when building and applying locally.
 
 ### Fixed
 

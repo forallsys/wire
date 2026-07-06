@@ -300,6 +300,21 @@ pub struct Context {
     pub build_id_names: BuildNameMap,
 }
 
+impl Context {
+    /// Resolves the evaluated top-level drv, either from an already
+    /// cached result in [`StepState::evaluation`] or by awaiting a result
+    /// from the spawned evaluation task.
+    pub(crate) async fn top_level(&mut self) -> Result<&SafeStorePath<String>, HiveLibError> {
+        if self.state.evaluation.is_none() {
+            let rx = self.state.evaluation_rx.take().unwrap();
+            let evaluation = rx.await.unwrap()?;
+            self.state.evaluation = Some(evaluation);
+        }
+
+        Ok(self.state.evaluation.as_ref().unwrap())
+    }
+}
+
 #[enum_dispatch(ExecuteStep)]
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]

@@ -12,7 +12,10 @@ use crate::{
         CommandArguments, Either, WireCommandChip, builder::CommandStringBuilder,
         run_command_with_env, trace_nix_log_message,
     },
-    hive::node::{Context, ExecuteStep, SharedTarget},
+    hive::{
+        HiveLocation,
+        node::{Context, ExecuteStep, SharedTarget},
+    },
     open_remote_client,
 };
 
@@ -31,11 +34,12 @@ impl Display for Build {
 }
 
 impl ExecuteStep for Build {
+    #[allow(clippy::too_many_lines)]
     #[instrument(skip_all, name = "build")]
     async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
-        let top_level = ctx.state.evaluation.as_ref().unwrap();
-
         if ctx.modifiers.experimental_nix_client {
+            let top_level = ctx.top_level().await?.clone();
+
             // use experimental nix daemon client
             let mut connection = if let Some(ref target) = self.target {
                 let target = target.0.read().await;
@@ -63,8 +67,8 @@ impl ExecuteStep for Build {
             };
 
             let mut output_map = match connection {
-                Either::Left(ref mut conn) => conn.query_derivation_output_map(top_level).await,
-                Either::Right(ref mut conn) => conn.query_derivation_output_map(top_level).await,
+                Either::Left(ref mut conn) => conn.query_derivation_output_map(&top_level).await,
+                Either::Right(ref mut conn) => conn.query_derivation_output_map(&top_level).await,
             }
             .map_err(|err| HiveLibError::NixBuildError {
                 name: ctx.name.clone(),
@@ -85,7 +89,7 @@ impl ExecuteStep for Build {
                     })?;
 
             let derived_path = DerivedPath {
-                store_path: top_level,
+                store_path: &top_level,
                 outputs: DerivedPathOutput::OutputNames(&[SYSTEM_OUTPUT]),
             };
 
@@ -107,6 +111,24 @@ impl ExecuteStep for Build {
 
             ctx.state.build = Some(output_path);
         } else {
+            let attribute = if self.target.is_some() {
+                let top_level = ctx.top_level().await?;
+                format!("{}^out", top_level.to_absolute_path())
+            } else {
+                match &*ctx.hive_location {
+                    HiveLocation::Flake { uri, .. } => {
+                        format!("{uri}#wire.nodes.{}.config.system.build.toplevel", ctx.name)
+                    }
+                    HiveLocation::HiveNix(path) => {
+                        format!(
+                            "--file {} nodes.{}.config.system.build.toplevel",
+                            path.to_string_lossy(),
+                            ctx.name
+                        )
+                    }
+                }
+            };
+
             // use regular nix build command
             let mut command_string = CommandStringBuilder::nix();
             command_string.args(&[
@@ -117,7 +139,7 @@ impl ExecuteStep for Build {
                 "--print-out-paths",
             ]);
             command_string.opt_arg(ctx.modifiers.print_build_logs, "--print-build-logs");
-            command_string.arg(format!("{}^out", top_level.to_absolute_path()));
+            command_string.arg(&attribute);
 
             let status = run_command_with_env(
                 &CommandArguments::new(command_string, ctx.modifiers)
