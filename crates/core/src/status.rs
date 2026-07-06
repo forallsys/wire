@@ -8,7 +8,8 @@ use std::{
     sync::OnceLock,
     time::{Duration, Instant},
 };
-use termion::{clear, cursor};
+use strip_ansi_escapes::strip_str;
+use termion::{clear, cursor, terminal_size};
 use tokio::sync::{
     mpsc::{self, UnboundedReceiver},
     oneshot,
@@ -18,13 +19,15 @@ use crate::hive::node::Name;
 
 use std::collections::HashMap;
 
-#[derive(Default)]
+// Statuses are ordered deliberately such that failed nodes are at the top of
+// the list and Succeeded nodes are at the bottom / never shown.
+#[derive(Default, PartialEq, PartialOrd, Ord, Eq)]
 pub enum NodeStatus {
+    Failed,
+    Running(String),
     #[default]
     Pending,
-    Running(String),
     Succeeded,
-    Failed,
 }
 
 pub enum UiMessage {
@@ -46,12 +49,15 @@ pub enum UiMessage {
 }
 
 pub struct Status {
-    statuses: HashMap<String, NodeStatus>,
+    statuses: HashMap<Name, NodeStatus>,
     began: Instant,
     show_progress: bool,
+    previous_number_lines: usize,
 }
 
 pub static UI_SENDER: OnceLock<mpsc::UnboundedSender<UiMessage>> = OnceLock::new();
+const MAX_NODE_NAME_LENGTH: usize = 20;
+const FALLBACK_TERMINAL_ROWS: usize = 24;
 
 impl Status {
     fn new() -> Self {
@@ -59,6 +65,7 @@ impl Status {
             statuses: HashMap::default(),
             began: Instant::now(),
             show_progress: false,
+            previous_number_lines: 0,
         }
     }
 
@@ -119,6 +126,70 @@ impl Status {
 
         let _ = write!(&mut msg, " {}s", self.began.elapsed().as_secs());
 
+        let mut entries: Vec<(String, &NodeStatus)> = self
+            .statuses
+            .iter()
+            .filter_map(|(name, status)| {
+                if matches!(status, NodeStatus::Succeeded) {
+                    return None;
+                }
+
+                let truncated = if name.0.len() <= MAX_NODE_NAME_LENGTH {
+                    name.0.to_string()
+                } else {
+                    format!(
+                        "{}...",
+                        name.0
+                            .chars()
+                            .take(MAX_NODE_NAME_LENGTH)
+                            .collect::<String>()
+                    )
+                };
+
+                Some((truncated, status))
+            })
+            .collect();
+
+        let max_name_len = entries.iter().map(|(t, _)| t.len()).max().unwrap_or(0);
+
+        // sort by status priority then sort by name
+        entries.sort_by(|(na, sa), (nb, sb)| sa.cmp(sb).then_with(|| na.cmp(nb)));
+
+        // cap the displayed node lines to half the terminal height.
+        // this keeps the status bar from overflowing.
+        let rows = terminal_size().map_or(FALLBACK_TERMINAL_ROWS, |(_, r)| r as usize);
+        let cap = rows.saturating_sub(1).max(1) / 2;
+
+        let mut shown = 0;
+        for (truncated, status) in &entries {
+            if shown >= cap {
+                break;
+            }
+
+            let line = format!(
+                "\n  {}{} {}",
+                truncated.bold(),
+                " ".repeat(max_name_len.saturating_sub(truncated.len())),
+                match status {
+                    NodeStatus::Pending => "Waiting".dimmed().to_string(),
+                    NodeStatus::Running(task) => {
+                        format!("Running {}", task.blue())
+                            .on_default_color()
+                            .to_string()
+                    }
+                    NodeStatus::Succeeded => unreachable!("filtered above"),
+                    NodeStatus::Failed => "Failed".red().to_string(),
+                }
+            );
+            let _ = write!(&mut msg, "{line}");
+            shown += 1;
+        }
+
+        let hidden = entries.len().saturating_sub(shown);
+        if hidden > 0 {
+            let _ = write!(&mut msg, "\n  ... and {hidden} more");
+        }
+
         msg
     }
 
@@ -127,10 +198,12 @@ impl Status {
             return;
         }
 
-        let _ = write!(writer, "{}", cursor::Save);
-        // let _ = write!(writer, "{}", cursor::Down(1));
-        let _ = write!(writer, "{}", cursor::Left(999));
-        let _ = write!(writer, "{}", clear::CurrentLine);
+        for _ in 0..self.previous_number_lines {
+            let _ = write!(writer, "\r{}{}", clear::CurrentLine, cursor::Up(1));
+        }
+
+        let _ = write!(writer, "\r{}", clear::CurrentLine);
+        let _ = writer.flush();
     }
 
     /// used when there is an interactive prompt
@@ -139,16 +212,20 @@ impl Status {
             return;
         }
 
-        let _ = write!(writer, "{}", cursor::Save);
-        let _ = write!(writer, "{}", cursor::Left(999));
-        let _ = write!(writer, "{}", clear::CurrentLine);
-        let _ = writer.flush();
+        self.clear(writer);
     }
 
     pub fn write_status<T: std::io::Write>(&mut self, writer: &mut T) {
-        if self.show_progress {
-            let _ = write!(writer, "{}", self.get_msg());
+        if !self.show_progress {
+            return;
         }
+
+        let msg = self.get_msg();
+
+        let _ = write!(writer, "{msg}");
+        let _ = writer.flush();
+
+        self.previous_number_lines = msg.lines().count().saturating_sub(1);
     }
 }
 
@@ -177,11 +254,11 @@ pub async fn status_tick_worker(mut rx: UnboundedReceiver<UiMessage>, show_progr
                         status.statuses.extend(
                             names
                                 .iter()
-                                .map(|name| (name.0.to_string(), NodeStatus::Pending)),
+                                .map(|name| (name.clone(), NodeStatus::Pending)),
                         );
                     },
                     UiMessage::SetStatus(name, value) => {
-                        status.statuses.insert(name.0.to_string(), value);
+                        status.statuses.insert(name.clone(), value);
                     },
                     UiMessage::Takeover(tx) => {
                         taken_over = true;

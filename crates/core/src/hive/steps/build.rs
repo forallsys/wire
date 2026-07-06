@@ -26,7 +26,7 @@ pub struct Build {
 
 impl Display for Build {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Build the node")
+        write!(f, "Build")
     }
 }
 

@@ -202,7 +202,7 @@ impl Display for Keys {
 
 impl Display for PushKeyAgent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Push the key agent")
+        write!(f, "Push key agent")
     }
 }
 
