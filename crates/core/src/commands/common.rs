@@ -112,11 +112,11 @@ pub async fn evaluate_hive_attribute(
     let attribute = match location {
         HiveLocation::Flake { uri, .. } => {
             format!(
-                "{uri}#wire --apply \"hive: {}\"",
+                "{uri}#wire.{}",
                 match goal {
-                    EvalGoal::Inspect => "hive.inspect".to_string(),
-                    EvalGoal::Names => "hive.names".to_string(),
-                    EvalGoal::GetTopLevel(node) => format!("hive.topLevels.{node}"),
+                    EvalGoal::Inspect => "inspect".to_string(),
+                    EvalGoal::Names => "names".to_string(),
+                    EvalGoal::GetTopLevel(node) => format!("topLevels.{node}"),
                 }
             )
         }

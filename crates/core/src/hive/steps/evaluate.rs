@@ -3,17 +3,21 @@
 
 use std::fmt::Display;
 
-use tracing::{info, instrument};
+use tracing::instrument;
 
 use crate::{
-    HiveLibError, SafeStorePath,
-    hive::node::{Context, ExecuteStep},
+    HiveLibError,
+    hive::{
+        executor::EvaluationOutputHandle,
+        node::{Context, ExecuteStep},
+    },
 };
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct Evaluate {
-    /// evaluation that was previously built & cached
-    pub cached_evaluation: Option<SafeStorePath<String>>,
+    /// output handle to write to once the greedy eval is complete
+    pub output: EvaluationOutputHandle,
 }
 
 impl Display for Evaluate {
@@ -25,17 +29,9 @@ impl Display for Evaluate {
 impl ExecuteStep for Evaluate {
     #[instrument(skip_all, name = "eval")]
     async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
-        if let Some(ref cached_evaluation) = self.cached_evaluation {
-            info!(
-                "Skipping evaluation, cached as {}",
-                cached_evaluation.to_absolute_path()
-            );
-            ctx.state.evaluation = Some(cached_evaluation.clone());
-        } else {
-            let rx = ctx.state.evaluation_rx.take().unwrap();
+        let rx = ctx.state.evaluation_rx.take().unwrap();
 
-            ctx.state.evaluation = Some(rx.await.unwrap()?);
-        }
+        self.output.set(rx.await.unwrap()?).await;
 
         Ok(())
     }

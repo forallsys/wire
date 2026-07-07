@@ -170,7 +170,8 @@ where
                 should_quit.clone(),
                 cached_evaluations
                     .as_mut()
-                    .and_then(|cache| cache.remove(name)),
+                    .and_then(|cache| cache.remove(name))
+                    .as_ref(),
             );
 
             let (sender, receiver) = oneshot::channel();

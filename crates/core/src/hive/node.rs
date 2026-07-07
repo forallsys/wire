@@ -282,10 +282,7 @@ pub enum HandleUnreachable {
 
 #[derive(Default)]
 pub struct StepState {
-    pub evaluation: Option<SafeStorePath<String>>,
     pub evaluation_rx: Option<oneshot::Receiver<Result<SafeStorePath<String>, HiveLibError>>>,
-    pub build: Option<SafeStorePath<String>>,
-    pub key_agent_directory: Option<SafeStorePath<String>>,
 }
 
 pub type BuildNameMap = Arc<Mutex<HashMap<u64, Arc<String>>>>;

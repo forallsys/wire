@@ -29,6 +29,7 @@ use tracing::{debug, instrument};
 use crate::commands::builder::CommandStringBuilder;
 use crate::commands::{CommandArguments, WireCommandChip, run_command};
 use crate::errors::KeyError;
+use crate::hive::executor::KeyAgentPathHandle;
 use crate::hive::node::{Context, ExecuteStep, Push, SharedTarget};
 use crate::{HiveLibError, SafeStorePath, push_with_daemon};
 
@@ -184,6 +185,7 @@ pub struct Keys {
     pub keys: Vec<Arc<Key>>,
     pub target: Option<SharedTarget>,
     pub privilege_escalation_command: Arc<Vec<Arc<str>>>,
+    pub key_agent_directory: KeyAgentPathHandle,
 }
 
 #[derive(Debug)]
@@ -192,6 +194,7 @@ pub struct PushKeyAgent {
     pub substitute_on_destination: bool,
     pub host_platform: Arc<str>,
     pub target: Option<SharedTarget>,
+    pub key_agent_directory: KeyAgentPathHandle,
 }
 
 impl Display for Keys {
@@ -235,7 +238,7 @@ where
 impl ExecuteStep for Keys {
     #[instrument(skip_all, name = "keys")]
     async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
-        let agent_directory = ctx.state.key_agent_directory.as_ref().unwrap();
+        let agent_directory = self.key_agent_directory.require().await?;
 
         let mut keys = self.select_keys(&self.keys).await?;
 
@@ -332,7 +335,7 @@ impl ExecuteStep for PushKeyAgent {
             .await?;
         }
 
-        ctx.state.key_agent_directory = Some(agent_store_path);
+        self.key_agent_directory.set(agent_store_path).await;
 
         Ok(())
     }

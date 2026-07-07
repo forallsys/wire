@@ -9,7 +9,10 @@ use crate::{
     HiveLibError, SafeStorePath,
     commands::{CommandArguments, WireCommandChip, builder::CommandStringBuilder, run_command},
     errors::{ActivationError, NetworkError},
-    hive::node::{Context, ExecuteStep, SharedTarget, SwitchToConfigurationGoal},
+    hive::{
+        executor::BuildOutputHandle,
+        node::{Context, ExecuteStep, SharedTarget, SwitchToConfigurationGoal},
+    },
 };
 
 #[derive(Debug)]
@@ -19,6 +22,8 @@ pub struct SwitchToConfiguration {
     pub reboot: bool,
     pub target: Option<SharedTarget>,
     pub privilege_escalation_command: Arc<Vec<Arc<str>>>,
+
+    pub top_level: BuildOutputHandle,
 }
 
 impl Display for SwitchToConfiguration {
@@ -94,7 +99,7 @@ impl ExecuteStep for SwitchToConfiguration {
     #[allow(clippy::too_many_lines)]
     #[instrument(skip_all, name = "activate")]
     async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
-        let built_path = ctx.state.build.as_ref().unwrap();
+        let built_path = self.top_level.require().await?;
 
         if matches!(
             self.goal,
@@ -102,7 +107,7 @@ impl ExecuteStep for SwitchToConfiguration {
             // https://github.com/NixOS/nixpkgs/blob/a2c92aa34735a04010671e3378e2aa2d109b2a72/pkgs/by-name/ni/nixos-rebuild-ng/src/nixos_rebuild/services.py#L224
             SwitchToConfigurationGoal::Switch | SwitchToConfigurationGoal::Boot
         ) {
-            self.set_profile(built_path, ctx).await?;
+            self.set_profile(&built_path, ctx).await?;
         }
 
         info!("Running switch-to-configuration {}", self.goal);
