@@ -3,8 +3,7 @@
 ![Documentation Status](https://img.shields.io/github/actions/workflow/status/forallsys/wire/pages.yml?branch=trunk&style=flat-square&label=Documentation)
 
 wire is a tool to deploy NixOS systems. Its usage is inspired by
-[colmena](https://colmena.cli.rs/) — in many places its configuration attempts
-to remain a superset of colmena — however it is **not** a fork.
+[colmena](https://colmena.cli.rs/).
 
 Read the [The Tutorial](https://wire.forall.systems/tutorial/overview.html),
 [Guides](https://wire.forall.systems/guides/installation.html), or continue
