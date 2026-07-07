@@ -292,7 +292,6 @@ fn apply_plan(
     }
 }
 
-#[allow(clippy::too_many_lines)]
 pub fn plan_for_node(
     node: &Node,
     name: Name,
