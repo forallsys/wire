@@ -82,6 +82,7 @@ in
                   --export-markdown stats.md \
                   --export-json run.json \
                   "${lib.getExe self'.packages.wire-small} $wire_args_flake" -n "wire@HEAD - flake" \
+                  --prepare "rm ~/.cache/wire/* || true" "${lib.getExe self'.packages.wire-small} $wire_args_flake" -n "wire@HEAD - flake no-cache" \
                   "${lib.getExe self'.packages.wire-small} $wire_args_flake_exp_client" -n "wire@HEAD & --experimental-nix-client - flake" \
                   "${lib.getExe' inputs.colmena_benchmarking.packages.x86_64-linux.colmena "colmena"} $colmena_args_flake" \
                       -n "colmena@pinned - flake" \
@@ -146,11 +147,10 @@ in
               machine = globals().get(f"node_{i}")
               machine.wait_for_unit("sshd.service") # type: ignore
 
-          node_deployer.succeed("setup-benchmark");
-          node_deployer.succeed("run-benchmark");
+          deployer.succeed("setup-benchmark");
+          deployer.succeed("run-benchmark");
 
-          node_deployer.copy_from_vm("run.json")
-          node_deployer.copy_from_vm("stats.json")
+          deployer.copy_from_machine("stats.md")
         '';
       };
     };

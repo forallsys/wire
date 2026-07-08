@@ -9,6 +9,7 @@ let
     nixpkgs.lib.nameValuePair "node_${builtins.toString index}" {
       imports = [
         ./vm.nix
+        "${flake.inputs.nixpkgs}/nixos/modules/virtualisation/guest-networking-options.nix"
         flake.checks."x86_64-linux"."bench".nodes."node_${builtins.toString index}".system.build.networkConfig
       ];
 
