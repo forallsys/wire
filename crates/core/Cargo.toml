@@ -41,7 +41,7 @@ termion = "4.0.6"
 sqlx = { version = "0.9", features = ["runtime-tokio", "sqlite"] }
 zstd = "0.13.3"
 wire-nix-client = { path = "../nix_client" }
-memchr = { version = "2", default-features = false }
+memchr = "2"
 semver = "1.0.28"
 
 [dev-dependencies]
