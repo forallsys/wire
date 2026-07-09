@@ -13,7 +13,7 @@ use crate::{
         run_command_with_env, trace_nix_log_message,
     },
     hive::{
-        HiveLocation,
+        FlakePrefetch, HiveLocation,
         executor::{BuildOutputHandle, EvaluationOutputHandle},
         node::{Context, ExecuteStep, SharedTarget},
     },
@@ -153,8 +153,15 @@ impl ExecuteStep for Build {
                     NixCommandBuildMetadata::Locally {
                         cached_derivation: None,
                     } => match &*ctx.hive_location {
-                        HiveLocation::Flake { uri, .. } => {
-                            format!("{uri}#wire.nodes.{}.config.system.build.toplevel", ctx.name)
+                        HiveLocation::Flake {
+                            prefetch: FlakePrefetch { store_path, .. },
+                            ..
+                        } => {
+                            format!(
+                                "{}#wire.nodes.{}.config.system.build.toplevel",
+                                store_path.to_absolute_path(),
+                                ctx.name
+                            )
                         }
                         HiveLocation::HiveNix(path) => {
                             format!(

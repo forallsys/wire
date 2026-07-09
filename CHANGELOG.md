@@ -63,6 +63,9 @@ for the up to date details!
 - Use `AssertPathExists` instead of conditional path existence checks for key services.
 - Built paths printed to stdout being clobbered with the status bar.
 - Not re-exporting `outputs.makeHive` under `outputs.lib.makeHive`.
+- Evaluating a flake hive attribute will now correctly use the `/nix/store` path returned from
+  `nix flake prefetch`, instead of the `--path` URI. This has a small speed gain
+  of about `1.07 ± 0.03` times faster in testing.
 
 ## [v1.3.0] - 2026-05-02
 
