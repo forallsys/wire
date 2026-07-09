@@ -243,7 +243,7 @@ pub struct BuildArgs {
     ///
     /// In the format of `current/total`, where 1 <= current <= total.
     #[arg(short = 'P', default_value="1/1", long, value_parser=parse_partitions)]
-    pub partition: Option<Partitions>,
+    pub partition: Partitions,
 }
 
 #[derive(Subcommand)]

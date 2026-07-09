@@ -124,7 +124,7 @@ async fn main() -> Result<()> {
                 should_shutdown.clone(),
                 location,
                 build_args.common,
-                build_args.partition.unwrap_or_default(),
+                build_args.partition,
                 |_name, _node| Goal::Build,
                 modifiers,
                 cache.clone(),
