@@ -20,7 +20,7 @@ use crate::{
             evaluate::Evaluate,
             keys::{Keys, PushKeyAgent, UploadKeyAt},
             ping::Ping,
-            push::{PushBuildOutput, PushEvaluatedOutput},
+            push::{PushOutput, PushOutputHandle},
         },
     },
 };
@@ -201,10 +201,10 @@ fn apply_plan(
         && !should_apply_locally
         && (node.build_remotely || matches!(goal, ApplyGoal::Push))
     {
-        steps.push(Step::PushEvaluatedOutput(PushEvaluatedOutput {
+        steps.push(Step::PushOutput(PushOutput {
             substitute_on_destination: *substitute_on_destination,
             target: target.clone(),
-            path: evaluation_output_handle.clone(),
+            path: PushOutputHandle::Evaluation(evaluation_output_handle.clone()),
         }));
     }
 
@@ -243,10 +243,10 @@ fn apply_plan(
         && !should_apply_locally
         && !matches!(goal, ApplyGoal::Keys | ApplyGoal::Push)
     {
-        steps.push(Step::PushBuildOutput(PushBuildOutput {
+        steps.push(Step::PushOutput(PushOutput {
             substitute_on_destination: *substitute_on_destination,
             target: target.clone(),
-            path: build_output_handle.clone(),
+            path: PushOutputHandle::Build(build_output_handle.clone()),
         }));
     }
 
@@ -380,7 +380,7 @@ mod tests {
                 evaluate::Evaluate,
                 keys::{Key, Keys, PushKeyAgent, Source, UploadKeyAt},
                 ping::Ping,
-                push::{PushBuildOutput, PushEvaluatedOutput},
+                push::{PushOutput, PushOutputHandle},
             },
         },
         location,
@@ -476,10 +476,10 @@ mod tests {
                     output: EvaluationOutputHandle::new(),
                 }
                 .into(),
-                PushEvaluatedOutput {
+                PushOutput {
                     substitute_on_destination: true,
                     target: target.clone(),
-                    path: EvaluationOutputHandle::new(),
+                    path: PushOutputHandle::Evaluation(EvaluationOutputHandle::new()),
                 }
                 .into(),
                 Build {
@@ -530,10 +530,10 @@ mod tests {
                     }),
                 }
                 .into(),
-                PushBuildOutput {
+                PushOutput {
                     substitute_on_destination: true,
                     target,
-                    path: BuildOutputHandle::new(),
+                    path: PushOutputHandle::Build(BuildOutputHandle::new()),
                 }
                 .into(),
             ]
@@ -719,10 +719,10 @@ mod tests {
                     output: EvaluationOutputHandle::new(),
                 }
                 .into(),
-                PushEvaluatedOutput {
+                PushOutput {
                     substitute_on_destination: true,
                     target,
-                    path: EvaluationOutputHandle::new(),
+                    path: PushOutputHandle::Evaluation(EvaluationOutputHandle::new()),
                 }
                 .into()
             ]
@@ -769,10 +769,10 @@ mod tests {
                     output: EvaluationOutputHandle::new(),
                 }
                 .into(),
-                PushEvaluatedOutput {
+                PushOutput {
                     substitute_on_destination: true,
                     target: target.clone(),
-                    path: EvaluationOutputHandle::new(),
+                    path: PushOutputHandle::Evaluation(EvaluationOutputHandle::new()),
                 }
                 .into(),
                 Build {
@@ -836,10 +836,10 @@ mod tests {
                     output: EvaluationOutputHandle::new(),
                 }
                 .into(),
-                PushEvaluatedOutput {
+                PushOutput {
                     substitute_on_destination: true,
                     target: target.clone(),
-                    path: EvaluationOutputHandle::new(),
+                    path: PushOutputHandle::Evaluation(EvaluationOutputHandle::new()),
                 }
                 .into(),
                 Build {
@@ -1030,10 +1030,10 @@ mod tests {
                     output: EvaluationOutputHandle::new(),
                 }
                 .into(),
-                PushEvaluatedOutput {
+                PushOutput {
                     substitute_on_destination: true,
                     target: target.clone(),
-                    path: EvaluationOutputHandle::new(),
+                    path: PushOutputHandle::Evaluation(EvaluationOutputHandle::new()),
                 }
                 .into(),
                 Build {

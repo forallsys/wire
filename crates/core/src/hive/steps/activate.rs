@@ -28,7 +28,7 @@ pub struct SwitchToConfiguration {
 
 impl Display for SwitchToConfiguration {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Run switch-to-configuration")
+        write!(f, "Activation")
     }
 }
 

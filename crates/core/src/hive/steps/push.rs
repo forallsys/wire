@@ -9,88 +9,51 @@ use crate::{
     HiveLibError,
     hive::{
         executor::{BuildOutputHandle, EvaluationOutputHandle},
-        node::{Context, ExecuteStep, SharedTarget},
+        node::{Context, ExecuteStep, Push, SharedTarget},
     },
 };
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
-pub struct PushEvaluatedOutput {
-    pub substitute_on_destination: bool,
-    pub target: SharedTarget,
-    pub path: EvaluationOutputHandle,
+pub enum PushOutputHandle {
+    Evaluation(EvaluationOutputHandle),
+    Build(BuildOutputHandle),
 }
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
-pub struct PushBuildOutput {
+pub struct PushOutput {
     pub substitute_on_destination: bool,
     pub target: SharedTarget,
-    pub path: BuildOutputHandle,
+    pub path: PushOutputHandle,
 }
 
-impl Display for PushEvaluatedOutput {
+impl Display for PushOutput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Push evaluated output")
+        write!(
+            f,
+            "Push {} output",
+            match self.path {
+                PushOutputHandle::Evaluation(..) => "evaluation",
+                PushOutputHandle::Build(..) => "build",
+            }
+        )
     }
 }
 
-impl Display for PushBuildOutput {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Push build output")
-    }
-}
-
-impl ExecuteStep for PushEvaluatedOutput {
-    #[instrument(skip_all, name = "push_eval")]
+impl ExecuteStep for PushOutput {
+    #[instrument(skip_all, name = "push")]
     async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
-        let top_level = self.path.require().await?;
+        let push = match &self.path {
+            PushOutputHandle::Evaluation(handle) => Push::Derivation(&handle.require().await?),
+            PushOutputHandle::Build(handle) => Push::Path(&handle.require().await?),
+        };
 
         if ctx.modifiers.experimental_nix_client {
-            crate::push_with_daemon(
-                ctx,
-                &self.target,
-                crate::hive::node::Push::Derivation(&top_level),
-                self.substitute_on_destination,
-            )
-            .await?;
+            crate::push_with_daemon(ctx, &self.target, push, self.substitute_on_destination).await
         } else {
-            crate::commands::common::push(
-                ctx,
-                &self.target,
-                crate::hive::node::Push::Derivation(&top_level),
-                self.substitute_on_destination,
-            )
-            .await?;
+            crate::commands::common::push(ctx, &self.target, push, self.substitute_on_destination)
+                .await
         }
-
-        Ok(())
-    }
-}
-
-impl ExecuteStep for PushBuildOutput {
-    #[instrument(skip_all, name = "push_build")]
-    async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
-        let built_path = self.path.require().await?;
-
-        if ctx.modifiers.experimental_nix_client {
-            crate::push_with_daemon(
-                ctx,
-                &self.target,
-                crate::hive::node::Push::Path(&built_path),
-                self.substitute_on_destination,
-            )
-            .await?;
-        } else {
-            crate::commands::common::push(
-                ctx,
-                &self.target,
-                crate::hive::node::Push::Path(&built_path),
-                self.substitute_on_destination,
-            )
-            .await?;
-        }
-
-        Ok(())
     }
 }
