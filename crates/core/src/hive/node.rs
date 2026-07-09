@@ -21,7 +21,7 @@ use crate::hive::steps::build::Build;
 use crate::hive::steps::evaluate::Evaluate;
 use crate::hive::steps::keys::{Key, Keys, PushKeyAgent};
 use crate::hive::steps::ping::Ping;
-use crate::hive::steps::push::{PushBuildOutput, PushEvaluatedOutput};
+use crate::hive::steps::push::PushOutput;
 use crate::{SafeStorePath, StrictHostKeyChecking, SubCommandModifiers, open_remote_client};
 
 use super::HiveLibError;
@@ -305,10 +305,9 @@ pub enum Step {
     PushKeyAgent,
     Keys,
     Evaluate,
-    PushEvaluatedOutput,
     Build,
-    PushBuildOutput,
     SwitchToConfiguration,
+    PushOutput,
 }
 
 impl Display for Step {
@@ -318,9 +317,8 @@ impl Display for Step {
             Self::PushKeyAgent(step) => step.fmt(f),
             Self::Keys(step) => step.fmt(f),
             Self::Evaluate(step) => step.fmt(f),
-            Self::PushEvaluatedOutput(step) => step.fmt(f),
+            Self::PushOutput(step) => step.fmt(f),
             Self::Build(step) => step.fmt(f),
-            Self::PushBuildOutput(step) => step.fmt(f),
             Self::SwitchToConfiguration(step) => step.fmt(f),
         }
     }
