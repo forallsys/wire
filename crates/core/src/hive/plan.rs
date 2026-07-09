@@ -916,7 +916,10 @@ mod tests {
         let node = Node::default();
         let name = &Name(function_name!().into());
         let should_quit = Arc::new(AtomicBool::new(false));
-        let cached = SafeStorePath::<String>::from_absolute_path(b"/nix/store/name").unwrap();
+        let cached = SafeStorePath::<String>::from_absolute_path(
+            b"/nix/store/0cg1bwya4a0r5y9vbi5c79jsvgmicg1p-name",
+        )
+        .unwrap();
         let plan = plan_for_node(
             &node,
             name.clone(),
