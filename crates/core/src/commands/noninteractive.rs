@@ -20,7 +20,7 @@ use tokio::{
     sync::Mutex,
     task::JoinSet,
 };
-use tracing::{Instrument, debug, instrument, trace};
+use tracing::{Instrument, Level, debug, instrument, trace};
 
 pub struct NonInteractiveChildChip {
     error_collection: Arc<Mutex<VecDeque<String>>>,
@@ -31,7 +31,7 @@ pub struct NonInteractiveChildChip {
     stdin: ChildStdin,
 }
 
-#[instrument(skip_all, name = "run", fields(elevated = %arguments.is_elevated()))]
+#[instrument(skip_all, level = Level::DEBUG, name = "run", fields(elevated = %arguments.is_elevated()))]
 pub async fn non_interactive_command_with_env<S: AsRef<str> + Sync>(
     arguments: &CommandArguments<S>,
     envs: HashMap<String, String>,

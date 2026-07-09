@@ -262,7 +262,11 @@ pub enum HiveLocation {
 }
 
 impl HiveLocation {
-    async fn get_flake(uri: String, modifiers: SubCommandModifiers) -> Result<Self, HiveLibError> {
+    #[instrument(skip_all, name = "flake_prefetch", fields(uri = %uri))]
+    async fn from_flake_uri(
+        uri: String,
+        modifiers: SubCommandModifiers,
+    ) -> Result<Self, HiveLibError> {
         let mut command_string = CommandStringBuilder::nix();
         command_string.args(&[
             "flake",
@@ -312,7 +316,7 @@ pub async fn get_hive_location(
             Some("hive.nix") => HiveLocation::HiveNix(path.clone()),
             Some(_) => {
                 if fs::metadata(path.join("flake.nix")).is_ok() {
-                    HiveLocation::get_flake(path.display().to_string(), modifiers).await?
+                    HiveLocation::from_flake_uri(path.display().to_string(), modifiers).await?
                 } else {
                     HiveLocation::HiveNix(path.join("hive.nix"))
                 }
@@ -338,7 +342,7 @@ pub async fn get_hive_location(
             | FlakeRef::Tarball { .. }
             | FlakeRef::Mercurial { .. }
             | FlakeRef::SourceHut { .. },
-        ) => Ok(HiveLocation::get_flake(path, modifiers).await?),
+        ) => Ok(HiveLocation::from_flake_uri(path, modifiers).await?),
         Err(err) => Err(HiveLibError::HiveLocationError(
             HiveLocationError::Malformed(err),
         )),
