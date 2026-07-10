@@ -10,26 +10,54 @@ use std::io::Read;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use thiserror::Error;
-use tokio::sync::oneshot;
 use tracing::{error, info};
 use wire_core::cache::InspectionCache;
 use wire_core::hive::executor::execute;
 use wire_core::hive::node::{Name, Node};
-use wire_core::hive::plan::{Goal, plan_for_node};
+use wire_core::hive::plan::{Goal, PlanGraph};
 use wire_core::hive::{Hive, HiveLocation};
 use wire_core::status::{UI_SENDER, UiMessage};
 use wire_core::{SubCommandModifiers, errors::HiveLibError};
 
 use crate::cli::{ApplyTarget, CommonVerbArgs, Partitions};
 
-#[derive(Debug, Error, Diagnostic)]
+#[derive(Debug, Error)]
 #[error("node {} failed to apply", .0)]
-struct NodeError(
-    Name,
-    #[source]
-    #[diagnostic_source]
-    HiveLibError,
-);
+struct NodeError(Name, #[source] Arc<HiveLibError>);
+
+impl Diagnostic for NodeError {
+    fn diagnostic_source(&self) -> Option<&dyn Diagnostic> {
+        self.1.diagnostic_source()
+    }
+
+    fn code<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
+        self.1.code()
+    }
+
+    fn severity(&self) -> Option<miette::Severity> {
+        self.1.severity()
+    }
+
+    fn help<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
+        self.1.help()
+    }
+
+    fn url<'a>(&'a self) -> Option<Box<dyn std::fmt::Display + 'a>> {
+        self.1.url()
+    }
+
+    fn source_code(&self) -> Option<&dyn miette::SourceCode> {
+        self.1.source_code()
+    }
+
+    fn labels(&self) -> Option<Box<dyn Iterator<Item = miette::LabeledSpan> + '_>> {
+        self.1.labels()
+    }
+
+    fn related<'a>(&'a self) -> Option<Box<dyn Iterator<Item = &'a dyn Diagnostic> + 'a>> {
+        self.1.related()
+    }
+}
 
 #[derive(Debug, Error, Diagnostic)]
 #[error("{} node(s) failed to apply.", .0.len())]
@@ -157,60 +185,73 @@ where
         let _ = tx.send(UiMessage::AddMany(partitioned_names.clone()));
     }
 
-    let mut evaluation_cache_tasks = Vec::new();
+    // let mut evaluation_cache_tasks: Vec<tokio::task::JoinHandle<()>> = Vec::new();
 
-    let mut set = hive
+    let plans = hive
         .nodes
         .iter_mut()
         .filter(|(name, _)| partitioned_names.contains(name))
         .map(|(name, node)| {
             let goal = make_goal(name, node);
 
-            let plan = plan_for_node(
-                node,
-                name.clone(),
-                &goal,
-                location.clone(),
-                &modifiers,
-                should_quit.clone(),
-                cached_evaluations
-                    .as_mut()
-                    .and_then(|cache| cache.remove(name))
-                    .as_ref(),
-            );
+            (
+                name,
+                PlanGraph::new(
+                    node,
+                    name.clone(),
+                    &goal,
+                    location.clone(),
+                    should_quit.clone(),
+                    modifiers,
+                    cached_evaluations
+                        .as_mut()
+                        .and_then(|cache| cache.remove(name))
+                        .as_ref(),
+                ),
+            )
 
-            let (sender, receiver) = oneshot::channel();
+            // let (sender, receiver) = oneshot::channel();
+            //
+            // let location = location.clone();
+            // let cache = cache.clone();
+            // let cache_name = name.clone();
+            //
+            // evaluation_cache_tasks.push(tokio::spawn(async move {
+            //     if let Some(ref cache) = *cache
+            //         && let HiveLocation::Flake { ref prefetch, .. } = *location
+            //         && let Ok(evaluated_path) = receiver.await
+            //     {
+            //         cache
+            //             .store_evaluation(prefetch, &cache_name, evaluated_path)
+            //             .await;
+            //     }
+            // }));
 
-            let location = location.clone();
-            let cache = cache.clone();
-            let cache_name = name.clone();
-
-            evaluation_cache_tasks.push(tokio::spawn(async move {
-                if let Some(ref cache) = *cache
-                    && let HiveLocation::Flake { ref prefetch, .. } = *location
-                    && let Ok(evaluated_path) = receiver.await
-                {
-                    cache
-                        .store_evaluation(prefetch, &cache_name, evaluated_path)
-                        .await;
-                }
-            }));
-
-            let name_clone = name.clone();
-            execute(plan, sender).map(move |result| (name_clone, result))
+            // let name_clone = name.clone();
+            // execute(graph).map(move |result| (name_clone, result))
         })
-        .peekable();
+        .collect_vec();
 
-    if set.peek().is_none() {
+    if plans.is_empty() {
         error!("There are no nodes selected for deployment");
+        return Ok(());
     }
+
+    for (name, plan) in plans.iter() {
+        info!(node = ?name, "Generated the following plan: {plan}");
+    }
+
+    let set = plans
+        .into_iter()
+        .map(|(name, graph)| execute(graph).map(move |result| (name, result)))
+        .peekable();
 
     let futures = futures::stream::iter(set).buffer_unordered(args.parallel);
     let result = futures.collect::<Vec<_>>().await;
 
-    for task in evaluation_cache_tasks {
-        let _ = task.await;
-    }
+    // for task in evaluation_cache_tasks {
+    //     let _ = task.await;
+    // }
 
     let (successful, errors): (Vec<_>, Vec<_>) =
         result
@@ -224,7 +265,7 @@ where
         info!(
             "Successfully applied goal to {} node(s): {:?}",
             successful.len(),
-            successful.into_iter().map(|x| x.0).collect_vec()
+            successful.into_iter().map(|x| x.0.clone()).collect_vec()
         );
     }
 
@@ -234,13 +275,12 @@ where
     }
 
     if !errors.is_empty() {
-        return Err(NodeErrors(
+        return Err(miette::Error::from(NodeErrors(
             errors
                 .into_iter()
-                .map(|(name, error)| NodeError(name, error))
+                .map(|(name, error)| NodeError(name.clone(), error))
                 .collect(),
-        )
-        .into());
+        )));
     }
 
     Ok(())

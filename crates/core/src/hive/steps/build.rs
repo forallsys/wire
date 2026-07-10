@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright 2024-2025 wire Contributors
 
-use std::fmt::Display;
+use std::{fmt::Display, sync::Arc};
 
 use tracing::{debug, info, instrument};
 use wire_nix_client::{DerivedPath, DerivedPathOutput, NixClient, NixDaemonClientError};
@@ -14,8 +14,8 @@ use crate::{
     },
     hive::{
         FlakePrefetch, HiveLocation,
-        executor::{BuildOutputHandle, EvaluationOutputHandle},
         node::{Context, ExecuteStep, SharedTarget},
+        plan::{AnyNodeOutput, AnyNodeOutputSliceExt, BuildNodeOutput, EvaluationNodeOutput},
     },
     open_remote_client,
 };
@@ -25,31 +25,21 @@ const SYSTEM_OUTPUT: &str = "out";
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) enum NixCommandBuildMetadata {
-    Locally {
-        cached_derivation: Option<EvaluationOutputHandle>,
-    },
-    Remotely {
-        target: SharedTarget,
-        derivation: EvaluationOutputHandle,
-    },
+    Locally,
+    Remotely,
 }
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub(crate) enum BuildMetadata {
     NixCommand(NixCommandBuildMetadata),
-    BuildWithNixDaemon {
-        target: Option<SharedTarget>,
-        derivation: EvaluationOutputHandle,
-    },
+    BuildWithNixDaemon,
 }
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub struct Build {
     pub(crate) metadata: BuildMetadata,
-    /// the handle this step places its produced path to
-    pub(crate) output: BuildOutputHandle,
 }
 
 impl Display for Build {
@@ -61,10 +51,15 @@ impl Display for Build {
 impl ExecuteStep for Build {
     #[allow(clippy::too_many_lines)]
     #[instrument(skip_all, name = "build")]
-    async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
+    async fn execute_impl(
+        self,
+        inputs: Vec<AnyNodeOutput>,
+        ctx: Arc<Context>,
+    ) -> Result<AnyNodeOutput, HiveLibError> {
         match &self.metadata {
-            BuildMetadata::BuildWithNixDaemon { target, derivation } => {
-                let top_level = derivation.require().await?;
+            BuildMetadata::BuildWithNixDaemon => {
+                let target = inputs.require::<SharedTarget>().ok();
+                let top_level = inputs.require::<EvaluationNodeOutput>()?.0;
 
                 // use experimental nix daemon client
                 let mut connection = if let Some(target) = target {
@@ -137,40 +132,35 @@ impl ExecuteStep for Build {
                 println!("{}", output_path.to_absolute_path());
                 drop(clobber_guard);
 
-                self.output.set(output_path).await;
+                Ok(AnyNodeOutput::Build(BuildNodeOutput(output_path).into()))
             }
             BuildMetadata::NixCommand(metadata) => {
                 let attribute = match metadata {
-                    NixCommandBuildMetadata::Remotely { derivation, .. }
-                    | NixCommandBuildMetadata::Locally {
-                        cached_derivation: Some(derivation),
-                    } => {
-                        format!(
-                            "{}^{SYSTEM_OUTPUT}",
-                            derivation.require().await?.to_absolute_path()
-                        )
+                    NixCommandBuildMetadata::Locally => {
+                        if let Ok(derivation) = inputs.require::<EvaluationNodeOutput>() {
+                            format!("{}^{SYSTEM_OUTPUT}", derivation.0.to_absolute_path())
+                        } else {
+                            match &*ctx.hive_location {
+                                HiveLocation::Flake { uri, .. } => {
+                                    format!(
+                                        "{uri}#wire.nodes.{}.config.system.build.toplevel",
+                                        ctx.name
+                                    )
+                                }
+                                HiveLocation::HiveNix(path) => {
+                                    format!(
+                                        "--file {} nodes.{}.config.system.build.toplevel",
+                                        path.to_string_lossy(),
+                                        ctx.name
+                                    )
+                                }
+                            }
+                        }
                     }
-                    NixCommandBuildMetadata::Locally {
-                        cached_derivation: None,
-                    } => match &*ctx.hive_location {
-                        HiveLocation::Flake {
-                            prefetch: FlakePrefetch { store_path, .. },
-                            ..
-                        } => {
-                            format!(
-                                "{}#wire.nodes.{}.config.system.build.toplevel",
-                                store_path.to_absolute_path(),
-                                ctx.name
-                            )
-                        }
-                        HiveLocation::HiveNix(path) => {
-                            format!(
-                                "--file {} nodes.{}.config.system.build.toplevel",
-                                path.to_string_lossy(),
-                                ctx.name
-                            )
-                        }
-                    },
+                    NixCommandBuildMetadata::Remotely => {
+                        let derivation = inputs.require::<EvaluationNodeOutput>()?;
+                        format!("{}^{SYSTEM_OUTPUT}", derivation.0.to_absolute_path())
+                    }
                 };
 
                 // use regular nix build command
@@ -190,10 +180,10 @@ impl ExecuteStep for Build {
                     &CommandArguments::new(command_string, ctx.modifiers)
                         // build remotely if asked for AND we isnt applying locally
                         .execute_on_remote(match metadata {
-                            NixCommandBuildMetadata::Remotely { target, .. } => {
-                                Some(target.clone())
+                            NixCommandBuildMetadata::Remotely => {
+                                Some(inputs.require::<SharedTarget>()?)
                             }
-                            NixCommandBuildMetadata::Locally { .. } => None,
+                            NixCommandBuildMetadata::Locally => None,
                         })
                         .mode(crate::commands::ChildOutputMode::Nix)
                         .log_stdout(),
@@ -217,14 +207,13 @@ impl ExecuteStep for Build {
                 println!("{stdout}");
                 drop(clobber_guard);
 
-                self.output
-                    .set(SafeStorePath::<String>::from_absolute_path(
+                Ok(AnyNodeOutput::Build(
+                    BuildNodeOutput(SafeStorePath::<String>::from_absolute_path(
                         stdout.as_bytes(),
                     )?)
-                    .await;
+                    .into(),
+                ))
             }
         }
-
-        Ok(())
     }
 }

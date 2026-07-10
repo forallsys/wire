@@ -10,8 +10,11 @@ use crate::{
     commands::{CommandArguments, WireCommandChip, builder::CommandStringBuilder, run_command},
     errors::{ActivationError, NetworkError},
     hive::{
-        executor::BuildOutputHandle,
         node::{Context, ExecuteStep, SharedTarget, SwitchToConfigurationGoal},
+        plan::{
+            AnyNodeOutput, AnyNodeOutputSliceExt, BuildNodeOutput, PushBuildOutput,
+            SwitchToConfigurationOutput,
+        },
     },
 };
 
@@ -20,10 +23,7 @@ use crate::{
 pub struct SwitchToConfiguration {
     pub goal: SwitchToConfigurationGoal,
     pub reboot: bool,
-    pub target: Option<SharedTarget>,
     pub privilege_escalation_command: Arc<Vec<Arc<str>>>,
-
-    pub top_level: BuildOutputHandle,
 }
 
 impl Display for SwitchToConfiguration {
@@ -64,6 +64,7 @@ async fn wait_for_ping(target: &SharedTarget, ctx: &Context) -> Result<(), HiveL
 impl SwitchToConfiguration {
     async fn set_profile(
         &self,
+        target: Option<&SharedTarget>,
         built_path: &SafeStorePath<String>,
         ctx: &Context,
     ) -> Result<(), HiveLibError> {
@@ -79,7 +80,7 @@ impl SwitchToConfiguration {
         let child = run_command(
             &CommandArguments::new(command_string, ctx.modifiers)
                 .mode(crate::commands::ChildOutputMode::Nix)
-                .execute_on_remote(self.target.clone())
+                .execute_on_remote(target.cloned())
                 .privileged(&self.privilege_escalation_command),
         )
         .await?;
@@ -98,8 +99,16 @@ impl SwitchToConfiguration {
 impl ExecuteStep for SwitchToConfiguration {
     #[allow(clippy::too_many_lines)]
     #[instrument(skip_all, name = "activate")]
-    async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
-        let built_path = self.top_level.require().await?;
+    async fn execute_impl(
+        self,
+        inputs: Vec<AnyNodeOutput>,
+        ctx: Arc<Context>,
+    ) -> Result<AnyNodeOutput, HiveLibError> {
+        let (target, built_path) = if let Ok(target) = inputs.require::<SharedTarget>() {
+            (Some(target), inputs.require::<PushBuildOutput>()?.0)
+        } else {
+            (None, inputs.require::<BuildNodeOutput>()?.0)
+        };
 
         if matches!(
             self.goal,
@@ -107,7 +116,7 @@ impl ExecuteStep for SwitchToConfiguration {
             // https://github.com/NixOS/nixpkgs/blob/a2c92aa34735a04010671e3378e2aa2d109b2a72/pkgs/by-name/ni/nixos-rebuild-ng/src/nixos_rebuild/services.py#L224
             SwitchToConfigurationGoal::Switch | SwitchToConfigurationGoal::Boot
         ) {
-            self.set_profile(&built_path, ctx).await?;
+            self.set_profile(target.as_ref(), &built_path, &ctx).await?;
         }
 
         info!("Running switch-to-configuration {}", self.goal);
@@ -125,7 +134,7 @@ impl ExecuteStep for SwitchToConfiguration {
 
         let child = run_command(
             &CommandArguments::new(command_string, ctx.modifiers)
-                .execute_on_remote(self.target.clone())
+                .execute_on_remote(target.clone())
                 .privileged(&self.privilege_escalation_command)
                 .log_stdout(),
         )
@@ -136,13 +145,17 @@ impl ExecuteStep for SwitchToConfiguration {
         match result {
             Ok(_) => {
                 if !self.reboot {
-                    return Ok(());
+                    return Ok(AnyNodeOutput::SwitchToConfiguration(
+                        SwitchToConfigurationOutput(()).into(),
+                    ));
                 }
 
-                let Some(ref target) = self.target else {
+                let Some(ref target) = target else {
                     error!("Refusing to reboot local machine!");
 
-                    return Ok(());
+                    return Ok(AnyNodeOutput::SwitchToConfiguration(
+                        SwitchToConfigurationOutput(()).into(),
+                    ));
                 };
 
                 warn!("Rebooting {name}!", name = ctx.name);
@@ -164,8 +177,10 @@ impl ExecuteStep for SwitchToConfiguration {
 
                 info!("Rebooted {name}, waiting to reconnect...", name = ctx.name);
 
-                if wait_for_ping(target, ctx).await.is_ok() {
-                    return Ok(());
+                if wait_for_ping(target, &ctx).await.is_ok() {
+                    return Ok(AnyNodeOutput::SwitchToConfiguration(
+                        SwitchToConfigurationOutput(()).into(),
+                    ));
                 }
 
                 let target = target.0.read().await;
@@ -190,8 +205,7 @@ impl ExecuteStep for SwitchToConfiguration {
 
                 // Bail if the command couldn't of broken the system
                 // and don't try to regain connection to localhost
-                let Some(target) = self
-                    .target
+                let Some(target) = target
                     .as_ref()
                     .filter(|_| !matches!(self.goal, SwitchToConfigurationGoal::DryActivate))
                 else {
@@ -204,7 +218,7 @@ impl ExecuteStep for SwitchToConfiguration {
                     ));
                 };
 
-                if wait_for_ping(target, ctx).await.is_ok() {
+                if wait_for_ping(target, &ctx).await.is_ok() {
                     return Err(HiveLibError::ActivationError(
                         ActivationError::SwitchToConfigurationError(
                             self.goal,

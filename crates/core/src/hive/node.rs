@@ -2,21 +2,23 @@
 // Copyright 2024-2025 wire Contributors
 
 #![allow(clippy::missing_errors_doc)]
-use enum_dispatch::enum_dispatch;
 use gethostname::gethostname;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::nonpoison::Mutex;
-use tokio::sync::{RwLock, oneshot};
+use tokio::sync::RwLock;
 use tracing::instrument;
 
 use crate::commands::builder::CommandStringBuilder;
 use crate::commands::{CommandArguments, WireCommandChip, run_command, trace_nix_log_message};
 use crate::errors::NetworkError;
 use crate::hive::HiveLocation;
+use crate::hive::plan::AnyNodeOutput;
 use crate::hive::steps::build::Build;
 use crate::hive::steps::evaluate::Evaluate;
 use crate::hive::steps::keys::{Key, Keys, PushKeyAgent};
@@ -244,7 +246,7 @@ pub fn should_apply_locally(allow_local_deployment: bool, name: &str) -> bool {
     *name == *gethostname() && allow_local_deployment
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Push<'a> {
     Derivation(&'a SafeStorePath<String>),
     Path(&'a SafeStorePath<String>),
@@ -266,9 +268,23 @@ pub enum ApplyGoal {
     Keys,
 }
 
-#[enum_dispatch]
-pub(crate) trait ExecuteStep: Send + Sync + Display + std::fmt::Debug {
-    async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError>;
+pub(crate) trait ExecuteStep: Send + Sync + Display + std::fmt::Debug + 'static {
+    fn execute(
+        self,
+        inputs: Vec<AnyNodeOutput>,
+        ctx: Arc<Context>,
+    ) -> Pin<Box<dyn Future<Output = Result<AnyNodeOutput, HiveLibError>> + Send + 'static>>
+    where
+        Self: Sized,
+    {
+        Box::pin(self.execute_impl(inputs, ctx))
+    }
+
+    fn execute_impl(
+        self,
+        inputs: Vec<AnyNodeOutput>,
+        ctx: Arc<Context>,
+    ) -> impl Future<Output = Result<AnyNodeOutput, HiveLibError>> + Send + 'static;
 }
 
 // may include other options such as FailAll in the future
@@ -280,32 +296,52 @@ pub enum HandleUnreachable {
     FailNode,
 }
 
-#[derive(Default)]
-pub struct StepState {
-    pub evaluation_rx: Option<oneshot::Receiver<Result<SafeStorePath<String>, HiveLibError>>>,
-}
-
 pub type BuildNameMap = Arc<Mutex<HashMap<u64, Arc<String>>>>;
 
 pub struct Context {
     pub hive_location: Arc<HiveLocation>,
     pub modifiers: SubCommandModifiers,
-    pub state: StepState,
     pub should_quit: Arc<AtomicBool>,
     pub name: Name,
 }
 
-#[enum_dispatch(ExecuteStep)]
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq))]
 pub enum Step {
-    Ping,
-    PushKeyAgent,
-    Keys,
-    Evaluate,
-    Build,
-    SwitchToConfiguration,
-    PushOutput,
+    Ping(Ping),
+    PushKeyAgent(PushKeyAgent),
+    Keys(Keys),
+    Evaluate(Evaluate),
+    PushOutput(PushOutput),
+    Build(Build),
+    SwitchToConfiguration(SwitchToConfiguration),
+}
+
+impl ExecuteStep for Step {
+    #[inline]
+    fn execute(
+        self,
+        inputs: Vec<AnyNodeOutput>,
+        ctx: Arc<Context>,
+    ) -> Pin<Box<dyn Future<Output = Result<AnyNodeOutput, HiveLibError>> + Send + 'static>> {
+        match self {
+            Self::Ping(s) => s.execute(inputs, ctx),
+            Self::PushKeyAgent(s) => s.execute(inputs, ctx),
+            Self::Keys(s) => s.execute(inputs, ctx),
+            Self::Evaluate(s) => s.execute(inputs, ctx),
+            Self::PushOutput(s) => s.execute(inputs, ctx),
+            Self::Build(s) => s.execute(inputs, ctx),
+            Self::SwitchToConfiguration(s) => s.execute(inputs, ctx),
+        }
+    }
+
+    fn execute_impl(
+        self,
+        _inputs: Vec<AnyNodeOutput>,
+        _ctx: Arc<Context>,
+    ) -> impl Future<Output = Result<AnyNodeOutput, HiveLibError>> + Send + 'static {
+        std::future::ready(Err(HiveLibError::MissingStepOutput))
+    }
 }
 
 impl Display for Step {

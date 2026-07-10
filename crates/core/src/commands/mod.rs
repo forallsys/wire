@@ -10,6 +10,8 @@ use core::str;
 use std::{
     borrow::Cow,
     collections::HashMap,
+    future::Future,
+    pin::Pin,
     sync::{Arc, LazyLock, nonpoison::Mutex},
 };
 
@@ -125,11 +127,16 @@ pub(crate) async fn run_command_with_env<S: AsRef<str> + Sync>(
     ))
 }
 
-pub(crate) trait WireCommandChip {
+pub(crate) trait WireCommandChip: Send {
     type ExitStatus;
 
-    async fn wait_till_success(self) -> Result<Self::ExitStatus, CommandError>;
-    async fn write_stdin(&mut self, data: Vec<u8>) -> Result<(), HiveLibError>;
+    fn wait_till_success(
+        self,
+    ) -> Pin<Box<dyn Future<Output = Result<Self::ExitStatus, CommandError>> + Send + 'static>>;
+    fn write_stdin<'a>(
+        &'a mut self,
+        data: Vec<u8>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), HiveLibError>> + Send + 'a>>;
 }
 
 type ExitStatus = Either<(portable_pty::ExitStatus, String), (std::process::ExitStatus, String)>;
@@ -137,17 +144,27 @@ type ExitStatus = Either<(portable_pty::ExitStatus, String), (std::process::Exit
 impl WireCommandChip for Either<InteractiveChildChip, NonInteractiveChildChip> {
     type ExitStatus = ExitStatus;
 
-    async fn write_stdin(&mut self, data: Vec<u8>) -> Result<(), HiveLibError> {
+    fn write_stdin<'a>(
+        &'a mut self,
+        data: Vec<u8>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), HiveLibError>> + Send + 'a>> {
         match self {
-            Self::Left(left) => left.write_stdin(data).await,
-            Self::Right(right) => right.write_stdin(data).await,
+            Self::Left(left) => left.write_stdin(data),
+            Self::Right(right) => right.write_stdin(data),
         }
     }
 
-    async fn wait_till_success(self) -> Result<Self::ExitStatus, CommandError> {
+    fn wait_till_success(
+        self,
+    ) -> Pin<Box<dyn Future<Output = Result<Self::ExitStatus, CommandError>> + Send + 'static>>
+    {
         match self {
-            Self::Left(left) => left.wait_till_success().await.map(Either::Left),
-            Self::Right(right) => right.wait_till_success().await.map(Either::Right),
+            Self::Left(left) => {
+                Box::pin(async move { left.wait_till_success().await.map(Either::Left) })
+            }
+            Self::Right(right) => {
+                Box::pin(async move { right.wait_till_success().await.map(Either::Right) })
+            }
         }
     }
 }

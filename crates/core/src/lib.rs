@@ -8,8 +8,10 @@
 
 use std::{
     collections::{HashMap, HashSet},
+    future::Future,
     io::IsTerminal,
     ops::Deref,
+    pin::Pin,
     process::Stdio,
     sync::{Arc, LazyLock, atomic::AtomicBool, nonpoison::Mutex},
 };
@@ -97,21 +99,25 @@ impl Drop for ClobberGuard<'_> {
     }
 }
 
-pub async fn acquire_stdin_lock<'a>() -> Result<ClobberGuard<'a>, AcquireError> {
-    let result = STDIN_CLOBBER_LOCK.acquire().await?;
-    let (sender, rx) = oneshot::channel();
-    let tx = UI_SENDER.get();
+#[must_use]
+pub fn acquire_stdin_lock()
+-> Pin<Box<dyn Future<Output = Result<ClobberGuard<'static>, AcquireError>> + Send + 'static>> {
+    Box::pin(async move {
+        let result = STDIN_CLOBBER_LOCK.acquire().await?;
+        let (sender, rx) = oneshot::channel();
+        let tx = UI_SENDER.get();
 
-    if let Some(tx) = tx {
-        let _ = tx.send(UiMessage::Takeover(sender));
+        if let Some(tx) = tx {
+            let _ = tx.send(UiMessage::Takeover(sender));
 
-        // wait until takeover is confirmed
-        let _ = rx.await;
-    }
+            // wait until takeover is confirmed
+            let _ = rx.await;
+        }
 
-    let result = ClobberGuard(result, tx);
+        let result = ClobberGuard(result, tx);
 
-    Ok(result)
+        Ok(result)
+    })
 }
 
 #[instrument(skip(trace_callback))]

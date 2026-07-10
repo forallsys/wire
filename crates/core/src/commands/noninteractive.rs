@@ -3,6 +3,8 @@
 
 use std::{
     collections::{HashMap, VecDeque},
+    future::Future,
+    pin::Pin,
     process::ExitStatus,
     sync::Arc,
 };
@@ -127,32 +129,42 @@ pub async fn non_interactive_command_with_env<S: AsRef<str> + Sync>(
 impl WireCommandChip for NonInteractiveChildChip {
     type ExitStatus = (ExitStatus, String);
 
-    async fn wait_till_success(mut self) -> Result<Self::ExitStatus, CommandError> {
-        let status = self.child.wait().await.unwrap();
-        let _ = self.joinset.join_all().await;
+    fn wait_till_success(
+        mut self,
+    ) -> Pin<Box<dyn Future<Output = Result<Self::ExitStatus, CommandError>> + Send + 'static>>
+    {
+        Box::pin(async move {
+            let status = self.child.wait().await.unwrap();
+            let _ = self.joinset.join_all().await;
 
-        if !status.success() {
-            let logs = self.error_collection.lock().await.iter().rev().join("\n");
+            if !status.success() {
+                let logs = self.error_collection.lock().await.iter().rev().join("\n");
 
-            return Err(CommandError::CommandFailed {
-                command_ran: self.original_command,
-                logs,
-                code: status
-                    .code()
-                    .map_or_else(|| "no exit code".to_string(), |code| format!("code {code}")),
-                reason: "known-status",
-            });
-        }
+                return Err(CommandError::CommandFailed {
+                    command_ran: self.original_command,
+                    logs,
+                    code: status
+                        .code()
+                        .map_or_else(|| "no exit code".to_string(), |code| format!("code {code}")),
+                    reason: "known-status",
+                });
+            }
 
-        let stdout = self.stdout_collection.lock().await.iter().rev().join("\n");
+            let stdout = self.stdout_collection.lock().await.iter().rev().join("\n");
 
-        Ok((status, stdout))
+            Ok((status, stdout))
+        })
     }
 
-    async fn write_stdin(&mut self, data: Vec<u8>) -> Result<(), HiveLibError> {
-        trace!("Writing {} bytes", data.len());
-        self.stdin.write_all(&data).await.unwrap();
-        Ok(())
+    fn write_stdin<'a>(
+        &'a mut self,
+        data: Vec<u8>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), HiveLibError>> + Send + 'a>> {
+        Box::pin(async move {
+            trace!("Writing {} bytes", data.len());
+            self.stdin.write_all(&data).await.unwrap();
+            Ok(())
+        })
     }
 }
 

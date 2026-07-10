@@ -29,8 +29,8 @@ use tracing::{debug, instrument};
 use crate::commands::builder::CommandStringBuilder;
 use crate::commands::{CommandArguments, WireCommandChip, run_command};
 use crate::errors::KeyError;
-use crate::hive::executor::KeyAgentPathHandle;
 use crate::hive::node::{Context, ExecuteStep, Push, SharedTarget};
+use crate::hive::plan::{AnyNodeOutput, AnyNodeOutputSliceExt, KeysOutput, PushKeyAgentOutput};
 use crate::{HiveLibError, SafeStorePath, push_with_daemon};
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Hash)]
@@ -183,9 +183,7 @@ async fn process_key(key: &Key) -> Result<(wire_key_agent::keys::KeySpec, Vec<u8
 #[cfg_attr(test, derive(PartialEq))]
 pub struct Keys {
     pub keys: Vec<Arc<Key>>,
-    pub target: Option<SharedTarget>,
     pub privilege_escalation_command: Arc<Vec<Arc<str>>>,
-    pub key_agent_directory: KeyAgentPathHandle,
 }
 
 #[derive(Debug)]
@@ -193,8 +191,6 @@ pub struct Keys {
 pub struct PushKeyAgent {
     pub substitute_on_destination: bool,
     pub host_platform: Arc<str>,
-    pub target: Option<SharedTarget>,
-    pub key_agent_directory: KeyAgentPathHandle,
 }
 
 impl Display for Keys {
@@ -209,60 +205,37 @@ impl Display for PushKeyAgent {
     }
 }
 
-pub struct SimpleLengthDelimWriter<F> {
-    codec: LengthDelimitedCodec,
-    write_fn: F,
-}
-
-impl<F> SimpleLengthDelimWriter<F>
-where
-    F: AsyncFnMut(Vec<u8>) -> Result<(), HiveLibError>,
-{
-    fn new(write_fn: F) -> Self {
-        Self {
-            codec: LengthDelimitedCodec::new(),
-            write_fn,
-        }
-    }
-
-    async fn send(&mut self, data: prost::bytes::Bytes) -> Result<(), HiveLibError> {
-        let mut buffer = BytesMut::new();
-        tokio_util::codec::Encoder::encode(&mut self.codec, data, &mut buffer)
-            .map_err(HiveLibError::Encoding)?;
-
-        (self.write_fn)(buffer.to_vec()).await?;
-        Ok(())
-    }
-}
-
 impl ExecuteStep for Keys {
     #[instrument(skip_all, name = "keys")]
-    async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
-        let agent_directory = self.key_agent_directory.require().await?;
+    async fn execute_impl(
+        self,
+        inputs: Vec<AnyNodeOutput>,
+        ctx: Arc<Context>,
+    ) -> Result<AnyNodeOutput, HiveLibError> {
+        let agent_directory = inputs.require::<PushKeyAgentOutput>()?;
 
         let mut keys = self.select_keys(&self.keys).await?;
 
         if keys.peek().is_none() {
             debug!("Had no keys to push, ending KeyStep early.");
-            return Ok(());
+            return Ok(AnyNodeOutput::Keys(KeysOutput(()).into()));
         }
 
         let command_string = CommandStringBuilder::new(format!(
             "{}/bin/wire-key-agent",
-            agent_directory.to_absolute_path()
+            agent_directory.0.to_absolute_path()
         ));
 
         let mut child = run_command(
             &CommandArguments::new(command_string, ctx.modifiers)
-                .execute_on_remote(self.target.clone())
+                .execute_on_remote(inputs.require::<SharedTarget>().ok())
                 .privileged(&self.privilege_escalation_command)
                 .keep_stdin_open()
                 .log_stdout(),
         )
         .await?;
 
-        let mut writer = SimpleLengthDelimWriter::new(async |data| child.write_stdin(data).await);
-
+        let mut codec = LengthDelimitedCodec::new();
         for (position, (mut spec, buf)) in keys.with_position() {
             if position.is_last() {
                 spec.last = true;
@@ -270,10 +243,23 @@ impl ExecuteStep for Keys {
 
             debug!("Writing spec & buf for {:?}", spec);
 
-            writer
-                .send(BASE64_STANDARD.encode(spec.encode_to_vec()).into())
-                .await?;
-            writer.send(BASE64_STANDARD.encode(buf).into()).await?;
+            let mut buffer = BytesMut::new();
+            tokio_util::codec::Encoder::encode(
+                &mut codec,
+                BASE64_STANDARD.encode(spec.encode_to_vec()).into(),
+                &mut buffer,
+            )
+            .map_err(HiveLibError::Encoding)?;
+            child.write_stdin(buffer.to_vec()).await?;
+
+            let mut buffer = BytesMut::new();
+            tokio_util::codec::Encoder::encode(
+                &mut codec,
+                BASE64_STANDARD.encode(buf).into(),
+                &mut buffer,
+            )
+            .map_err(HiveLibError::Encoding)?;
+            child.write_stdin(buffer.to_vec()).await?;
         }
 
         let status = child
@@ -283,7 +269,7 @@ impl ExecuteStep for Keys {
 
         debug!("status: {status:?}");
 
-        Ok(())
+        Ok(AnyNodeOutput::Keys(KeysOutput(()).into()))
     }
 }
 
@@ -310,7 +296,11 @@ impl Keys {
 
 impl ExecuteStep for PushKeyAgent {
     #[instrument(skip_all, name = "push_agent")]
-    async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
+    async fn execute_impl(
+        self,
+        inputs: Vec<AnyNodeOutput>,
+        ctx: Arc<Context>,
+    ) -> Result<AnyNodeOutput, HiveLibError> {
         let arg_name = format!(
             "WIRE_KEY_AGENT_{platform}",
             platform = self.host_platform.replace('-', "_")
@@ -325,9 +315,9 @@ impl ExecuteStep for PushKeyAgent {
             SafeStorePath::<String>::from_absolute_path(agent_directory.as_bytes())
                 .map_err(HiveLibError::StorePath)?;
 
-        if let Some(ref target) = self.target {
+        if let Ok(ref target) = inputs.require::<SharedTarget>() {
             push_with_daemon(
-                ctx,
+                &ctx,
                 target,
                 Push::Path(&agent_store_path),
                 self.substitute_on_destination,
@@ -335,8 +325,8 @@ impl ExecuteStep for PushKeyAgent {
             .await?;
         }
 
-        self.key_agent_directory.set(agent_store_path).await;
-
-        Ok(())
+        Ok(AnyNodeOutput::PushKeyAgent(
+            PushKeyAgentOutput(agent_store_path).into(),
+        ))
     }
 }

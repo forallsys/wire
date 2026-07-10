@@ -1,23 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright 2024-2025 wire Contributors
 
-use std::fmt::Display;
+use std::{fmt::Display, sync::Arc};
 
-use tracing::instrument;
+use tracing::{debug, instrument};
+use wire_nix_client::store_path::SafeStorePath;
 
 use crate::{
-    HiveLibError,
+    EvalGoal, HiveLibError,
+    commands::common::evaluate_hive_attribute,
     hive::{
-        executor::EvaluationOutputHandle,
         node::{Context, ExecuteStep},
+        plan::{AnyNodeOutput, EvaluationNodeOutput},
     },
 };
 
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct Evaluate {
-    /// output handle to write to once the greedy eval is complete
-    pub output: EvaluationOutputHandle,
+    pub cached_evaluation: Option<SafeStorePath<String>>,
 }
 
 impl Display for Evaluate {
@@ -28,11 +29,41 @@ impl Display for Evaluate {
 
 impl ExecuteStep for Evaluate {
     #[instrument(skip_all, name = "eval")]
-    async fn execute(&self, ctx: &mut Context) -> Result<(), HiveLibError> {
-        let rx = ctx.state.evaluation_rx.take().unwrap();
+    async fn execute_impl(
+        self,
+        _inputs: Vec<AnyNodeOutput>,
+        ctx: Arc<Context>,
+    ) -> Result<AnyNodeOutput, HiveLibError> {
+        if let Some(cached_evaluation) = &self.cached_evaluation {
+            return Ok(AnyNodeOutput::Derivation(
+                EvaluationNodeOutput(cached_evaluation.clone()).into(),
+            ));
+        }
 
-        self.output.set(rx.await.unwrap()?).await;
+        let output = evaluate_hive_attribute(
+            &ctx.hive_location,
+            &EvalGoal::GetTopLevel(&ctx.name),
+            ctx.modifiers,
+        )
+        .await
+        .and_then(|output| {
+            serde_json::from_str(&output).map_err(|e| {
+                HiveLibError::HiveInitialisationError(
+                    crate::errors::HiveInitialisationError::ParseEvaluateError(e),
+                )
+            })
+        })
+        .and_then(|output: String| {
+            debug!(pre_parsed_output = %output, "evaluated {}", ctx.name);
 
-        Ok(())
+            SafeStorePath::<String>::from_absolute_path(output.as_bytes())
+                .map_err(HiveLibError::StorePath)
+        })?;
+
+        debug!(output = ?output, done = true);
+
+        Ok(AnyNodeOutput::Derivation(
+            EvaluationNodeOutput(output).into(),
+        ))
     }
 }

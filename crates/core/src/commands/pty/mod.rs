@@ -12,6 +12,8 @@ use nix::unistd::write as posix_write;
 use portable_pty::{CommandBuilder, NativePtySystem, PtyPair, PtySize};
 use rand::distr::Alphabetic;
 use std::collections::VecDeque;
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::{LazyLock, Mutex};
 use std::{
     io::{Read, Write},
@@ -331,70 +333,79 @@ async fn build_command<S: AsRef<str> + Sync>(
 impl WireCommandChip for InteractiveChildChip {
     type ExitStatus = (portable_pty::ExitStatus, String);
 
-    #[instrument(skip_all)]
-    async fn wait_till_success(mut self) -> Result<Self::ExitStatus, CommandError> {
-        drop(self.write_stdin_pipe_w);
+    fn wait_till_success(
+        mut self,
+    ) -> Pin<Box<dyn Future<Output = Result<Self::ExitStatus, CommandError>> + Send + 'static>>
+    {
+        Box::pin(async move {
+            drop(self.write_stdin_pipe_w);
 
-        let exit_status = tokio::task::spawn_blocking(move || self.child.wait())
-            .await
-            .map_err(CommandError::JoinError)?
-            .map_err(CommandError::WaitForStatus)?;
+            let exit_status = tokio::task::spawn_blocking(move || self.child.wait())
+                .await
+                .map_err(CommandError::JoinError)?
+                .map_err(CommandError::WaitForStatus)?;
 
-        debug!("exit_status: {exit_status:?}");
+            debug!("exit_status: {exit_status:?}");
 
-        self.stdout_handle
-            .await
-            .map_err(|_| CommandError::ThreadPanic)??;
+            self.stdout_handle
+                .await
+                .map_err(|_| CommandError::ThreadPanic)??;
 
-        let status = self
-            .status_receiver
-            .wait_for(|value| matches!(value, Status::Done { .. }))
-            .await
-            .unwrap();
+            let status = self
+                .status_receiver
+                .wait_for(|value| matches!(value, Status::Done { .. }))
+                .await
+                .unwrap();
 
-        let _ = posix_write(&self.cancel_stdin_pipe_w, THREAD_QUIT_SIGNAL);
+            let _ = posix_write(&self.cancel_stdin_pipe_w, THREAD_QUIT_SIGNAL);
 
-        if matches!(*status, Status::Done { success: true }) {
+            if matches!(*status, Status::Done { success: true }) {
+                let logs = self
+                    .stdout_collection
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .rev()
+                    .map(|x| x.trim())
+                    .join("\n");
+
+                return Ok((exit_status, logs));
+            }
+
+            debug!("child did not succeed");
+
             let logs = self
-                .stdout_collection
+                .stderr_collection
                 .lock()
                 .unwrap()
                 .iter()
                 .rev()
-                .map(|x| x.trim())
                 .join("\n");
 
-            return Ok((exit_status, logs));
-        }
-
-        debug!("child did not succeed");
-
-        let logs = self
-            .stderr_collection
-            .lock()
-            .unwrap()
-            .iter()
-            .rev()
-            .join("\n");
-
-        Err(CommandError::CommandFailed {
-            command_ran: self.original_command,
-            logs,
-            code: format!("code {}", exit_status.exit_code()),
-            reason: match *status {
-                Status::Done { .. } => "marked-unsuccessful",
-                Status::Running => "child-crashed-before-succeeding",
-            },
+            Err(CommandError::CommandFailed {
+                command_ran: self.original_command,
+                logs,
+                code: format!("code {}", exit_status.exit_code()),
+                reason: match *status {
+                    Status::Done { .. } => "marked-unsuccessful",
+                    Status::Running => "child-crashed-before-succeeding",
+                },
+            })
         })
     }
 
-    async fn write_stdin(&mut self, data: Vec<u8>) -> Result<(), HiveLibError> {
-        trace!("Writing {} bytes to stdin", data.len());
+    fn write_stdin<'a>(
+        &'a mut self,
+        data: Vec<u8>,
+    ) -> Pin<Box<dyn Future<Output = Result<(), HiveLibError>> + Send + 'a>> {
+        Box::pin(async move {
+            trace!("Writing {} bytes to stdin", data.len());
 
-        posix_write(&self.write_stdin_pipe_w, &data)
-            .map_err(|x| HiveLibError::CommandError(CommandError::PosixPipe(x)))?;
+            posix_write(&self.write_stdin_pipe_w, &data)
+                .map_err(|x| HiveLibError::CommandError(CommandError::PosixPipe(x)))?;
 
-        Ok(())
+            Ok(())
+        })
     }
 }
 
