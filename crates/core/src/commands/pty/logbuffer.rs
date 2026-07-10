@@ -25,13 +25,12 @@ impl LogBuffer {
 
     #[cfg(test)]
     fn take_lines(&mut self) -> Vec<Vec<u8>> {
-        let mut lines = vec![];
-
-        while let Some(line) = self.next_line() {
-            lines.push(line);
+        gen {
+            while let Some(line) = self.next_line() {
+                yield line;
+            }
         }
-
-        lines
+        .collect()
     }
 }
 
