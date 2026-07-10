@@ -3,6 +3,7 @@
 
 #![deny(clippy::pedantic)]
 #![feature(default_field_values)]
+#![feature(gen_blocks)]
 
 use std::process::Command;
 use std::sync::Arc;
