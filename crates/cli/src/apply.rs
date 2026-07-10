@@ -81,7 +81,7 @@ fn resolve_targets(
         })
 }
 
-fn partition_arr<T>(arr: Vec<T>, partition: &Partitions) -> Vec<T>
+const fn partition_slice<'a, T>(arr: &'a [T], partition: &Partitions) -> &'a [T]
 where
     T: Any + Clone,
 {
@@ -90,11 +90,16 @@ where
     }
 
     let items_per_chunk = arr.len().div_ceil(partition.maximum);
+    let chunk_index = partition.current.saturating_sub(1);
+    let start = chunk_index * items_per_chunk;
 
-    arr.chunks(items_per_chunk)
-        .nth(partition.current - 1)
-        .unwrap_or(&[])
-        .to_vec()
+    if start >= arr.len() {
+        return &[];
+    }
+
+    let end = konst::cmp::min!(start + items_per_chunk, arr.len());
+
+    konst::slice::slice_range(arr, start, end)
 }
 
 #[allow(clippy::missing_errors_doc)]
@@ -139,7 +144,7 @@ where
 
     let num_selected = selected_names.len();
 
-    let partitioned_names = partition_arr(selected_names, &partition);
+    let partitioned_names = partition_slice(&selected_names, &partition).to_vec();
 
     if num_selected != partitioned_names.len() {
         info!(
@@ -249,12 +254,12 @@ mod tests {
     #[allow(clippy::too_many_lines)]
     fn test_partitioning() {
         let arr = (1..=10).collect::<Vec<_>>();
-        assert_eq!(arr, partition_arr(arr.clone(), &Partitions::default()));
+        assert_eq!(arr, partition_slice(&arr.clone(), &Partitions::default()));
 
         assert_eq!(
             vec![1, 2, 3, 4, 5],
-            partition_arr(
-                arr.clone(),
+            partition_slice(
+                &arr,
                 &Partitions {
                     current: 1,
                     maximum: 2
@@ -263,8 +268,8 @@ mod tests {
         );
         assert_eq!(
             vec![6, 7, 8, 9, 10],
-            partition_arr(
-                arr,
+            partition_slice(
+                &arr,
                 &Partitions {
                     current: 2,
                     maximum: 2
@@ -274,15 +279,12 @@ mod tests {
 
         // test odd number
         let arr = (1..10).collect::<Vec<_>>();
-        assert_eq!(
-            arr.clone(),
-            partition_arr(arr.clone(), &Partitions::default())
-        );
+        assert_eq!(arr, partition_slice(&arr.clone(), &Partitions::default()));
 
         assert_eq!(
             vec![1, 2, 3, 4, 5],
-            partition_arr(
-                arr.clone(),
+            partition_slice(
+                &arr,
                 &Partitions {
                     current: 1,
                     maximum: 2
@@ -291,8 +293,8 @@ mod tests {
         );
         assert_eq!(
             vec![6, 7, 8, 9],
-            partition_arr(
-                arr,
+            partition_slice(
+                &arr,
                 &Partitions {
                     current: 2,
                     maximum: 2
@@ -302,16 +304,13 @@ mod tests {
 
         // test large number of partitions
         let arr = (1..=10).collect::<Vec<_>>();
-        assert_eq!(
-            arr.clone(),
-            partition_arr(arr.clone(), &Partitions::default())
-        );
+        assert_eq!(arr, partition_slice(&arr.clone(), &Partitions::default()));
 
         for i in 1..=10 {
             assert_eq!(
                 vec![i],
-                partition_arr(
-                    arr.clone(),
+                partition_slice(
+                    &arr,
                     &Partitions {
                         current: i,
                         maximum: 10
@@ -321,8 +320,8 @@ mod tests {
 
             assert_eq!(
                 vec![i],
-                partition_arr(
-                    arr.clone(),
+                partition_slice(
+                    &arr.clone(),
                     &Partitions {
                         current: i,
                         maximum: 15
@@ -334,8 +333,8 @@ mod tests {
         // stretching thin with higher partitions will start to leave higher ones empty
         assert_eq!(
             Vec::<usize>::new(),
-            partition_arr(
-                arr,
+            partition_slice(
+                &arr,
                 &Partitions {
                     current: 11,
                     maximum: 15
@@ -350,7 +349,7 @@ mod tests {
 
             assert_eq!(
                 arr.clone(),
-                partition_arr(arr.clone(), &Partitions::default()),
+                partition_slice(&arr.clone(), &Partitions::default()),
             );
 
             let buckets = 2;
@@ -359,8 +358,8 @@ mod tests {
 
             assert_eq!(
                 &arr.clone()[..split_index],
-                partition_arr(
-                    arr.clone(),
+                partition_slice(
+                    &arr.clone(),
                     &Partitions {
                         current: 1,
                         maximum: 2
@@ -369,8 +368,8 @@ mod tests {
             );
             assert_eq!(
                 &arr.clone()[split_index..],
-                partition_arr(
-                    arr.clone(),
+                partition_slice(
+                    &arr.clone(),
                     &Partitions {
                         current: 2,
                         maximum: 2
