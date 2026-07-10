@@ -8,6 +8,9 @@ use clap_complete::CompletionCandidate;
 use clap_complete::engine::ArgValueCompleter;
 use clap_num::number_range;
 use clap_verbosity_flag::InfoLevel;
+use konst::result::unwrap;
+use konst::string::split_once;
+use konst::{option, result, try_};
 use tokio::runtime::Handle;
 use wire_core::SubCommandModifiers;
 use wire_core::commands::common::get_hive_node_names;
@@ -109,22 +112,27 @@ fn more_than_zero(s: &str) -> Result<usize, String> {
     number_range(s, 1, usize::MAX)
 }
 
-fn parse_partitions(s: &str) -> Result<Partitions, String> {
-    let parts: [&str; 2] = s
-        .split('/')
-        .collect::<Vec<_>>()
-        .try_into()
-        .map_err(|_| "partition must contain exactly one '/'")?;
+const fn parse_partitions(s: &str) -> Result<Partitions, &'static str> {
+    let parts = try_!(option::ok_or!(
+        split_once(s, '/'),
+        "partition must contain exactly one '/'"
+    ));
 
-    let current = parts[0].parse::<usize>().map_err(|e| e.to_string())?;
-    let maximum = parts[1].parse::<usize>().map_err(|e| e.to_string())?;
+    let current = try_!(result::map_err!(
+        usize::from_str_radix(parts.0, 10),
+        |_| "could not parse first half of partition to a usize"
+    ));
+    let maximum = try_!(result::map_err!(
+        usize::from_str_radix(parts.1, 10),
+        |_| "could not parse second half of partition to a usize"
+    ));
 
     if current > maximum {
-        return Err("current is more than total".to_string());
+        return Err("current is more than total");
     }
 
     if current == 0 || maximum == 0 {
-        return Err("partition segments cannot be 0.".to_string());
+        return Err("partition segments cannot be 0.");
     }
 
     Ok(Partitions { current, maximum })
@@ -234,6 +242,12 @@ pub struct Partitions {
     pub maximum: usize = 1,
 }
 
+impl Display for Partitions {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{}/{}", self.current, self.maximum)
+    }
+}
+
 #[derive(Args)]
 pub struct BuildArgs {
     #[command(flatten)]
@@ -242,7 +256,7 @@ pub struct BuildArgs {
     /// Partition builds into buckets.
     ///
     /// In the format of `current/total`, where 1 <= current <= total.
-    #[arg(short = 'P', default_value="1/1", long, value_parser=parse_partitions)]
+    #[arg(short = 'P', long, value_parser=parse_partitions, default_value_t = const { unwrap!(parse_partitions("1/1")) })]
     pub partition: Partitions,
 }
 
