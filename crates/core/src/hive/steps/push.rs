@@ -14,7 +14,7 @@ use crate::{
 };
 
 #[derive(Debug)]
-#[cfg_attr(test, derive(PartialEq))]
+#[cfg_attr(test, derive(PartialEq, Eq))]
 pub enum PushOutputHandle {
     Evaluation(EvaluationOutputHandle),
     Build(BuildOutputHandle),
