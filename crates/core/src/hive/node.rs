@@ -293,8 +293,6 @@ pub struct Context {
     pub state: StepState,
     pub should_quit: Arc<AtomicBool>,
     pub name: Name,
-
-    pub build_id_names: BuildNameMap,
 }
 
 #[enum_dispatch(ExecuteStep)]
