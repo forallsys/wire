@@ -13,7 +13,7 @@ use crate::{
     },
     errors::{CommandError, HiveInitialisationError, HiveLibError, get_common_copy_path_help},
     hive::{
-        HiveLocation,
+        FlakePrefetch, HiveLocation,
         node::{Context, Push, SharedTarget},
     },
 };
@@ -110,9 +110,13 @@ pub async fn evaluate_hive_attribute(
     modifiers: SubCommandModifiers,
 ) -> Result<String, HiveLibError> {
     let attribute = match location {
-        HiveLocation::Flake { uri, .. } => {
+        HiveLocation::Flake {
+            prefetch: FlakePrefetch { store_path, .. },
+            ..
+        } => {
             format!(
-                "{uri}#wire.{}",
+                "{}#wire.{}",
+                store_path.to_absolute_path(),
                 match goal {
                     EvalGoal::Inspect => "inspect".to_string(),
                     EvalGoal::Names => "names".to_string(),
