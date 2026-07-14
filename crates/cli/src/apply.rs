@@ -237,7 +237,7 @@ where
         return Ok(());
     }
 
-    for (name, plan) in plans.iter() {
+    for (name, plan) in &plans {
         info!(node = ?name, "Generated the following plan: {plan}");
     }
 

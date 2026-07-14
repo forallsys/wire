@@ -569,9 +569,9 @@ impl PlanGraph {
 impl Display for PlanGraph {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for step in toposort(&self.graph, None).expect("plan graph to be acylic") {
-            write!(
+            writeln!(
                 f,
-                "{}\n",
+                "{}",
                 self.graph[step]
                     .as_ref()
                     .expect("step index to exist in node")

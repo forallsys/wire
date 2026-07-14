@@ -13,7 +13,7 @@ use crate::{
         run_command_with_env, trace_nix_log_message,
     },
     hive::{
-        FlakePrefetch, HiveLocation,
+        HiveLocation,
         node::{Context, ExecuteStep, SharedTarget},
         plan::{AnyNodeOutput, AnyNodeOutputSliceExt, BuildNodeOutput, EvaluationNodeOutput},
     },
