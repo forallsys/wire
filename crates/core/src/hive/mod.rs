@@ -276,6 +276,7 @@ impl HiveLocation {
             "--extra-experimental-features",
             "flakes",
             "--json",
+            "--no-write-lock-file",
         ]);
         command_string.arg(&uri);
 
