@@ -33,7 +33,12 @@ use std::{
     name = "wire",
     bin_name = "wire",
     about = "a tool to deploy nixos systems",
-    version = format!("{}, supports hives within {}", crate_version!(), *SCHEMA_VERSION_SEMVER)
+    version = format!(
+        "{}{}, supports hives within {}",
+        crate_version!(),
+        option_env!("GIT_COMMIT_ID").map_or(String::new(), |id| format!("+{}", id)),
+        *SCHEMA_VERSION_SEMVER
+    )
 )]
 pub struct Cli {
     #[command(subcommand)]

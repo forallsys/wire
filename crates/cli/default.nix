@@ -1,4 +1,9 @@
-{ getSystem, inputs, ... }:
+{
+  getSystem,
+  inputs,
+  self,
+  ...
+}:
 {
   perSystem =
     {
@@ -22,6 +27,14 @@
 
         ${lib.getExe' self'.packages.wire-unwrapped-dev "wire"} apply --roff $out
       '';
+
+      changeId =
+        if self ? dirtyRev && self.dirtyRev != null then
+          self.dirtyRev
+        else if self ? rev && self.rev != null then
+          self.rev
+        else
+          "unknown";
     in
     {
       packages = {
@@ -33,6 +46,7 @@
           cargoExtraArgs = "-p wire";
           doCheck = true;
           CARGO_PROFILE = "dev";
+          WIRE_CHANGE_ID = changeId;
           nativeBuildInputs = [
             pkgs.sqlx-cli
           ];
@@ -78,6 +92,7 @@
           pname = "wire";
           CARGO_PROFILE = "profiling";
           cargoExtraArgs = "-p wire";
+          WIRE_CHANGE_ID = changeId;
         };
 
         wire = pkgs.symlinkJoin {
