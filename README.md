@@ -89,7 +89,7 @@ extra-trusted-public-keys = cache.forall.systems:5PmD7QO4MSF8YgyRZtkSGXRDo96H3by
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     wire.url = "github:forallsys/wire/stable";
     # alternatively, pin a tag:
-    # wire.url = "github:forallsys/wire/v1.3.0";
+    # wire.url = "github:forallsys/wire/v1.4.0";
     systems.url = "github:nix-systems/default";
   };
   outputs =
@@ -127,7 +127,7 @@ extra-trusted-public-keys = cache.forall.systems:5PmD7QO4MSF8YgyRZtkSGXRDo96H3by
 ```sh
 npins add github forallsys wire --branch stable
 # or pin a tag:
-npins add github forallsys wire --at v1.3.0
+npins add github forallsys wire --at v1.4.0
 ```
 
 ```nix

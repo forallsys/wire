@@ -4,7 +4,7 @@
     wire.url = "github:forallsys/wire/stable";
 
     # alternatively, you can use a tag instead:
-    # wire.url = "github:forallsys/wire/v1.3.0";
+    # wire.url = "github:forallsys/wire/v1.4.0";
 
     systems.url = "github:nix-systems/default";
   };

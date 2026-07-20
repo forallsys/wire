@@ -51,7 +51,7 @@ $ npins add github forallsys wire --branch stable
 Alternatively, you can use a tag instead:
 
 ```sh
-$ npins add github forallsys wire --at v1.3.0
+$ npins add github forallsys wire --at v1.4.0
 ```
 
 Then, use this pinned version of wire for both your `hive.nix` and `shell.nix`:
