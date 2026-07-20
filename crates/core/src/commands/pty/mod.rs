@@ -388,13 +388,14 @@ impl WireCommandChip for InteractiveChildChip {
         })
     }
 
-    async fn write_stdin(&mut self, data: Vec<u8>) -> Result<(), HiveLibError> {
+    fn write_stdin(&mut self, data: Vec<u8>) -> impl Future<Output = Result<(), HiveLibError>> {
         trace!("Writing {} bytes to stdin", data.len());
 
-        posix_write(&self.write_stdin_pipe_w, &data)
-            .map_err(|x| HiveLibError::CommandError(CommandError::PosixPipe(x)))?;
-
-        Ok(())
+        std::future::ready(
+            posix_write(&self.write_stdin_pipe_w, &data)
+                .map(|_| ())
+                .map_err(|x| HiveLibError::CommandError(CommandError::PosixPipe(x))),
+        )
     }
 }
 
