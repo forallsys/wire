@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - yyyy-mm-dd
 
+### Changed
+
+- `inspect._schema` was upgraded from `1` to `2`. This was done to force users
+  to switch to a newer version of the wire binary that will support switching
+  this value to a semver string.
+
 ## [0.4.0] - 2025-07-20
 
 In this release garnix has been replaced with our own binary cache as garnix has shutdown.
