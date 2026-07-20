@@ -31,7 +31,7 @@ pub mod steps;
 
 /// The schema version that was previously used before the semver schema
 /// versions where implemented
-pub const DEPRECATED_SCHEMA_VERSION: u64 = 1;
+pub const DEPRECATED_SCHEMA_VERSION: u64 = 2;
 
 /// Semver version requirement for schemas that this wire binary can read.
 pub static SCHEMA_VERSION_SEMVER: LazyLock<VersionReq> = LazyLock::new(|| {
