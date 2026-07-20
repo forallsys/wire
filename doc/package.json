@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "wire-docs",
-  "version": "1.4.0",
+  "version": "1.5.0-dev",
   "type": "module",
   "devDependencies": {
     "vitepress": "^1.6.4",
