@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - yyyy-mm-dd
 
+## [0.4.0] - 2025-07-20
+
 In this release garnix has been replaced with our own binary cache as garnix has shutdown.
 This is a breaking change to your configuration if you previously
 used garnix to download wire.
