@@ -104,13 +104,19 @@ impl Status {
         let mut msg = format!("[{} / {}", num_finished, self.statuses.len());
 
         let failed = if num_failed >= 1 {
-            Some(format!("{} Failed", num_failed.red()))
+            Some(format!(
+                "{} Failed",
+                num_failed.if_supports_color(Stream::Stderr, |x| x.red())
+            ))
         } else {
             None
         };
 
         let running = if num_running >= 1 {
-            Some(format!("{} Deploying", num_running.blue()))
+            Some(format!(
+                "{} Deploying",
+                num_running.if_supports_color(Stream::Stderr, |x| x.blue())
+            ))
         } else {
             None
         };
@@ -167,17 +173,27 @@ impl Status {
 
             let line = format!(
                 "\n  {}{} {}",
-                truncated.bold(),
+                truncated.if_supports_color(Stream::Stderr, |x| x.bold()),
                 " ".repeat(max_name_len.saturating_sub(truncated.len())),
                 match status {
-                    NodeStatus::Pending => "Waiting".dimmed().to_string(),
-                    NodeStatus::Running(task) => {
-                        format!("Running {}", task.blue())
-                            .on_default_color()
-                            .to_string()
+                    NodeStatus::Pending => "Waiting"
+                        .if_supports_color(Stream::Stderr, |x| x.dimmed())
+                        .to_string(),
+                    NodeStatus::Running {
+                        status,
+                        last_log: None,
+                    } => {
+                        format!(
+                            "{}",
+                            status.if_supports_color(Stream::Stderr, |x| x
+                                .style(Style::new().blue().on_default_color()))
+                        )
+                        .to_string()
                     }
                     NodeStatus::Succeeded => unreachable!("filtered above"),
-                    NodeStatus::Failed => "Failed".red().to_string(),
+                    NodeStatus::Failed => "Failed"
+                        .if_supports_color(Stream::Stderr, |x| x.red())
+                        .to_string(),
                 }
             );
             let _ = write!(&mut msg, "{line}");

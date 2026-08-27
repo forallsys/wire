@@ -5,7 +5,7 @@ use itertools::Itertools;
 use nix_compat::flakeref::FlakeRef;
 use nix_compat::nixhash::NixHash;
 use node::{Name, Node};
-use owo_colors::{OwoColorize, Stream};
+use owo_colors::{OwoColorize, Stream, Style};
 use semver::{Version, VersionReq};
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -168,44 +168,53 @@ impl Display for Hive {
             writeln!(
                 f,
                 "Node {} {}:\n",
-                name.bold(),
+                name.if_supports_color(Stream::Stdout, |x| x.bold()),
                 format!("({})", node.host_platform)
-                    .italic()
-                    .if_supports_color(Stream::Stdout, |x| x.dimmed()),
+                    .if_supports_color(Stream::Stdout, |x| x.style(Style::new().dimmed().italic())),
             )?;
 
             if !node.tags.is_empty() {
-                write!(f, " > {}", "Tags:".bold())?;
+                write!(
+                    f,
+                    " > {}",
+                    "Tags:".if_supports_color(Stream::Stdout, |x| x.bold())
+                )?;
                 writeln!(f, " {:?}", node.tags)?;
             }
 
-            write!(f, " > {}", "Connection:".bold())?;
+            write!(
+                f,
+                " > {}",
+                "Connection:".if_supports_color(Stream::Stdout, |x| x.bold())
+            )?;
             writeln!(f, " {{{}}}", node.target)?;
 
             write!(
                 f,
                 " > {} {}{}",
-                "Build remotely".bold(),
+                "Build remotely".if_supports_color(Stream::Stdout, |x| x.bold()),
                 "`deployment.buildOnTarget`"
-                    .if_supports_color(Stream::Stdout, |x| x.dimmed())
-                    .italic(),
-                ":".bold()
+                    .if_supports_color(Stream::Stdout, |x| x.style(Style::new().dimmed().italic())),
+                ":".if_supports_color(Stream::Stdout, |x| x.bold())
             )?;
             writeln!(f, " {}", node.build_remotely)?;
 
             write!(
                 f,
                 " > {} {}{}",
-                "Local apply allowed".bold(),
+                "Local apply allowed".if_supports_color(Stream::Stdout, |x| x.bold()),
                 "`deployment.allowLocalDeployment`"
-                    .if_supports_color(Stream::Stdout, |x| x.dimmed())
-                    .italic(),
-                ":".bold()
+                    .if_supports_color(Stream::Stdout, |x| x.style(Style::new().dimmed().italic())),
+                ":".if_supports_color(Stream::Stdout, |x| x.bold())
             )?;
             writeln!(f, " {}", node.allow_local_deployment)?;
 
             if !node.keys.is_empty() {
-                write!(f, " > {}", "Keys:".bold())?;
+                write!(
+                    f,
+                    " > {}",
+                    "Keys:".if_supports_color(Stream::Stdout, |x| x.bold())
+                )?;
                 writeln!(f, " {} key(s)", node.keys.len())?;
 
                 for key in &node.keys {
@@ -228,7 +237,11 @@ impl Display for Hive {
             .unique()
             .count();
 
-        write!(f, "{}", "Summary:".bold())?;
+        write!(
+            f,
+            "{}",
+            "Summary:".if_supports_color(Stream::Stdout, |x| x.bold())
+        )?;
         writeln!(
             f,
             " {} total node(s), totalling {} keys ({distinct_keys} distinct).",
@@ -238,7 +251,8 @@ impl Display for Hive {
         writeln!(
             f,
             "{}",
-            "Note: Listed connections are tried from Left to Right".italic(),
+            "Note: Listed connections are tried from Left to Right"
+                .if_supports_color(Stream::Stdout, |x| x.italic()),
         )?;
 
         Ok(())
