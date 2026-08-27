@@ -135,7 +135,7 @@ pub(super) fn handle_pty_stdout(arguments: WatchStdoutArguments) -> Result<(), C
                         &stdout_collection,
                         &mut line,
                         log_stdout,
-                        output_mode,
+                        output_mode.clone(),
                         &build_name_map,
                         print_build_logs,
                     );

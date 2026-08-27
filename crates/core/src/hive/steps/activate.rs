@@ -45,7 +45,9 @@ async fn wait_for_ping(target: &SharedTarget, ctx: &Context) -> Result<(), HiveL
     for num in 0..MAX_ATTEMPTS {
         warn!("Trying to ping {host} (attempt {}/{MAX_ATTEMPTS})", num + 1);
 
-        let result = target.ping(ctx.modifiers, ctx.should_quit.clone()).await;
+        let result = target
+            .ping(ctx.modifiers, ctx.should_quit.clone(), &ctx.name)
+            .await;
 
         if result.is_ok() {
             info!("Regained connection to {} via {host}", ctx.name);
@@ -78,7 +80,9 @@ impl SwitchToConfiguration {
 
         let child = run_command(
             &CommandArguments::new(command_string, ctx.modifiers)
-                .mode(crate::commands::ChildOutputMode::Nix)
+                .mode(crate::commands::ChildOutputMode::Nix(Some(
+                    ctx.name.clone(),
+                )))
                 .execute_on_remote(self.target.clone())
                 .privileged(&self.privilege_escalation_command),
         )

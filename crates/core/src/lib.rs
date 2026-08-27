@@ -167,7 +167,7 @@ pub async fn push_with_daemon(
     substitute_on_destination: bool,
 ) -> Result<(), HiveLibError> {
     let mut local_daemon = NixClient::open_local(
-        trace_nix_log_message,
+        |log, map, print| trace_nix_log_message(log, map, print, Some(context.name.clone())),
         context.should_quit.clone(),
         context.modifiers.print_build_logs,
     )
@@ -179,7 +179,7 @@ pub async fn push_with_daemon(
     let (mut remote_daemon, host) = open_remote_client(
         &target,
         context.modifiers,
-        trace_nix_log_message,
+        |log, map, print| trace_nix_log_message(log, map, print, Some(context.name.clone())),
         context.should_quit.clone(),
     )
     .await?;

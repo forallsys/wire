@@ -19,7 +19,7 @@ use tracing_subscriber::{
     registry::LookupSpan,
     util::SubscriberInitExt,
 };
-use wire_core::status::{UI_SENDER, UiMessage};
+use wire_core::status::{BUILD_NAME_CARET, BUILD_NAME_STYLE, UI_SENDER, UiMessage};
 
 /// Forwards log lines to the UI worker over `UI_SENDER`.
 struct NonClobberingWriter;
@@ -211,19 +211,21 @@ where
         if !visitor.build.is_empty() {
             write!(
                 writer,
-                " {}",
+                " {}{}",
                 visitor
                     .build
-                    .if_supports_color(Stream::Stderr, |text| text.dimmed())
+                    .if_supports_color(Stream::Stderr, |text| text.style(BUILD_NAME_STYLE)),
+                BUILD_NAME_CARET
+                    .if_supports_color(Stream::Stderr, |text| text.style(BUILD_NAME_STYLE))
             )?;
         }
 
         if !visitor.msg.is_empty() {
-            write!(writer, " | {}", visitor.msg)?;
+            write!(writer, " {}", visitor.msg)?;
         }
 
         if !visitor.other.is_empty() {
-            write!(writer, " | {}", visitor.other)?;
+            write!(writer, " {}", visitor.other)?;
         }
 
         writeln!(writer)?;

@@ -51,7 +51,7 @@ pub async fn non_interactive_command_with_env<S: AsRef<str> + Sync>(
         command_string = arguments.command_string.as_ref(),
         extra = match arguments.output_mode {
             ChildOutputMode::Generic => "",
-            ChildOutputMode::Nix => " --log-format internal-json",
+            ChildOutputMode::Nix(..) => " --log-format internal-json",
         }
     );
 
@@ -87,7 +87,7 @@ pub async fn non_interactive_command_with_env<S: AsRef<str> + Sync>(
         .ok_or(HiveLibError::CommandError(CommandError::NoHandle))?;
 
     let mut joinset = JoinSet::new();
-    let output_mode = Arc::new(arguments.output_mode);
+    let output_mode = Arc::new(arguments.output_mode.clone());
 
     joinset.spawn(
         handle_io(
@@ -174,7 +174,11 @@ pub async fn handle_io<R>(
         let mut line = line.into_bytes();
 
         let log = if should_log {
-            Some(output_mode.trace_slice(&mut line, &build_name_map, print_build_logs))
+            Some(output_mode.as_ref().clone().trace_slice(
+                &mut line,
+                &build_name_map,
+                print_build_logs,
+            ))
         } else {
             None
         };

@@ -277,7 +277,7 @@ impl InspectionCache {
             node_name: String,
         }
 
-        let mut client = NixClient::open_local(trace_nix_log_message, should_quit, false).await.inspect_err(|err| error!(err = ?err, "failed to open local nix client to verify cached evaluations")).ok()?;
+        let mut client = NixClient::open_local(|log, map, print| trace_nix_log_message(log, map, print, None), should_quit, false).await.inspect_err(|err| error!(err = ?err, "failed to open local nix client to verify cached evaluations")).ok()?;
 
         let store_path_digest = &prefetch.store_path.digest()[..];
         let store_path_name = prefetch.store_path.name();
@@ -480,14 +480,19 @@ where
 
         let mut previous_rowid = 0;
 
-        let mut client =
-            match NixClient::open_local(trace_nix_log_message, should_quit, false).await {
-                Ok(c) => c,
-                Err(err) => {
-                    error!(err = ?err, "failed to open local nix client for gc");
-                    return Ok(());
-                }
-            };
+        let mut client = match NixClient::open_local(
+            |log, map, print| trace_nix_log_message(log, map, print, None),
+            should_quit,
+            false,
+        )
+        .await
+        {
+            Ok(c) => c,
+            Err(err) => {
+                error!(err = ?err, "failed to open local nix client for gc");
+                return Ok(());
+            }
+        };
 
         // delete caches whose flake/output paths no longer exist in the nix store
         loop {

@@ -108,9 +108,16 @@ impl Target {
         &self,
         modifiers: SubCommandModifiers,
         should_quit: Arc<AtomicBool>,
+        name: &Name,
     ) -> Result<(), HiveLibError> {
         if modifiers.experimental_nix_client {
-            open_remote_client(&self, modifiers, trace_nix_log_message, should_quit).await?;
+            open_remote_client(
+                &self,
+                modifiers,
+                |log, map, print| trace_nix_log_message(log, map, print, Some(name.clone())),
+                should_quit,
+            )
+            .await?;
             return Ok(());
         }
 

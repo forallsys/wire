@@ -4,7 +4,8 @@
 use crate::{
     SafeStorePath,
     commands::pty::{InteractiveChildChip, interactive_command_with_env},
-    hive::node::{BuildNameMap, SharedTarget},
+    hive::node::{BuildNameMap, Name, SharedTarget},
+    status::{UI_SENDER, UiMessage},
 };
 use core::str;
 use std::{
@@ -32,9 +33,9 @@ pub(crate) mod pty;
 static AT_NIX_FINDER: LazyLock<memmem::Finder> =
     LazyLock::new(|| memmem::Finder::new(AT_NIX_PREFIX));
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum ChildOutputMode {
-    Nix,
+    Nix(Option<Name>),
     Generic,
 }
 
@@ -75,7 +76,7 @@ impl<S: AsRef<str>> CommandArguments<S> {
         self
     }
 
-    pub(crate) const fn mode(mut self, mode: ChildOutputMode) -> Self {
+    pub(crate) fn mode(mut self, mode: ChildOutputMode) -> Self {
         self.output_mode = mode;
         self
     }
@@ -156,6 +157,7 @@ pub(crate) fn trace_nix_log_message(
     log_message: LogMessage,
     build_name_map: &BuildNameMap,
     print_build_logs: bool,
+    name: Option<Name>,
 ) -> Option<String> {
     let (msg, level, build_name) = match log_message {
         LogMessage::Start {
@@ -224,6 +226,16 @@ pub(crate) fn trace_nix_log_message(
 
     let msg = strip_ansi_escapes::strip_str(msg);
 
+    if let Some(name) = name
+        && let Some(sender) = UI_SENDER.get()
+    {
+        let _ = sender.send(UiMessage::ContextLogLine {
+            name,
+            log: msg.clone(),
+            build_name: build_name.clone(),
+        });
+    }
+
     let level = log_print(&level, build_name.as_ref(), &msg);
 
     if matches!(level, tracing::Level::ERROR | tracing::Level::WARN) {
@@ -242,20 +254,20 @@ impl ChildOutputMode {
         build_name_map: &BuildNameMap,
         print_build_logs: bool,
     ) -> Option<String> {
-        let slice = match self {
+        let (slice, name) = match self {
             Self::Generic => {
                 let string = String::from_utf8_lossy(line);
                 let stripped = strip_ansi_escapes::strip_str(&string);
                 warn!("{stripped}");
                 return Some(string.to_string());
             }
-            Self::Nix => {
+            Self::Nix(name) => {
                 let position = AT_NIX_FINDER.find(line).map(|starting_position| {
                     &mut line[(starting_position + AT_NIX_PREFIX.len())..]
                 });
 
                 if let Some(json_buf) = position {
-                    json_buf
+                    (json_buf, name)
                 } else {
                     // usually happens when ssh is outputting something
                     warn!("{}", String::from_utf8_lossy(line));
@@ -270,7 +282,7 @@ impl ChildOutputMode {
             return None;
         };
 
-        trace_nix_log_message(log_message, build_name_map, print_build_logs)
+        trace_nix_log_message(log_message, build_name_map, print_build_logs, name)
     }
 }
 
