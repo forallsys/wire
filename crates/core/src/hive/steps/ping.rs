@@ -35,7 +35,7 @@ impl ExecuteStep for Ping {
             );
 
             if target
-                .ping(ctx.modifiers, ctx.should_quit.clone())
+                .ping(ctx.modifiers, ctx.should_quit.clone(), &ctx.name)
                 .await
                 .is_ok()
             {

@@ -74,7 +74,9 @@ impl ExecuteStep for Build {
                         open_remote_client(
                             &target,
                             ctx.modifiers,
-                            trace_nix_log_message,
+                            |log, map, print| {
+                                trace_nix_log_message(log, map, print, Some(ctx.name.clone()))
+                            },
                             ctx.should_quit.clone(),
                         )
                         .await?
@@ -83,7 +85,9 @@ impl ExecuteStep for Build {
                 } else {
                     Either::Right(
                         NixClient::open_local(
-                            trace_nix_log_message,
+                            |log, map, print| {
+                                trace_nix_log_message(log, map, print, Some(ctx.name.clone()))
+                            },
                             ctx.should_quit.clone(),
                             ctx.modifiers.print_build_logs,
                         )
@@ -195,7 +199,9 @@ impl ExecuteStep for Build {
                             }
                             NixCommandBuildMetadata::Locally { .. } => None,
                         })
-                        .mode(crate::commands::ChildOutputMode::Nix)
+                        .mode(crate::commands::ChildOutputMode::Nix(Some(
+                            ctx.name.clone(),
+                        )))
                         .log_stdout(),
                     std::collections::HashMap::new(),
                 )

@@ -45,8 +45,9 @@ pub async fn push(
     ]);
 
     let child = run_command_with_env(
-        &CommandArguments::new(command_string, context.modifiers)
-            .mode(crate::commands::ChildOutputMode::Nix),
+        &CommandArguments::new(command_string, context.modifiers).mode(
+            crate::commands::ChildOutputMode::Nix(Some(context.name.clone())),
+        ),
         HashMap::from([(
             "NIX_SSHOPTS".into(),
             target.create_ssh_opts(context.modifiers)?,
@@ -153,7 +154,7 @@ pub async fn evaluate_hive_attribute(
 
     let child = run_command(
         &CommandArguments::new(command_string, modifiers)
-            .mode(crate::commands::ChildOutputMode::Nix),
+            .mode(crate::commands::ChildOutputMode::Nix(None)),
     )
     .await?;
 

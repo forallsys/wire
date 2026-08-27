@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright 2024-2025 wire Contributors
 
-use owo_colors::OwoColorize;
+use owo_colors::{OwoColorize, Stream, Style};
 use std::{
     collections::VecDeque,
     fmt::Write,
-    sync::OnceLock,
+    sync::{Arc, OnceLock},
     time::{Duration, Instant},
 };
 use termion::{clear, cursor, terminal_size};
@@ -18,12 +18,19 @@ use crate::hive::node::Name;
 
 use std::collections::HashMap;
 
+pub const BUILD_NAME_STYLE: Style = Style::new().dimmed();
+pub const BUILD_NAME_CARET: &'static str = ">";
+
 // Statuses are ordered deliberately such that failed nodes are at the top of
 // the list and Succeeded nodes are at the bottom / never shown.
 #[derive(Default, PartialEq, PartialOrd, Ord, Eq)]
 pub enum NodeStatus {
     Failed,
-    Running(String),
+    Running {
+        status: String,
+        /// optional previous log with associated build name
+        last_log: Option<(String, Option<Arc<String>>)>,
+    },
     #[default]
     Pending,
     Succeeded,
@@ -43,8 +50,15 @@ pub enum UiMessage {
     Release,
     /// Clear the status line, mostly for when the program is about to end
     Clear,
-    /// Writes above the status line
+    /// Writes above the status line, optionally ties it to a specific node
     LogLine(Vec<u8>),
+    /// A log line with associated context, including name and possible build
+    /// name
+    ContextLogLine {
+        name: Name,
+        build_name: Option<Arc<String>>,
+        log: String,
+    },
 }
 
 pub struct Status {
@@ -82,7 +96,7 @@ impl Status {
             (0, 0, 0),
             |(mut finished, mut running, mut failed), status| {
                 let did_fail = matches!(status, NodeStatus::Failed);
-                let is_running = matches!(status, NodeStatus::Running(..));
+                let is_running = matches!(status, NodeStatus::Running { .. });
                 let did_succeeded = matches!(status, NodeStatus::Succeeded | NodeStatus::Failed);
 
                 if did_fail {
@@ -190,6 +204,34 @@ impl Status {
                         )
                         .to_string()
                     }
+                    NodeStatus::Running {
+                        status,
+                        last_log: Some((last_log, None)),
+                    } => {
+                        format!(
+                            "{} {}",
+                            status.if_supports_color(Stream::Stderr, |x| x
+                                .style(Style::new().blue().on_default_color())),
+                            last_log
+                        )
+                        .to_string()
+                    }
+                    NodeStatus::Running {
+                        status,
+                        last_log: Some((last_log, Some(build_name))),
+                    } => {
+                        format!(
+                            "{} {}{} {}",
+                            status.if_supports_color(Stream::Stderr, |x| x
+                                .style(Style::new().blue().on_default_color())),
+                            build_name
+                                .if_supports_color(Stream::Stderr, |x| x.style(BUILD_NAME_STYLE)),
+                            BUILD_NAME_CARET
+                                .if_supports_color(Stream::Stderr, |x| x.style(BUILD_NAME_STYLE)),
+                            last_log
+                        )
+                        .to_string()
+                    }
                     NodeStatus::Succeeded => unreachable!("filtered above"),
                     NodeStatus::Failed => "Failed"
                         .if_supports_color(Stream::Stderr, |x| x.red())
@@ -290,6 +332,13 @@ pub async fn status_tick_worker(mut rx: UnboundedReceiver<UiMessage>, show_progr
                     },
                     UiMessage::Clear => {
                         status.clear(&mut stderr);
+                    },
+                    UiMessage::ContextLogLine { name, log, build_name } => {
+                        if let Some(node_status) = status.statuses.get_mut(&name) && let NodeStatus::Running { last_log, .. } = node_status {
+                            // ensure only a single line is kept or the status
+                            // bar might accidentally spread into multiple lines
+                            *last_log = log.lines().next().map(|log| (log.to_string(), build_name));
+                        }
                     },
                     UiMessage::LogLine(line) => {
                         if taken_over {

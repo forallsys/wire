@@ -183,7 +183,10 @@ pub async fn execute(
         if let Some(tx) = UI_SENDER.get() {
             let _ = tx.send(UiMessage::SetStatus(
                 plan.context.name.clone(),
-                NodeStatus::Running(step.to_string()),
+                NodeStatus::Running {
+                    status: step.to_string(),
+                    last_log: None,
+                },
             ));
         }
 
