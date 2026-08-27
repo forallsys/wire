@@ -8,7 +8,9 @@ use std::process::Command;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
+use crate::apply::RunGoalArguments;
 use crate::cli::Cli;
+use crate::cli::Commands;
 use crate::cli::Partitions;
 use crate::cli::ToSubCommandModifiers;
 use crate::sigint::handle_signals;
@@ -22,9 +24,11 @@ use signal_hook::consts::SIGINT;
 use signal_hook_tokio::Signals;
 use tracing::error;
 use tracing::warn;
+use wire_core::SubCommandModifiers;
 use wire_core::cache::InspectionCache;
 use wire_core::commands::common::get_hive_node_names;
 use wire_core::hive::Hive;
+use wire_core::hive::HiveLocation;
 use wire_core::hive::get_hive_location;
 use wire_core::hive::node::should_apply_locally;
 use wire_core::hive::plan::ApplyGoalArgs;
@@ -83,77 +87,14 @@ async fn main() -> Result<()> {
     let location = get_hive_location(args.path, modifiers).await?;
     let cache = Arc::new(InspectionCache::new().await);
 
-    match args.command {
-        cli::Commands::Apply(apply_args) => {
-            let mut hive = Hive::new_from_path(&location, cache.clone(), modifiers).await?;
-            let goal = apply_args.goal.clone().try_into().unwrap();
-
-            // Respect user's --always-build-local arg
-            hive.force_always_local(apply_args.always_build_local)?;
-
-            apply::apply(
-                &mut hive,
-                should_shutdown.clone(),
-                location,
-                apply_args.common,
-                Partitions::default(),
-                |name, node| {
-                    Goal::Apply(ApplyGoalArgs {
-                        goal,
-                        no_keys: apply_args.no_keys,
-                        reboot: apply_args.reboot,
-                        substitute_on_destination: apply_args.substitute_on_destination,
-                        should_apply_locally: should_apply_locally(
-                            node.allow_local_deployment,
-                            &name.0,
-                        ),
-                        handle_unreachable: apply_args.handle_unreachable.clone().into(),
-                        host_platform: node.host_platform.clone(),
-                    })
-                },
-                modifiers,
-                cache.clone(),
-            )
-            .await?;
-        }
-        cli::Commands::Build(build_args) => {
-            let mut hive = Hive::new_from_path(&location, cache.clone(), modifiers).await?;
-
-            apply::apply(
-                &mut hive,
-                should_shutdown.clone(),
-                location,
-                build_args.common,
-                build_args.partition,
-                |_name, _node| Goal::Build,
-                modifiers,
-                cache.clone(),
-            )
-            .await?;
-        }
-        cli::Commands::Inspect { json, selection } => println!("{}", {
-            match selection {
-                cli::Inspection::Full => {
-                    let hive = Hive::new_from_path(&location, cache.clone(), modifiers).await?;
-                    if json {
-                        serde_json::to_string(&hive).into_diagnostic()?
-                    } else {
-                        warn!("use --json to output something scripting suitable");
-                        format!("{hive}")
-                    }
-                }
-                cli::Inspection::Names => {
-                    let names = get_hive_node_names(&location, modifiers).await?;
-
-                    if json {
-                        serde_json::to_string(&names).into_diagnostic()?
-                    } else {
-                        names.join("\n")
-                    }
-                }
-            }
-        }),
-    }
+    dispatch_command(
+        args.command,
+        location,
+        modifiers,
+        cache.clone(),
+        should_shutdown.clone(),
+    )
+    .await?;
 
     if let Some(cache) = &*cache {
         cache.gc(should_shutdown).await.into_diagnostic()?;
@@ -183,4 +124,90 @@ fn check_nix_available() -> bool {
             false
         }
     }
+}
+
+async fn dispatch_command(
+    args: Commands,
+    location: HiveLocation,
+    modifiers: SubCommandModifiers,
+    cache: Arc<Option<InspectionCache>>,
+    should_quit: Arc<AtomicBool>,
+) -> Result<()> {
+    match args {
+        cli::Commands::Apply(apply_args) => {
+            let mut hive = Hive::new_from_path(&location, cache.clone(), modifiers).await?;
+            let goal = apply_args.goal.clone().try_into().unwrap();
+
+            // Respect user's --always-build-local arg
+            hive.force_always_local(apply_args.always_build_local)?;
+
+            apply::run_goal(
+                &mut hive,
+                |name, node| {
+                    Goal::Apply(ApplyGoalArgs {
+                        goal,
+                        no_keys: apply_args.no_keys,
+                        reboot: apply_args.reboot,
+                        substitute_on_destination: apply_args.substitute_on_destination,
+                        should_apply_locally: should_apply_locally(
+                            node.allow_local_deployment,
+                            &name.0,
+                        ),
+                        handle_unreachable: apply_args.handle_unreachable.clone().into(),
+                        host_platform: node.host_platform.clone(),
+                    })
+                },
+                RunGoalArguments {
+                    should_quit: should_quit.clone(),
+                    location,
+                    args: apply_args.common,
+                    partition: Partitions::default(),
+                    modifiers,
+                    cache: cache.clone(),
+                },
+            )
+            .await?;
+        }
+        cli::Commands::Build(build_args) => {
+            let mut hive = Hive::new_from_path(&location, cache.clone(), modifiers).await?;
+
+            apply::run_goal(
+                &mut hive,
+                |_name, _node| Goal::Build,
+                RunGoalArguments {
+                    should_quit: should_quit.clone(),
+                    location,
+                    args: build_args.common,
+                    partition: build_args.partition,
+                    modifiers,
+                    cache: cache.clone(),
+                },
+            )
+            .await?;
+        }
+        cli::Commands::Inspect { json, selection } => println!("{}", {
+            match selection {
+                cli::Inspection::Full => {
+                    let hive = Hive::new_from_path(&location, cache.clone(), modifiers).await?;
+                    if json {
+                        serde_json::to_string(&hive).into_diagnostic()?
+                    } else {
+                        warn!("use --json to output something scripting suitable");
+                        format!("{hive}")
+                    }
+                }
+                cli::Inspection::Names => {
+                    let names = get_hive_node_names(&location, modifiers).await?;
+
+                    if json {
+                        serde_json::to_string(&names).into_diagnostic()?
+                    } else {
+                        names.join("\n")
+                    }
+                }
+            }
+        }),
+    }
+
+    Ok(())
 }

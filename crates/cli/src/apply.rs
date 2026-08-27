@@ -35,6 +35,15 @@ struct NodeError(
 #[error("{} node(s) failed to apply.", .0.len())]
 struct NodeErrors(#[related] Vec<NodeError>);
 
+pub struct RunGoalArguments {
+    pub(crate) should_quit: Arc<AtomicBool>,
+    pub(crate) location: HiveLocation,
+    pub(crate) args: CommonVerbArgs,
+    pub(crate) partition: Partitions,
+    pub(crate) modifiers: SubCommandModifiers,
+    pub(crate) cache: Arc<Option<InspectionCache>>,
+}
+
 // returns Names and Tags
 fn read_apply_targets_from_stdin() -> Result<(Vec<String>, Vec<Name>)> {
     let mut buf = String::new();
@@ -102,22 +111,11 @@ where
     konst::slice::slice_range(arr, start, end)
 }
 
-#[allow(clippy::missing_errors_doc)]
-pub async fn apply<F>(
-    hive: &mut Hive,
-    should_quit: Arc<AtomicBool>,
-    location: HiveLocation,
-    args: CommonVerbArgs,
-    partition: Partitions,
-    make_goal: F,
+fn select_names(
+    args: &CommonVerbArgs,
     mut modifiers: SubCommandModifiers,
-    cache: Arc<Option<InspectionCache>>,
-) -> Result<()>
-where
-    F: Fn(&Name, &Node) -> Goal + Send + Sync,
-{
-    let location = Arc::new(location);
-
+    hive: &Hive,
+) -> Result<Vec<Name>> {
     let (tags, names) = resolve_targets(&args.on, &mut modifiers)?;
 
     let selected_names: Vec<_> = hive
@@ -132,6 +130,47 @@ where
         .map(|(name, _)| name.clone())
         .collect();
 
+    Ok(selected_names)
+}
+
+fn statusbar_add_names(names: Vec<Name>) {
+    if let Some(tx) = UI_SENDER.get() {
+        let _ = tx.send(UiMessage::AddMany(names));
+    }
+}
+
+fn statusbar_clear_names() {
+    if let Some(tx) = UI_SENDER.get() {
+        let _ = tx.send(UiMessage::Clear);
+    }
+}
+
+#[allow(clippy::missing_errors_doc)]
+pub async fn run_goal<F>(hive: &mut Hive, make_goal: F, arguments: RunGoalArguments) -> Result<()>
+where
+    F: Fn(&Name, &Node) -> Goal + Send + Sync,
+{
+    let RunGoalArguments {
+        should_quit,
+        location,
+        args,
+        partition,
+        modifiers,
+        cache,
+    } = arguments;
+
+    let location = Arc::new(location);
+    let selected_names = select_names(&args, modifiers, hive)?;
+    let num_selected = selected_names.len();
+    let partitioned_names = partition_slice(&selected_names, &partition).to_vec();
+
+    if num_selected != partitioned_names.len() {
+        info!(
+            "Partitioning reduced selected number of nodes from {num_selected} to {}",
+            partitioned_names.len()
+        );
+    }
+
     let mut cached_evaluations = if let Some(ref cache) = *cache.clone()
         && let HiveLocation::Flake { ref prefetch, .. } = *location
     {
@@ -142,20 +181,7 @@ where
         None
     };
 
-    let num_selected = selected_names.len();
-
-    let partitioned_names = partition_slice(&selected_names, &partition).to_vec();
-
-    if num_selected != partitioned_names.len() {
-        info!(
-            "Partitioning reduced selected number of nodes from {num_selected} to {}",
-            partitioned_names.len()
-        );
-    }
-
-    if let Some(tx) = UI_SENDER.get() {
-        let _ = tx.send(UiMessage::AddMany(partitioned_names.clone()));
-    }
+    statusbar_add_names(partitioned_names.clone());
 
     let mut evaluation_cache_tasks = Vec::new();
 
@@ -229,9 +255,7 @@ where
     }
 
     // clear the status bar at the end of execution.
-    if let Some(tx) = UI_SENDER.get() {
-        let _ = tx.send(UiMessage::Clear);
-    }
+    statusbar_clear_names();
 
     if !errors.is_empty() {
         return Err(NodeErrors(
