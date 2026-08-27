@@ -200,7 +200,12 @@ where
 
         // write the step name
         if let Some(step) = ctx.event_scope().unwrap().from_root().nth(1) {
-            write!(writer, " {}", step.name().italic())?;
+            write!(
+                writer,
+                " {}",
+                step.name()
+                    .if_supports_color(Stream::Stderr, |x| x.italic())
+            )?;
         }
 
         if !visitor.build.is_empty() {

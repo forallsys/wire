@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - yyyy-mm-dd
 
+- Fix outputting coloured text, disrespecting NO_COLOR, in some case.
+
 ### Changed
 
 - `inspect._schema` was upgraded from `1` to `2`. This was done to force users
