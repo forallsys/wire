@@ -73,6 +73,7 @@ pub struct Status {
     began: Instant,
     show_progress: bool,
     previous_number_lines: usize,
+    buffer: String,
 }
 
 pub static UI_SENDER: OnceLock<mpsc::UnboundedSender<UiMessage>> = OnceLock::new();
@@ -154,6 +155,7 @@ impl Status {
             began: Instant::now(),
             show_progress: false,
             previous_number_lines: 0,
+            buffer: String::with_capacity(1024),
         }
     }
 
@@ -228,15 +230,22 @@ impl Status {
         msg
     }
 
-    #[must_use]
-    pub fn get_msg(&self) -> String {
+    /// Sets self.buffer to the current status bar
+    pub fn compute_msg(&mut self) {
+        self.buffer.clear();
+
         if self.statuses.is_empty() {
-            return String::new();
+            return;
         }
 
         let rows = terminal_size().map_or(FALLBACK_TERMINAL_ROWS, |(_, r)| r as usize);
         let cols = terminal_size().map_or(FALLBACK_TERMINAL_COLS, |(c, _)| c as usize);
-        let mut msg = console::truncate_str(&self.get_header(), cols, "...").to_string();
+
+        let _ = write!(
+            self.buffer,
+            "{}",
+            console::truncate_str(&self.get_header(), cols, "...")
+        );
 
         let mut entries: Vec<(String, &NodeStatus)> = self
             .statuses
@@ -283,16 +292,18 @@ impl Status {
                 " ".repeat(max_name_len.saturating_sub(truncated.len())),
                 status.render()
             );
-            let _ = write!(&mut msg, "{}", console::truncate_str(&line, cols, "..."));
+            let _ = write!(
+                &mut self.buffer,
+                "{}",
+                console::truncate_str(&line, cols, "...")
+            );
             shown += 1;
         }
 
         let hidden = entries.len().saturating_sub(shown);
         if hidden > 0 {
-            let _ = write!(&mut msg, "\n  ... and {hidden} more");
+            let _ = write!(&mut self.buffer, "\n  ... and {hidden} more");
         }
-
-        msg
     }
 
     pub fn clear<T: std::io::Write>(&self, writer: &mut T) {
@@ -322,12 +333,12 @@ impl Status {
             return;
         }
 
-        let msg = self.get_msg();
+        self.compute_msg();
 
-        let _ = write!(writer, "{msg}");
+        let _ = write!(writer, "{}", self.buffer);
         let _ = writer.flush();
 
-        self.previous_number_lines = msg.lines().count().saturating_sub(1);
+        self.previous_number_lines = self.buffer.lines().count().saturating_sub(1);
     }
 }
 
