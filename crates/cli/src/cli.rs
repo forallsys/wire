@@ -202,6 +202,13 @@ pub struct CommonVerbArgs {
         help_heading = NIX_OPTIONS_HELP_HEADING
     )]
     pub print_build_logs: bool,
+
+    /// Set nix option name to value, overriding nix.conf.
+    ///
+    /// This option does not apply to the experimental nix client.
+    /// Passing nix options disables wire's evaluation cache.
+    #[arg(long, value_names = ["NAME", "VALUE"], num_args = 2, action = ArgAction::Append)]
+    pub option: Vec<String>,
 }
 
 #[allow(clippy::struct_excessive_bools)]
@@ -368,14 +375,30 @@ impl ToSubCommandModifiers for Cli {
                 Commands::Apply(args) => args.ssh_verbose.into(),
                 _ => 0,
             },
+            options: match &self.command {
+                Commands::Apply(args) => chunk_nix_options(&args.common.option),
+                Commands::Build(args) => chunk_nix_options(&args.common.option),
+                Commands::Inspect { .. } => Arc::new(Vec::new()),
+            },
         }
     }
+}
+
+fn chunk_nix_options(options: &[String]) -> Arc<Vec<(String, String)>> {
+    Arc::new(
+        options
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|x| (x[0].clone(), x[1].clone()))
+            .collect::<Vec<(_, _)>>(),
+    )
 }
 
 fn node_names_completer(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
     tokio::task::block_in_place(|| {
         let handle = Handle::current();
-        let modifiers = SubCommandModifiers::default();
+        let modifiers = Arc::new(SubCommandModifiers::default());
         let mut completions = vec![];
 
         if current.is_empty() || current == "-" {
@@ -390,7 +413,7 @@ fn node_names_completer(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
 
         let Ok(hive_location) = handle.block_on(get_hive_location(
             current_dir.display().to_string(),
-            modifiers,
+            modifiers.clone(),
         )) else {
             return completions;
         };

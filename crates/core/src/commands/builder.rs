@@ -3,15 +3,29 @@
 
 use std::fmt;
 
+use itertools::Itertools;
+
 pub struct CommandStringBuilder {
     command: String,
 }
 
 impl CommandStringBuilder {
-    pub(crate) fn nix() -> Self {
-        Self {
+    pub(crate) fn nix(options: &[(String, String)]) -> Self {
+        let mut value = Self {
             command: "nix".to_string(),
-        }
+        };
+
+        value.args(
+            &options
+                .iter()
+                .map(|(name, value)| {
+                    let value = value.replace('\\', "\\\\").replace('"', "\\\"");
+                    format!("--option \"{name}\" \"{value}\"")
+                })
+                .collect_vec(),
+        );
+
+        value
     }
 
     pub(crate) fn new<S: AsRef<str>>(s: S) -> Self {
@@ -70,5 +84,27 @@ mod tests {
             std::convert::AsRef::<str>::as_ref(&builder)
         );
         assert_eq!(builder.to_string(), "a b c d e g");
+    }
+
+    #[test]
+    fn nix_options_with_spaces() {
+        let options = vec![
+            ("trusted-public-keys".to_string(), "key1 key2".to_string()),
+            (
+                "experimental-features".to_string(),
+                "nix-command flakes".to_string(),
+            ),
+        ];
+        let builder = CommandStringBuilder::nix(&options);
+        let output = builder.to_string();
+
+        assert!(
+            output.contains("\"trusted-public-keys\" \"key1 key2\""),
+            "expected quotes around value with spaces, got: {output}"
+        );
+        assert!(
+            output.contains("\"experimental-features\" \"nix-command flakes\""),
+            "expected quotes around value with spaces, got: {output}"
+        );
     }
 }
