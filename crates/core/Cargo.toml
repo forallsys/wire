@@ -34,7 +34,6 @@ enum_dispatch = "0.3.13"
 sha2 = { workspace = true }
 base64 = { workspace = true }
 nix-compat = { workspace = true }
-strip-ansi-escapes = "0.2.1"
 aho-corasick = "1.1.4"
 owo-colors = { workspace = true }
 termion = "4.0.6"
@@ -43,6 +42,7 @@ zstd = "0.13.3"
 wire-nix-client = { path = "../nix_client" }
 memchr = "2"
 semver = "1.0.28"
+console = "0.16.4"
 
 [dev-dependencies]
 tempdir = "0.3"

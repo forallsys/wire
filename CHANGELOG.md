@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to switch to a newer version of the wire binary that will support switching
   this value to a semver string.
 
+### Fixed
+
+- Status bar overflowing the terminal's width.
+
 ## [0.4.0] - 2025-07-20
 
 In this release garnix has been replaced with our own binary cache as garnix has shutdown.
