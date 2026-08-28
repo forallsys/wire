@@ -34,3 +34,4 @@ signal-hook = "0.4.0"
 clap-markdown = "0.1.5"
 clap_mangen = "0.3.0"
 konst = { workspace = true }
+regex = "1.11"

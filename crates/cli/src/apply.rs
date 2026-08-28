@@ -113,10 +113,10 @@ where
 
 fn select_names(
     args: &CommonVerbArgs,
-    mut modifiers: SubCommandModifiers,
+    modifiers: &mut SubCommandModifiers,
     hive: &Hive,
 ) -> Result<Vec<Name>> {
-    let (tags, names) = resolve_targets(&args.on, &mut modifiers)?;
+    let (tags, names) = resolve_targets(&args.on, modifiers)?;
 
     let selected_names: Vec<_> = hive
         .nodes
@@ -145,6 +145,18 @@ fn statusbar_clear_names() {
     }
 }
 
+/// parition a vector of names and results into a list of successful names and errors
+fn partition_results(
+    result: Vec<(Name, Result<(), HiveLibError>)>,
+) -> (Vec<Name>, Vec<(Name, HiveLibError)>) {
+    result
+        .into_iter()
+        .partition_map(|(name, result)| match result {
+            Ok(..) => Either::Left(name),
+            Err(err) => Either::Right((name, err)),
+        })
+}
+
 #[allow(clippy::missing_errors_doc)]
 pub async fn run_goal<F>(hive: &mut Hive, make_goal: F, arguments: RunGoalArguments) -> Result<()>
 where
@@ -155,12 +167,13 @@ where
         location,
         args,
         partition,
-        modifiers,
+        mut modifiers,
         cache,
     } = arguments;
 
     let location = Arc::new(location);
-    let selected_names = select_names(&args, modifiers, hive)?;
+    let selected_names = select_names(&args, &mut modifiers, hive)?;
+    let modifiers = Arc::new(modifiers);
     let num_selected = selected_names.len();
     let partitioned_names = partition_slice(&selected_names, &partition).to_vec();
 
@@ -232,19 +245,13 @@ where
     }
 
     let futures = futures::stream::iter(set).buffer_unordered(args.parallel);
-    let result = futures.collect::<Vec<_>>().await;
+    let results = futures.collect::<Vec<_>>().await;
 
     for task in evaluation_cache_tasks {
         let _ = task.await;
     }
 
-    let (successful, errors): (Vec<_>, Vec<_>) =
-        result
-            .into_iter()
-            .partition_map(|(name, result)| match result {
-                Ok(..) => Either::Left(name),
-                Err(err) => Either::Right((name, err)),
-            });
+    let (successful, errors) = partition_results(results);
 
     if !successful.is_empty() {
         info!(

@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The last associated nix log is now shown next to the node name, including a
   possible build name when `--print-build-logs` is passed.
 - Fix outputting coloured text, disrespecting NO_COLOR, in some case.
+- `--option` argument for `wire apply` and `wire build`.
 
 ### Changed
 

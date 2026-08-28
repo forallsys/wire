@@ -2,7 +2,8 @@
 // Copyright 2024-2025 wire Contributors
 
 use clap::builder::PossibleValue;
-use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
+use clap::error::ErrorKind;
+use clap::{ArgAction, Args, FromArgMatches, Parser, Subcommand, ValueEnum};
 use clap::{ValueHint, crate_version};
 use clap_complete::CompletionCandidate;
 use clap_complete::engine::ArgValueCompleter;
@@ -11,6 +12,7 @@ use clap_verbosity_flag::InfoLevel;
 use konst::result::unwrap;
 use konst::string::split_once;
 use konst::{option, result, try_};
+use regex::Regex;
 use tokio::runtime::Handle;
 use wire_core::SubCommandModifiers;
 use wire_core::commands::common::get_hive_node_names;
@@ -22,12 +24,16 @@ use wire_core::hive::{SCHEMA_VERSION_SEMVER, get_hive_location};
 use std::io::IsTerminal;
 #[cfg(debug_assertions)]
 use std::path::PathBuf;
+use std::sync::LazyLock;
 use std::{
     fmt::{self, Display, Formatter},
     sync::Arc,
 };
 
 const NIX_OPTIONS_HELP_HEADING: &'static str = "Nix Options";
+
+const NIX_OPTION_NAME_REGEX: &str = r"^[a-zA-Z][a-zA-Z0-9_-]*$";
+const NIX_OPTION_VALUE_REGEX: &str = r"^[a-zA-Z0-9_+ ./=-]*$";
 
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Parser)]
@@ -182,6 +188,81 @@ impl From<HandleUnreachableArg> for HandleUnreachable {
     }
 }
 
+fn validate_nix_option_pair(name: &str, value: &str) -> Result<(String, String), String> {
+    static NAME_REGEX: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(NIX_OPTION_NAME_REGEX).unwrap());
+    static VALUE_REGEX: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(NIX_OPTION_VALUE_REGEX).unwrap());
+
+    if !NAME_REGEX.is_match(name) {
+        return Err(format!(
+            "invalid nix option name '{}': must match {}",
+            name, NIX_OPTION_NAME_REGEX
+        ));
+    }
+
+    if !VALUE_REGEX.is_match(value) {
+        return Err(format!(
+            "invalid nix option value '{}': must match {}",
+            value, NIX_OPTION_VALUE_REGEX
+        ));
+    }
+
+    Ok((name.to_string(), value.to_string()))
+}
+
+#[derive(Clone, Default)]
+pub struct NixOptions(pub Vec<(String, String)>);
+
+impl FromArgMatches for NixOptions {
+    fn from_arg_matches(matches: &clap::ArgMatches) -> Result<Self, clap::Error> {
+        let mut value = Self::default();
+        value.update_from_arg_matches(matches)?;
+
+        Ok(value)
+    }
+
+    fn update_from_arg_matches(&mut self, matches: &clap::ArgMatches) -> Result<(), clap::Error> {
+        let raw: Vec<String> = matches
+            .get_many::<String>("option")
+            .unwrap_or_default()
+            .cloned()
+            .collect();
+
+        for chunk in raw.as_chunks::<2>().0 {
+            let validated = validate_nix_option_pair(&chunk[0], &chunk[1])
+                .map_err(|e| clap::Error::raw(ErrorKind::ValueValidation, e))?;
+
+            self.0.push(validated);
+        }
+
+        Ok(())
+    }
+}
+
+impl Args for NixOptions {
+    fn augment_args(cmd: clap::Command) -> clap::Command {
+        cmd.arg(
+            clap::Arg::new("option")
+                .long("option")
+                .value_names(["NAME", "VALUE"])
+                .num_args(2)
+                .action(ArgAction::Append)
+                .help("Set nix option name to value, overriding nix.conf.")
+                .help_heading(NIX_OPTIONS_HELP_HEADING)
+                .long_help(
+                    "Set nix option name to value, overriding nix.conf.\n\n\
+                     This option does not apply to the experimental nix client.\n\
+                     Passing nix options disables wire's evaluation cache.",
+                ),
+        )
+    }
+
+    fn augment_args_for_update(cmd: clap::Command) -> clap::Command {
+        Self::augment_args(cmd)
+    }
+}
+
 #[derive(Args)]
 pub struct CommonVerbArgs {
     /// List of literal node names, a literal `-`, or `@` prefixed tags.
@@ -202,6 +283,13 @@ pub struct CommonVerbArgs {
         help_heading = NIX_OPTIONS_HELP_HEADING
     )]
     pub print_build_logs: bool,
+
+    /// Set nix option name to value, overriding nix.conf.
+    ///
+    /// This option does not apply to the experimental nix client.
+    /// Passing nix options disables wire's evaluation cache.
+    #[command(flatten)]
+    pub option: NixOptions,
 }
 
 #[allow(clippy::struct_excessive_bools)]
@@ -368,6 +456,11 @@ impl ToSubCommandModifiers for Cli {
                 Commands::Apply(args) => args.ssh_verbose.into(),
                 _ => 0,
             },
+            options: match &self.command {
+                Commands::Apply(args) => Arc::new(args.common.option.0.clone()),
+                Commands::Build(args) => Arc::new(args.common.option.0.clone()),
+                Commands::Inspect { .. } => Arc::new(Vec::new()),
+            },
         }
     }
 }
@@ -375,7 +468,7 @@ impl ToSubCommandModifiers for Cli {
 fn node_names_completer(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
     tokio::task::block_in_place(|| {
         let handle = Handle::current();
-        let modifiers = SubCommandModifiers::default();
+        let modifiers = Arc::new(SubCommandModifiers::default());
         let mut completions = vec![];
 
         if current.is_empty() || current == "-" {
@@ -390,7 +483,7 @@ fn node_names_completer(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
 
         let Ok(hive_location) = handle.block_on(get_hive_location(
             current_dir.display().to_string(),
-            modifiers,
+            modifiers.clone(),
         )) else {
             return completions;
         };
