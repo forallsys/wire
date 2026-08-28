@@ -50,7 +50,7 @@ pub async fn non_interactive_command_with_env<S: AsRef<str> + Sync>(
         "{command_string}{extra}",
         command_string = arguments.command_string.as_ref(),
         extra = match arguments.output_mode {
-            ChildOutputMode::Generic => "",
+            ChildOutputMode::Generic(..) => "",
             ChildOutputMode::Nix(..) => " --log-format internal-json",
         }
     );

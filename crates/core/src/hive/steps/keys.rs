@@ -253,7 +253,7 @@ impl ExecuteStep for Keys {
         ));
 
         let mut child = run_command(
-            &CommandArguments::new(command_string, ctx.modifiers)
+            &CommandArguments::new(command_string, ctx.modifiers, Some(ctx.name.clone()))
                 .execute_on_remote(self.target.clone())
                 .privileged(&self.privilege_escalation_command)
                 .keep_stdin_open()

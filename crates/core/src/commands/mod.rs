@@ -36,7 +36,7 @@ static AT_NIX_FINDER: LazyLock<memmem::Finder> =
 #[derive(Clone, Debug)]
 pub(crate) enum ChildOutputMode {
     Nix(Option<Name>),
-    Generic,
+    Generic(Option<Name>),
 }
 
 #[derive(Debug)]
@@ -58,14 +58,18 @@ pub(crate) struct CommandArguments<S: AsRef<str>> {
 }
 
 impl<S: AsRef<str>> CommandArguments<S> {
-    pub(crate) fn new(command_string: S, modifiers: SubCommandModifiers) -> Self {
+    pub(crate) fn new(
+        command_string: S,
+        modifiers: SubCommandModifiers,
+        name: Option<Name>,
+    ) -> Self {
         Self {
             command_string,
             keep_stdin_open: false,
             privilege_escalation_command: None,
             log_stdout: false,
             target: None,
-            output_mode: ChildOutputMode::Generic,
+            output_mode: ChildOutputMode::Generic(name),
             modifiers,
             build_name_map: Arc::new(Mutex::new(HashMap::new())),
         }
@@ -255,10 +259,21 @@ impl ChildOutputMode {
         print_build_logs: bool,
     ) -> Option<String> {
         let (slice, name) = match self {
-            Self::Generic => {
+            Self::Generic(name) => {
                 let string = String::from_utf8_lossy(line);
                 let stripped = console::strip_ansi_codes(&string);
                 warn!("{stripped}");
+
+                if let Some(name) = name
+                    && let Some(sender) = UI_SENDER.get()
+                {
+                    let _ = sender.send(UiMessage::ContextLogLine {
+                        name,
+                        log: stripped.to_string(),
+                        build_name: None,
+                    });
+                }
+
                 return Some(string.to_string());
             }
             Self::Nix(name) => {

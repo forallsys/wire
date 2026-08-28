@@ -79,7 +79,7 @@ impl SwitchToConfiguration {
         command_string.arg(built_path.to_absolute_path());
 
         let child = run_command(
-            &CommandArguments::new(command_string, ctx.modifiers)
+            &CommandArguments::new(command_string, ctx.modifiers, Some(ctx.name.clone()))
                 .mode(crate::commands::ChildOutputMode::Nix(Some(
                     ctx.name.clone(),
                 )))
@@ -128,7 +128,7 @@ impl ExecuteStep for SwitchToConfiguration {
         });
 
         let child = run_command(
-            &CommandArguments::new(command_string, ctx.modifiers)
+            &CommandArguments::new(command_string, ctx.modifiers, Some(ctx.name.clone()))
                 .execute_on_remote(self.target.clone())
                 .privileged(&self.privilege_escalation_command)
                 .log_stdout(),
@@ -152,7 +152,7 @@ impl ExecuteStep for SwitchToConfiguration {
                 warn!("Rebooting {name}!", name = ctx.name);
 
                 let reboot = run_command(
-                    &CommandArguments::new("reboot now", ctx.modifiers)
+                    &CommandArguments::new("reboot now", ctx.modifiers, Some(ctx.name.clone()))
                         .log_stdout()
                         .execute_on_remote(Some(target.clone()))
                         .privileged(&self.privilege_escalation_command),

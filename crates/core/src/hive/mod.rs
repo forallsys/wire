@@ -294,11 +294,7 @@ impl HiveLocation {
         ]);
         command_string.arg(&uri);
 
-        let command = run_command(
-            &CommandArguments::new(command_string, modifiers)
-                .mode(crate::commands::ChildOutputMode::Generic),
-        )
-        .await?;
+        let command = run_command(&CommandArguments::new(command_string, modifiers, None)).await?;
 
         let result = command
             .wait_till_success()

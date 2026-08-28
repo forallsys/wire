@@ -117,7 +117,7 @@ pub async fn interactive_command_with_env<S: AsRef<str> + Sync>(
         command = arguments.command_string.as_ref(),
         flags = match arguments.output_mode {
             ChildOutputMode::Nix(..) => "--log-format internal-json",
-            ChildOutputMode::Generic => "",
+            ChildOutputMode::Generic(..) => "",
         },
         starting = create_starting_segment(&needles.start),
         ending = create_ending_segment(&needles)

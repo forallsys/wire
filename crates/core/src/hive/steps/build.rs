@@ -191,7 +191,7 @@ impl ExecuteStep for Build {
                 command_string.arg(&attribute);
 
                 let status = run_command_with_env(
-                    &CommandArguments::new(command_string, ctx.modifiers)
+                    &CommandArguments::new(command_string, ctx.modifiers, Some(ctx.name.clone()))
                         // build remotely if asked for AND we isnt applying locally
                         .execute_on_remote(match metadata {
                             NixCommandBuildMetadata::Remotely { target, .. } => {

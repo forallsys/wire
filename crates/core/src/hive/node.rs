@@ -129,9 +129,7 @@ impl Target {
         command_string.arg("exit");
 
         let output = run_command(
-            &CommandArguments::new(command_string, modifiers)
-                .log_stdout()
-                .mode(crate::commands::ChildOutputMode::Generic),
+            &CommandArguments::new(command_string, modifiers, Some(name.clone())).log_stdout(),
         )
         .await?;
 
