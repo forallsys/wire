@@ -84,7 +84,7 @@ const FALLBACK_TERMINAL_COLS: usize = 100;
 impl NodeStatus {
     // manually implemented Ord for NodeStatus, since we want to ignore the
     // enum fields in order, as they can rapidly change
-    fn discriminant(&self) -> u16 {
+    const fn discriminant(&self) -> u16 {
         match self {
             Self::Failed => 0,
             Self::Running { .. } => 1,
