@@ -247,36 +247,35 @@ fn search_string(
             continue;
         }
 
-        let searched = aho_corasick
-            .find_iter(haystack)
-            .map(|x| x.pattern())
-            .collect::<Vec<_>>();
+        let mut started = false;
+        let mut succeeded = false;
+        let mut failed = false;
 
-        let started = if searched.contains(&STARTED_PATTERN) {
+        for m in aho_corasick.find_iter(haystack) {
+            match m.pattern() {
+                p if p == *STARTED_PATTERN => started = true,
+                p if p == *SUCCEEDED_PATTERN => succeeded = true,
+                p if p == *FAILED_PATTERN => failed = true,
+                _ => {}
+            }
+        }
+
+        if started {
             debug!("start needle was found, switching mode...");
             if let Some(began_tx) = began_tx.take() {
                 let _ = began_tx.send(());
             }
-            true
-        } else {
-            false
-        };
+        }
 
-        let succeeded = if searched.contains(&SUCCEEDED_PATTERN) {
+        if succeeded {
             debug!("succeed needle was found, marking child as succeeding.");
             status_sender.send_replace(Status::Done { success: true });
-            true
-        } else {
-            false
-        };
+        }
 
-        let failed = if searched.contains(&FAILED_PATTERN) {
+        if failed {
             debug!("failed needle was found, elevated child did not succeed.");
             status_sender.send_replace(Status::Done { success: false });
-            true
-        } else {
-            false
-        };
+        }
 
         if succeeded || failed {
             return SearchFindings::Terminate;
