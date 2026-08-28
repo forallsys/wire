@@ -78,6 +78,7 @@ pub struct Status {
 pub static UI_SENDER: OnceLock<mpsc::UnboundedSender<UiMessage>> = OnceLock::new();
 const MAX_NODE_NAME_LENGTH: usize = 20;
 const FALLBACK_TERMINAL_ROWS: usize = 24;
+const FALLBACK_TERMINAL_COLS: usize = 100;
 
 impl NodeStatus {
     // manually implemented Ord for NodeStatus, since we want to ignore the
@@ -189,13 +190,9 @@ impl Status {
         )
     }
 
-    #[must_use]
-    pub fn get_msg(&self) -> String {
-        if self.statuses.is_empty() {
-            return String::new();
-        }
-
+    fn get_header(&self) -> String {
         let count = self.count_statuses();
+
         let mut msg = format!("[{} / {}", count.finished, self.statuses.len());
 
         let failed = if count.failed >= 1 {
@@ -228,6 +225,19 @@ impl Status {
 
         let _ = write!(&mut msg, " {}s", self.began.elapsed().as_secs());
 
+        msg
+    }
+
+    #[must_use]
+    pub fn get_msg(&self) -> String {
+        if self.statuses.is_empty() {
+            return String::new();
+        }
+
+        let rows = terminal_size().map_or(FALLBACK_TERMINAL_ROWS, |(_, r)| r as usize);
+        let cols = terminal_size().map_or(FALLBACK_TERMINAL_COLS, |(c, _)| c as usize);
+        let mut msg = console::truncate_str(&self.get_header(), cols, "...").to_string();
+
         let mut entries: Vec<(String, &NodeStatus)> = self
             .statuses
             .iter()
@@ -259,7 +269,6 @@ impl Status {
 
         // cap the displayed node lines to half the terminal height.
         // this keeps the status bar from overflowing.
-        let rows = terminal_size().map_or(FALLBACK_TERMINAL_ROWS, |(_, r)| r as usize);
         let cap = rows.saturating_sub(1).max(1) / 2;
 
         let mut shown = 0;
@@ -268,13 +277,13 @@ impl Status {
                 break;
             }
 
-            let _ = write!(
-                &mut msg,
+            let line = format!(
                 "\n  {}{} {}",
                 truncated.if_supports_color(Stream::Stderr, |x| x.bold()),
                 " ".repeat(max_name_len.saturating_sub(truncated.len())),
                 status.render()
             );
+            let _ = write!(&mut msg, "{}", console::truncate_str(&line, cols, "..."));
             shown += 1;
         }
 

@@ -224,14 +224,14 @@ pub(crate) fn trace_nix_log_message(
         return None;
     }
 
-    let msg = strip_ansi_escapes::strip_str(msg);
+    let msg = console::strip_ansi_codes(&msg);
 
     if let Some(name) = name
         && let Some(sender) = UI_SENDER.get()
     {
         let _ = sender.send(UiMessage::ContextLogLine {
             name,
-            log: msg.clone(),
+            log: msg.to_string(),
             build_name: build_name.clone(),
         });
     }
@@ -239,7 +239,7 @@ pub(crate) fn trace_nix_log_message(
     let level = log_print(&level, build_name.as_ref(), &msg);
 
     if matches!(level, tracing::Level::ERROR | tracing::Level::WARN) {
-        return Some(msg);
+        return Some(msg.to_string());
     }
 
     None
@@ -257,7 +257,7 @@ impl ChildOutputMode {
         let (slice, name) = match self {
             Self::Generic => {
                 let string = String::from_utf8_lossy(line);
-                let stripped = strip_ansi_escapes::strip_str(&string);
+                let stripped = console::strip_ansi_codes(&string);
                 warn!("{stripped}");
                 return Some(string.to_string());
             }
@@ -289,7 +289,7 @@ impl ChildOutputMode {
 fn log_print(
     level: &VerbosityLevel,
     build_name: Option<&Arc<String>>,
-    msg: &String,
+    msg: &Cow<'_, str>,
 ) -> tracing::Level {
     let level: tracing::Level = match level {
         VerbosityLevel::Info => tracing::Level::INFO,
