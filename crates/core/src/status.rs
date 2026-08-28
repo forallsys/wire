@@ -19,11 +19,12 @@ use crate::hive::node::Name;
 use std::collections::HashMap;
 
 pub const BUILD_NAME_STYLE: Style = Style::new().dimmed();
-pub const BUILD_NAME_CARET: &'static str = ">";
+pub const BUILD_NAME_CARET: &str = ">";
 
 // Statuses are ordered deliberately such that failed nodes are at the top of
 // the list and Succeeded nodes are at the bottom / never shown.
-#[derive(Default, PartialEq, PartialOrd, Ord, Eq)]
+#[derive(Default, PartialEq, Eq)]
+#[repr(u16)]
 pub enum NodeStatus {
     Failed,
     Running {
@@ -34,6 +35,12 @@ pub enum NodeStatus {
     #[default]
     Pending,
     Succeeded,
+}
+
+struct NumStatusCount {
+    finished: i32,
+    running: i32,
+    failed: i32,
 }
 
 pub enum UiMessage {
@@ -72,6 +79,73 @@ pub static UI_SENDER: OnceLock<mpsc::UnboundedSender<UiMessage>> = OnceLock::new
 const MAX_NODE_NAME_LENGTH: usize = 20;
 const FALLBACK_TERMINAL_ROWS: usize = 24;
 
+impl NodeStatus {
+    // manually implemented Ord for NodeStatus, since we want to ignore the
+    // enum fields in order, as they can rapidly change
+    fn discriminant(&self) -> u16 {
+        match self {
+            Self::Failed => 0,
+            Self::Running { .. } => 1,
+            Self::Pending => 2,
+            Self::Succeeded => 3,
+        }
+    }
+
+    fn render(&self) -> String {
+        match self {
+            Self::Pending => "Waiting"
+                .if_supports_color(Stream::Stderr, |x| x.dimmed())
+                .to_string(),
+            Self::Running {
+                status,
+                last_log: None,
+            } => format!(
+                "{}",
+                status.if_supports_color(Stream::Stderr, |x| x
+                    .style(Style::new().blue().on_default_color()))
+            ),
+            Self::Running {
+                status,
+                last_log: Some((last_log, None)),
+            } => format!(
+                "{} {}",
+                status.if_supports_color(Stream::Stderr, |x| x
+                    .style(Style::new().blue().on_default_color())),
+                last_log
+            ),
+            Self::Running {
+                status,
+                last_log: Some((last_log, Some(build_name))),
+            } => format!(
+                "{} {}{} {}",
+                status.if_supports_color(Stream::Stderr, |x| x
+                    .style(Style::new().blue().on_default_color())),
+                build_name.if_supports_color(Stream::Stderr, |x| x.style(BUILD_NAME_STYLE)),
+                BUILD_NAME_CARET.if_supports_color(Stream::Stderr, |x| x.style(BUILD_NAME_STYLE)),
+                last_log
+            ),
+            Self::Succeeded => "Succeeded"
+                .if_supports_color(Stream::Stderr, |x| x.green())
+                .to_string(),
+            Self::Failed => "Failed"
+                .if_supports_color(Stream::Stderr, |x| x.red())
+                .to_string(),
+        }
+    }
+}
+
+impl PartialOrd for NodeStatus {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for NodeStatus {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.discriminant().cmp(&other.discriminant())
+    }
+}
+
 impl Status {
     fn new() -> Self {
         Self {
@@ -86,50 +160,59 @@ impl Status {
         self.show_progress = show_progress;
     }
 
+    fn count_statuses(&self) -> NumStatusCount {
+        self.statuses.values().fold(
+            NumStatusCount {
+                finished: 0,
+                running: 0,
+                failed: 0,
+            },
+            |mut count, status| {
+                let did_fail = matches!(status, NodeStatus::Failed);
+                let is_running = matches!(status, NodeStatus::Running { .. });
+                let did_succeeded = matches!(status, NodeStatus::Succeeded | NodeStatus::Failed);
+
+                if did_fail {
+                    count.failed += 1;
+                }
+
+                if is_running {
+                    count.running += 1;
+                }
+
+                if did_succeeded || did_fail {
+                    count.finished += 1;
+                }
+
+                count
+            },
+        )
+    }
+
     #[must_use]
     pub fn get_msg(&self) -> String {
         if self.statuses.is_empty() {
             return String::new();
         }
 
-        let (num_finished, num_running, num_failed) = self.statuses.values().fold(
-            (0, 0, 0),
-            |(mut finished, mut running, mut failed), status| {
-                let did_fail = matches!(status, NodeStatus::Failed);
-                let is_running = matches!(status, NodeStatus::Running { .. });
-                let did_succeeded = matches!(status, NodeStatus::Succeeded | NodeStatus::Failed);
+        let count = self.count_statuses();
+        let mut msg = format!("[{} / {}", count.finished, self.statuses.len());
 
-                if did_fail {
-                    failed += 1;
-                }
-
-                if is_running {
-                    running += 1;
-                }
-
-                if did_succeeded || did_fail {
-                    finished += 1;
-                }
-
-                (finished, running, failed)
-            },
-        );
-
-        let mut msg = format!("[{} / {}", num_finished, self.statuses.len());
-
-        let failed = if num_failed >= 1 {
+        let failed = if count.failed >= 1 {
             Some(format!(
                 "{} Failed",
-                num_failed.if_supports_color(Stream::Stderr, |x| x.red())
+                count.failed.if_supports_color(Stream::Stderr, |x| x.red())
             ))
         } else {
             None
         };
 
-        let running = if num_running >= 1 {
+        let running = if count.running >= 1 {
             Some(format!(
                 "{} Deploying",
-                num_running.if_supports_color(Stream::Stderr, |x| x.blue())
+                count
+                    .running
+                    .if_supports_color(Stream::Stderr, |x| x.blue())
             ))
         } else {
             None
@@ -185,60 +268,13 @@ impl Status {
                 break;
             }
 
-            let line = format!(
+            let _ = write!(
+                &mut msg,
                 "\n  {}{} {}",
                 truncated.if_supports_color(Stream::Stderr, |x| x.bold()),
                 " ".repeat(max_name_len.saturating_sub(truncated.len())),
-                match status {
-                    NodeStatus::Pending => "Waiting"
-                        .if_supports_color(Stream::Stderr, |x| x.dimmed())
-                        .to_string(),
-                    NodeStatus::Running {
-                        status,
-                        last_log: None,
-                    } => {
-                        format!(
-                            "{}",
-                            status.if_supports_color(Stream::Stderr, |x| x
-                                .style(Style::new().blue().on_default_color()))
-                        )
-                        .to_string()
-                    }
-                    NodeStatus::Running {
-                        status,
-                        last_log: Some((last_log, None)),
-                    } => {
-                        format!(
-                            "{} {}",
-                            status.if_supports_color(Stream::Stderr, |x| x
-                                .style(Style::new().blue().on_default_color())),
-                            last_log
-                        )
-                        .to_string()
-                    }
-                    NodeStatus::Running {
-                        status,
-                        last_log: Some((last_log, Some(build_name))),
-                    } => {
-                        format!(
-                            "{} {}{} {}",
-                            status.if_supports_color(Stream::Stderr, |x| x
-                                .style(Style::new().blue().on_default_color())),
-                            build_name
-                                .if_supports_color(Stream::Stderr, |x| x.style(BUILD_NAME_STYLE)),
-                            BUILD_NAME_CARET
-                                .if_supports_color(Stream::Stderr, |x| x.style(BUILD_NAME_STYLE)),
-                            last_log
-                        )
-                        .to_string()
-                    }
-                    NodeStatus::Succeeded => unreachable!("filtered above"),
-                    NodeStatus::Failed => "Failed"
-                        .if_supports_color(Stream::Stderr, |x| x.red())
-                        .to_string(),
-                }
+                status.render()
             );
-            let _ = write!(&mut msg, "{line}");
             shown += 1;
         }
 
