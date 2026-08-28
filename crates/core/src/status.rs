@@ -287,10 +287,10 @@ impl Status {
             }
 
             let line = format!(
-                "\n  {}{} {}",
+                "\n  {:<node_len$} {}",
                 truncated.if_supports_color(Stream::Stderr, |x| x.bold()),
-                " ".repeat(max_name_len.saturating_sub(truncated.len())),
-                status.render()
+                status.render(),
+                node_len = max_name_len.saturating_sub(truncated.len())
             );
             let _ = write!(
                 &mut self.buffer,
