@@ -304,7 +304,7 @@ impl ChildOutputMode {
 fn log_print(
     level: &VerbosityLevel,
     build_name: Option<&Arc<String>>,
-    msg: &Cow<'_, str>,
+    msg: &str,
 ) -> tracing::Level {
     let level: tracing::Level = match level {
         VerbosityLevel::Info => tracing::Level::INFO,
