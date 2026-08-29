@@ -511,22 +511,23 @@ where
             previous_rowid = evaluation_paths.last().map_or(previous_rowid, |r| r.rowid);
 
             // build list of all store paths to check
-            let mut all_paths: Vec<SafeStorePath<String>> = Vec::new();
-
-            for path in &evaluation_paths {
-                if let Ok(p) = SafeStorePath::<String>::from_name_and_digest(
-                    &path.flake_path_name,
-                    &path.flake_path_digest,
-                ) {
-                    all_paths.push(p);
-                }
-                if let Ok(p) = SafeStorePath::<String>::from_name_and_digest(
-                    &path.output_path_name,
-                    &path.output_path_digest,
-                ) {
-                    all_paths.push(p);
+            let all_paths: Vec<SafeStorePath<String>> = gen {
+                for path in &evaluation_paths {
+                    if let Ok(p) = SafeStorePath::<String>::from_name_and_digest(
+                        &path.flake_path_name,
+                        &path.flake_path_digest,
+                    ) {
+                        yield p;
+                    }
+                    if let Ok(p) = SafeStorePath::<String>::from_name_and_digest(
+                        &path.output_path_name,
+                        &path.output_path_digest,
+                    ) {
+                        yield p;
+                    }
                 }
             }
+            .collect();
 
             // query which cached paths are valid in the nix store
             let valid_paths = match client.query_valid_paths(all_paths.clone(), false).await {

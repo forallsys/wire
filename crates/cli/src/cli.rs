@@ -376,44 +376,43 @@ fn node_names_completer(current: &std::ffi::OsStr) -> Vec<CompletionCandidate> {
     tokio::task::block_in_place(|| {
         let handle = Handle::current();
         let modifiers = SubCommandModifiers::default();
-        let mut completions = vec![];
-
-        if current.is_empty() || current == "-" {
-            completions.push(
-                CompletionCandidate::new("-").help(Some("Read stdin as --on arguments".into())),
-            );
-        }
 
         let Ok(current_dir) = std::env::current_dir() else {
-            return completions;
+            return Vec::new();
         };
 
         let Ok(hive_location) = handle.block_on(get_hive_location(
             current_dir.display().to_string(),
             modifiers,
         )) else {
-            return completions;
+            return Vec::new();
         };
 
         let Some(current) = current.to_str() else {
-            return completions;
+            return Vec::new();
         };
 
         if current.starts_with('@') {
-            return vec![];
+            return Vec::new();
         }
 
-        if let Ok(names) =
-            handle.block_on(async { get_hive_node_names(&hive_location, modifiers).await })
-        {
-            for name in names {
-                if name.starts_with(current) {
-                    completions.push(CompletionCandidate::new(name));
+        gen {
+            if current.is_empty() || current == "-" {
+                yield CompletionCandidate::new("-")
+                    .help(Some("Read stdin as --on arguments".into()));
+            }
+
+            if let Ok(names) =
+                handle.block_on(async { get_hive_node_names(&hive_location, modifiers).await })
+            {
+                for name in names {
+                    if name.starts_with(current) {
+                        yield CompletionCandidate::new(name);
+                    }
                 }
             }
         }
-
-        completions
+        .collect()
     })
 }
 
