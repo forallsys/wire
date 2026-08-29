@@ -27,7 +27,7 @@ use std::{
     sync::Arc,
 };
 
-const NIX_OPTIONS_HELP_HEADING: &'static str = "Nix Options";
+const NIX_OPTIONS_HELP_HEADING: &str = "Nix Options";
 
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Parser)]
