@@ -2,6 +2,7 @@
 // Copyright 2024-2025 wire Contributors
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use tracing::instrument;
 
@@ -27,7 +28,7 @@ pub async fn push(
 ) -> Result<(), HiveLibError> {
     let target = target.0.read().await;
 
-    let mut command_string = CommandStringBuilder::nix();
+    let mut command_string = CommandStringBuilder::nix(&context.modifiers.options);
 
     command_string.args(&["--extra-experimental-features", "nix-command", "copy"]);
     command_string.opt_arg(substitute_on_destination, "--substitute-on-destination");
@@ -47,7 +48,7 @@ pub async fn push(
     let child = run_command_with_env(
         &CommandArguments::new(
             command_string,
-            context.modifiers,
+            context.modifiers.clone(),
             Some(context.name.clone()),
         )
         .mode(crate::commands::ChildOutputMode::Nix(Some(
@@ -55,7 +56,7 @@ pub async fn push(
         ))),
         HashMap::from([(
             "NIX_SSHOPTS".into(),
-            target.create_ssh_opts(context.modifiers)?,
+            target.create_ssh_opts(&context.modifiers)?,
         )]),
     )
     .await?;
@@ -99,7 +100,7 @@ fn get_common_command_help(error: &CommandError) -> Option<String> {
 
 pub async fn get_hive_node_names(
     location: &HiveLocation,
-    modifiers: SubCommandModifiers,
+    modifiers: Arc<SubCommandModifiers>,
 ) -> Result<Vec<String>, HiveLibError> {
     let output = evaluate_hive_attribute(location, &EvalGoal::Names, modifiers).await?;
     serde_json::from_str(&output).map_err(|err| {
@@ -113,7 +114,7 @@ pub async fn get_hive_node_names(
 pub async fn evaluate_hive_attribute(
     location: &HiveLocation,
     goal: &EvalGoal<'_>,
-    modifiers: SubCommandModifiers,
+    modifiers: Arc<SubCommandModifiers>,
 ) -> Result<String, HiveLibError> {
     let attribute = match location {
         HiveLocation::Flake {
@@ -143,7 +144,7 @@ pub async fn evaluate_hive_attribute(
         }
     };
 
-    let mut command_string = CommandStringBuilder::nix();
+    let mut command_string = CommandStringBuilder::nix(&modifiers.options);
     command_string.args(&[
         "--extra-experimental-features",
         "nix-command",
