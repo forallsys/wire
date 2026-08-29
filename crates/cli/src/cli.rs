@@ -27,6 +27,8 @@ use std::{
     sync::Arc,
 };
 
+const NIX_OPTIONS_HELP_HEADING: &'static str = "Nix Options";
+
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Parser)]
 #[command(
@@ -64,7 +66,7 @@ pub struct Cli {
     pub non_interactive: bool,
 
     /// Show trace logs
-    #[arg(long, global = true, default_value_t = false)]
+    #[arg(long, global = true, default_value_t = false, help_heading = NIX_OPTIONS_HELP_HEADING)]
     pub show_trace: bool,
 
     /// Use the experimental native Nix Daemon Client instead of the nix CLI commands.
@@ -193,7 +195,12 @@ pub struct CommonVerbArgs {
     pub parallel: usize,
 
     /// Trace full build logs.
-    #[arg(short = 'L', long, default_value_t = false)]
+    #[arg(
+        short = 'L',
+        long,
+        default_value_t = false,
+        help_heading = NIX_OPTIONS_HELP_HEADING
+    )]
     pub print_build_logs: bool,
 }
 
