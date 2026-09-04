@@ -38,7 +38,7 @@ aho-corasick = "1.1.4"
 owo-colors = { workspace = true }
 termion = "4.0.6"
 sqlx = { version = "0.9", features = ["runtime-tokio", "sqlite"] }
-zstd = "0.13.3"
+zstd = "0.14.0"
 wire-nix-client = { path = "../nix_client" }
 memchr = "2"
 semver = "1.0.28"
