@@ -102,7 +102,7 @@ async fn evaluate_task(
     tx: tokio::sync::oneshot::Sender<Result<SafeStorePath<String>, HiveLibError>>,
     hive_location: Arc<HiveLocation>,
     name: Name,
-    modifiers: SubCommandModifiers,
+    modifiers: Arc<SubCommandModifiers>,
     on_new_evaluation: oneshot::Sender<SafeStorePath<String>>,
 ) {
     let output = evaluate_hive_attribute(&hive_location, &EvalGoal::GetTopLevel(&name), modifiers)
@@ -162,7 +162,7 @@ pub async fn execute(
                 tx,
                 plan.context.hive_location.clone(),
                 plan.context.name.clone(),
-                plan.context.modifiers,
+                plan.context.modifiers.clone(),
                 on_new_evaluation,
             )
             .in_current_span(),
@@ -260,7 +260,7 @@ mod tests {
                 handle_unreachable: HandleUnreachable::default(),
             }),
             location.clone().into(),
-            &SubCommandModifiers::default(),
+            &Arc::new(SubCommandModifiers::default()),
             should_quit.clone(),
             None,
         );

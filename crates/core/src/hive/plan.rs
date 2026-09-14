@@ -142,7 +142,7 @@ fn apply_plan(
     args: &ApplyGoalArgs,
     node: &Node,
     name: &Name,
-    modifiers: SubCommandModifiers,
+    modifiers: Arc<SubCommandModifiers>,
     hive_location: Arc<HiveLocation>,
     should_quit: Arc<AtomicBool>,
     cached_evaluation: Option<&SafeStorePath<String>>,
@@ -293,7 +293,7 @@ pub fn plan_for_node(
     name: Name,
     goal: &'_ Goal,
     hive_location: Arc<HiveLocation>,
-    modifiers: &SubCommandModifiers,
+    modifiers: &Arc<SubCommandModifiers>,
     should_quit: Arc<AtomicBool>,
     cached_evaluation: Option<&SafeStorePath<String>>,
 ) -> NodePlan {
@@ -334,7 +334,7 @@ pub fn plan_for_node(
             NodePlan {
                 context: Context {
                     state: StepState::default(),
-                    modifiers: *modifiers,
+                    modifiers: modifiers.clone(),
                     hive_location,
                     should_quit,
                     name,
@@ -348,7 +348,7 @@ pub fn plan_for_node(
             args,
             node,
             &name,
-            *modifiers,
+            modifiers.clone(),
             hive_location,
             should_quit,
             cached_evaluation,
@@ -412,7 +412,7 @@ mod tests {
             name.clone(),
             &Goal::Build,
             location.into(),
-            &SubCommandModifiers::default(),
+            &Arc::new(SubCommandModifiers::default()),
             should_quit,
             None,
         );
@@ -455,7 +455,7 @@ mod tests {
                 handle_unreachable: HandleUnreachable::default(),
             }),
             location.clone().into(),
-            &SubCommandModifiers::default(),
+            &Arc::new(SubCommandModifiers::default()),
             should_quit.clone(),
             None,
         );
@@ -506,7 +506,7 @@ mod tests {
                 handle_unreachable: HandleUnreachable::default(),
             }),
             location.into(),
-            &SubCommandModifiers::default(),
+            &Arc::new(SubCommandModifiers::default()),
             should_quit,
             None,
         );
@@ -564,7 +564,7 @@ mod tests {
                 handle_unreachable: HandleUnreachable::default(),
             }),
             location.into(),
-            &SubCommandModifiers::default(),
+            &Arc::new(SubCommandModifiers::default()),
             should_quit,
             None,
         );
@@ -628,7 +628,7 @@ mod tests {
                 handle_unreachable: HandleUnreachable::default(),
             }),
             location.into(),
-            &SubCommandModifiers::default(),
+            &Arc::new(SubCommandModifiers::default()),
             should_quit,
             None,
         );
@@ -698,7 +698,7 @@ mod tests {
                 handle_unreachable: HandleUnreachable::default(),
             }),
             location.into(),
-            &SubCommandModifiers::default(),
+            &Arc::new(SubCommandModifiers::default()),
             should_quit,
             None,
         );
@@ -748,7 +748,7 @@ mod tests {
                 handle_unreachable: HandleUnreachable::default(),
             }),
             location.into(),
-            &SubCommandModifiers::default(),
+            &Arc::new(SubCommandModifiers::default()),
             should_quit,
             None,
         );
@@ -815,7 +815,7 @@ mod tests {
                 handle_unreachable: HandleUnreachable::default(),
             }),
             location.into(),
-            &SubCommandModifiers::default(),
+            &Arc::new(SubCommandModifiers::default()),
             should_quit,
             None,
         );
@@ -877,7 +877,7 @@ mod tests {
                 handle_unreachable: HandleUnreachable::default(),
             }),
             location.into(),
-            &SubCommandModifiers::default(),
+            &Arc::new(SubCommandModifiers::default()),
             should_quit,
             None,
         );
@@ -920,7 +920,7 @@ mod tests {
             name.clone(),
             &Goal::Build,
             location.into(),
-            &SubCommandModifiers::default(),
+            &Arc::new(SubCommandModifiers::default()),
             should_quit,
             Some(&cached),
         );
@@ -953,10 +953,10 @@ mod tests {
             name.clone(),
             &Goal::Build,
             location.into(),
-            &SubCommandModifiers {
+            &Arc::new(SubCommandModifiers {
                 experimental_nix_client: true,
                 ..Default::default()
-            },
+            }),
             should_quit,
             None,
         );
@@ -1006,10 +1006,10 @@ mod tests {
                 handle_unreachable: HandleUnreachable::default(),
             }),
             location.into(),
-            &SubCommandModifiers {
+            &Arc::new(SubCommandModifiers {
                 experimental_nix_client: true,
                 ..Default::default()
-            },
+            }),
             should_quit,
             None,
         );

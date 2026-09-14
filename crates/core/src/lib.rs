@@ -54,7 +54,7 @@ pub enum StrictHostKeyChecking {
     AcceptNew,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct SubCommandModifiers {
     pub show_trace: bool = false,
@@ -63,6 +63,7 @@ pub struct SubCommandModifiers {
     pub ssh_verbosity: usize = 0,
     pub print_build_logs: bool = false,
     pub experimental_nix_client: bool = false,
+    pub options: Arc<Vec<(String, String)>>
 }
 
 impl Default for SubCommandModifiers {
@@ -70,6 +71,7 @@ impl Default for SubCommandModifiers {
         Self {
             non_interactive: !std::io::stdin().is_terminal(),
             ssh_accept_host: StrictHostKeyChecking::default(),
+            options: Arc::new(Vec::new()),
             ..
         }
     }
@@ -117,7 +119,7 @@ pub async fn acquire_stdin_lock<'a>() -> Result<ClobberGuard<'a>, AcquireError> 
 #[instrument(skip(trace_callback))]
 pub async fn open_remote_client<D, T>(
     target: &D,
-    modifiers: SubCommandModifiers,
+    modifiers: Arc<SubCommandModifiers>,
     trace_callback: T,
     should_quit: Arc<AtomicBool>,
 ) -> Result<(NixClient<ChildStdout, ChildStdin, T>, String), HiveLibError>
@@ -126,7 +128,7 @@ where
     T: Fn(LogMessage, &Arc<Mutex<HashMap<u64, Arc<String>>>>, bool) -> Option<String> + Send,
 {
     let mut command = Command::new("ssh")
-        .args(target.create_ssh_args(modifiers, true)?)
+        .args(target.create_ssh_args(&modifiers, true)?)
         .arg(target.get_preferred_host()?.to_string())
         .arg("nix-daemon --stdio")
         .stdin(Stdio::piped())
@@ -178,7 +180,7 @@ pub async fn push_with_daemon(
 
     let (mut remote_daemon, host) = open_remote_client(
         &target,
-        context.modifiers,
+        context.modifiers.clone(),
         |log, map, print| trace_nix_log_message(log, map, print, Some(context.name.clone())),
         context.should_quit.clone(),
     )

@@ -37,7 +37,7 @@ pub async fn non_interactive_command_with_env<S: AsRef<str> + Sync>(
     envs: HashMap<String, String>,
 ) -> Result<NonInteractiveChildChip, HiveLibError> {
     let mut command = if let Some(ref target) = arguments.target {
-        create_sync_ssh_command(target, arguments.modifiers).await?
+        create_sync_ssh_command(target, &arguments.modifiers).await?
     } else {
         let mut command = Command::new("bash");
 
@@ -55,11 +55,11 @@ pub async fn non_interactive_command_with_env<S: AsRef<str> + Sync>(
         }
     );
 
-    let command_string = command_string.replace('\'', "'\''");
+    let command_string = command_string.replace('"', "\\\"");
 
     let command_string = arguments.privilege_escalation_command.as_ref().map_or_else(
-        || format!("bash -c '{command_string}'"),
-        |escalation_command| format!("{escalation_command} bash -c '{command_string}'"),
+        || format!("bash -c \"{command_string}\""),
+        |escalation_command| format!("{escalation_command} bash -c \"{command_string}\""),
     );
 
     debug!("{command_string}");
@@ -200,7 +200,7 @@ pub async fn handle_io<R>(
 #[allow(clippy::significant_drop_tightening)]
 async fn create_sync_ssh_command(
     target: &SharedTarget,
-    modifiers: SubCommandModifiers,
+    modifiers: &SubCommandModifiers,
 ) -> Result<Command, HiveLibError> {
     let target = target.0.read().await;
     let mut command = Command::new("ssh");
