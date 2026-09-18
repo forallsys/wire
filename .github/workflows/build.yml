@@ -35,7 +35,7 @@ jobs:
           echo "packages=$(nix eval .#hydraJobs.packages.x86_64-linux \
             --apply builtins.attrNames --json)" >> "$GITHUB_OUTPUT"
   build-key-agent-aarch64:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-26.04-arm
     permissions:
       id-token: write
     needs: pre-job
