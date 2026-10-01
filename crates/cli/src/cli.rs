@@ -196,15 +196,13 @@ fn validate_nix_option_pair(name: &str, value: &str) -> Result<(String, String),
 
     if !NAME_REGEX.is_match(name) {
         return Err(format!(
-            "invalid nix option name '{}': must match {}",
-            name, NIX_OPTION_NAME_REGEX
+            "invalid nix option name '{name}': must match {NIX_OPTION_NAME_REGEX}"
         ));
     }
 
     if !VALUE_REGEX.is_match(value) {
         return Err(format!(
-            "invalid nix option value '{}': must match {}",
-            value, NIX_OPTION_VALUE_REGEX
+            "invalid nix option value '{value}': must match {NIX_OPTION_VALUE_REGEX}"
         ));
     }
 
