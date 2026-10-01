@@ -35,7 +35,7 @@ macro_rules! location {
     ($path:expr) => {{
         $crate::hive::get_hive_location(
             $path.display().to_string(),
-            $crate::SubCommandModifiers::default(),
+            std::sync::Arc::new($crate::SubCommandModifiers::default()),
         )
         .await
         .unwrap()

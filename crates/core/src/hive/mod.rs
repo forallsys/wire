@@ -117,11 +117,15 @@ impl Hive {
     pub async fn new_from_path(
         location: &HiveLocation,
         cache: Arc<Option<InspectionCache>>,
-        modifiers: SubCommandModifiers,
+        modifiers: Arc<SubCommandModifiers>,
     ) -> Result<Self, HiveLibError> {
         info!("evaluating hive {location:?}");
 
-        if let Some(ref cache) = *cache
+        // Bypass cache when special nix options are present
+        let use_cache = modifiers.options.is_empty();
+
+        if use_cache
+            && let Some(ref cache) = *cache
             && let HiveLocation::Flake { prefetch, .. } = location
             && let Some(hive) = cache.get_hive(prefetch).await
         {
@@ -134,7 +138,8 @@ impl Hive {
             HiveLibError::HiveInitialisationError(HiveInitialisationError::ParseEvaluateError(err))
         })?;
 
-        if let Some(ref cache) = *cache
+        if use_cache
+            && let Some(ref cache) = *cache
             && let HiveLocation::Flake { prefetch, .. } = location
         {
             cache.store_hive(prefetch, &output).await;
@@ -279,9 +284,9 @@ impl HiveLocation {
     #[instrument(skip_all, name = "flake_prefetch", fields(uri = %uri))]
     async fn from_flake_uri(
         uri: String,
-        modifiers: SubCommandModifiers,
+        modifiers: Arc<SubCommandModifiers>,
     ) -> Result<Self, HiveLibError> {
-        let mut command_string = CommandStringBuilder::nix();
+        let mut command_string = CommandStringBuilder::nix(&modifiers.options);
         command_string.args(&[
             "flake",
             "prefetch",
@@ -318,7 +323,7 @@ impl HiveLocation {
 
 pub async fn get_hive_location(
     path: String,
-    modifiers: SubCommandModifiers,
+    modifiers: Arc<SubCommandModifiers>,
 ) -> Result<HiveLocation, HiveLibError> {
     let flakeref = FlakeRef::from_str(&path);
 
@@ -327,7 +332,8 @@ pub async fn get_hive_location(
             Some("hive.nix") => HiveLocation::HiveNix(path.clone()),
             Some(_) => {
                 if fs::metadata(path.join("flake.nix")).is_ok() {
-                    HiveLocation::from_flake_uri(path.display().to_string(), modifiers).await?
+                    HiveLocation::from_flake_uri(path.display().to_string(), modifiers.clone())
+                        .await?
                 } else {
                     HiveLocation::HiveNix(path.join("hive.nix"))
                 }
@@ -392,9 +398,13 @@ mod tests {
     async fn test_hive_file() {
         let location = location!(get_test_path!());
 
-        let hive = Hive::new_from_path(&location, None.into(), SubCommandModifiers::default())
-            .await
-            .unwrap();
+        let hive = Hive::new_from_path(
+            &location,
+            None.into(),
+            Arc::new(SubCommandModifiers::default()),
+        )
+        .await
+        .unwrap();
 
         let node = Node {
             target: node::Target::from_host("192.168.122.96"),
@@ -419,9 +429,13 @@ mod tests {
     async fn non_trivial_hive() {
         let location = location!(get_test_path!());
 
-        let hive = Hive::new_from_path(&location, None.into(), SubCommandModifiers::default())
-            .await
-            .unwrap();
+        let hive = Hive::new_from_path(
+            &location,
+            None.into(),
+            Arc::new(SubCommandModifiers::default()),
+        )
+        .await
+        .unwrap();
 
         let node = Node {
             target: node::Target::from_host("name"),
@@ -463,13 +477,17 @@ mod tests {
 
         let location = get_hive_location(
             tmp_dir.path().display().to_string(),
-            SubCommandModifiers::default(),
+            Arc::new(SubCommandModifiers::default()),
         )
         .await
         .unwrap();
-        let hive = Hive::new_from_path(&location, None.into(), SubCommandModifiers::default())
-            .await
-            .unwrap();
+        let hive = Hive::new_from_path(
+            &location,
+            None.into(),
+            Arc::new(SubCommandModifiers::default()),
+        )
+        .await
+        .unwrap();
 
         let mut nodes = HashMap::new();
 
@@ -495,7 +513,7 @@ mod tests {
         let location = location!(get_test_path!());
 
         assert_matches!(
-            Hive::new_from_path(&location, None.into(), SubCommandModifiers::default()).await,
+            Hive::new_from_path(&location, None.into(), Arc::new(SubCommandModifiers::default())).await,
             Err(HiveLibError::NixEvalError {
                 source: CommandError::CommandFailed {
                     logs,
@@ -513,7 +531,7 @@ mod tests {
         let location = location!(get_test_path!());
 
         assert_matches!(
-            Hive::new_from_path(&location, None.into(), SubCommandModifiers::default()).await,
+            Hive::new_from_path(&location, None.into(), Arc::new(SubCommandModifiers::default())).await,
             Err(HiveLibError::NixEvalError {
                 source: CommandError::CommandFailed {
                     logs,
@@ -532,9 +550,13 @@ mod tests {
         location.push("non_trivial_hive");
         let location = location!(location);
 
-        let mut hive = Hive::new_from_path(&location, None.into(), SubCommandModifiers::default())
-            .await
-            .unwrap();
+        let mut hive = Hive::new_from_path(
+            &location,
+            None.into(),
+            Arc::new(SubCommandModifiers::default()),
+        )
+        .await
+        .unwrap();
 
         assert_matches!(
             hive.force_always_local(vec!["non-existent".to_string()]),

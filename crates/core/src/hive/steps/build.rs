@@ -73,7 +73,7 @@ impl ExecuteStep for Build {
                     Either::Left(
                         open_remote_client(
                             &target,
-                            ctx.modifiers,
+                            ctx.modifiers.clone(),
                             |log, map, print| {
                                 trace_nix_log_message(log, map, print, Some(ctx.name.clone()))
                             },
@@ -178,7 +178,7 @@ impl ExecuteStep for Build {
                 };
 
                 // use regular nix build command
-                let mut command_string = CommandStringBuilder::nix();
+                let mut command_string = CommandStringBuilder::nix(&ctx.modifiers.options);
                 command_string.args(&[
                     "--extra-experimental-features",
                     "nix-command",
@@ -191,18 +191,20 @@ impl ExecuteStep for Build {
                 command_string.arg(&attribute);
 
                 let status = run_command_with_env(
-                    &CommandArguments::new(command_string, ctx.modifiers, Some(ctx.name.clone()))
-                        // build remotely if asked for AND we isnt applying locally
-                        .execute_on_remote(match metadata {
-                            NixCommandBuildMetadata::Remotely { target, .. } => {
-                                Some(target.clone())
-                            }
-                            NixCommandBuildMetadata::Locally { .. } => None,
-                        })
-                        .mode(crate::commands::ChildOutputMode::Nix(Some(
-                            ctx.name.clone(),
-                        )))
-                        .log_stdout(),
+                    &CommandArguments::new(
+                        command_string,
+                        ctx.modifiers.clone(),
+                        Some(ctx.name.clone()),
+                    )
+                    // build remotely if asked for AND we isnt applying locally
+                    .execute_on_remote(match metadata {
+                        NixCommandBuildMetadata::Remotely { target, .. } => Some(target.clone()),
+                        NixCommandBuildMetadata::Locally { .. } => None,
+                    })
+                    .mode(crate::commands::ChildOutputMode::Nix(Some(
+                        ctx.name.clone(),
+                    )))
+                    .log_stdout(),
                     std::collections::HashMap::new(),
                 )
                 .await?
