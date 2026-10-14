@@ -47,7 +47,7 @@ pub enum Either<L, R> {
 
 #[derive(Debug)]
 pub(crate) struct CommandArguments<S: AsRef<str>> {
-    modifiers: SubCommandModifiers,
+    modifiers: Arc<SubCommandModifiers>,
     target: Option<SharedTarget>,
     output_mode: ChildOutputMode,
     command_string: S,
@@ -60,7 +60,7 @@ pub(crate) struct CommandArguments<S: AsRef<str>> {
 impl<S: AsRef<str>> CommandArguments<S> {
     pub(crate) fn new(
         command_string: S,
-        modifiers: SubCommandModifiers,
+        modifiers: Arc<SubCommandModifiers>,
         name: Option<Name>,
     ) -> Self {
         Self {

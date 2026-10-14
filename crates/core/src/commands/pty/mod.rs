@@ -303,7 +303,7 @@ async fn build_command<S: AsRef<str> + Sync>(
     command_string: &str,
 ) -> Result<CommandBuilder, HiveLibError> {
     let mut command = if let Some(ref target) = arguments.target {
-        let mut command = create_int_ssh_command(target, arguments.modifiers).await?;
+        let mut command = create_int_ssh_command(target, &arguments.modifiers).await?;
 
         // force ssh to use our pseudo terminal
         command.arg("-tt");
@@ -317,12 +317,12 @@ async fn build_command<S: AsRef<str> + Sync>(
         command
     };
 
-    let command_string = command_string.replace('\'', "'\''");
+    let command_string = command_string.replace('"', "\\\"");
 
     if let Some(ref escalation_command) = arguments.privilege_escalation_command {
-        command.arg(format!("{escalation_command} bash -c '{command_string}'"));
+        command.arg(format!("{escalation_command} bash -c \"{command_string}\""));
     } else {
-        command.arg(format!("bash -c '{command_string}'"));
+        command.arg(format!("bash -c \"{command_string}\""));
     }
 
     Ok(command)
@@ -426,7 +426,7 @@ impl Drop for StdinTermiosAttrGuard {
 #[allow(clippy::significant_drop_tightening)]
 async fn create_int_ssh_command(
     target: &SharedTarget,
-    modifiers: SubCommandModifiers,
+    modifiers: &SubCommandModifiers,
 ) -> Result<portable_pty::CommandBuilder, HiveLibError> {
     let target = target.0.read().await;
     let mut command = portable_pty::CommandBuilder::new("ssh");

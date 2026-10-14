@@ -65,14 +65,14 @@ impl PartialEq for SharedTarget {
 
 impl Target {
     #[instrument(ret(level = tracing::Level::DEBUG), skip_all)]
-    pub fn create_ssh_opts(&self, modifiers: SubCommandModifiers) -> Result<String, HiveLibError> {
+    pub fn create_ssh_opts(&self, modifiers: &SubCommandModifiers) -> Result<String, HiveLibError> {
         self.create_ssh_args(modifiers, false).map(|x| x.join(" "))
     }
 
     #[instrument(ret(level = tracing::Level::DEBUG))]
     pub fn create_ssh_args(
         &self,
-        modifiers: SubCommandModifiers,
+        modifiers: &SubCommandModifiers,
         force_quiet: bool,
     ) -> Result<Vec<String>, HiveLibError> {
         let mut vector = vec![
@@ -106,7 +106,7 @@ impl Target {
     /// Tests the connection to a node
     pub async fn ping(
         &self,
-        modifiers: SubCommandModifiers,
+        modifiers: Arc<SubCommandModifiers>,
         should_quit: Arc<AtomicBool>,
         name: &Name,
     ) -> Result<(), HiveLibError> {
@@ -125,7 +125,7 @@ impl Target {
 
         let mut command_string = CommandStringBuilder::new("ssh");
         command_string.arg(format!("{}@{host}", self.user));
-        command_string.arg(self.create_ssh_opts(modifiers)?);
+        command_string.arg(self.create_ssh_opts(&modifiers)?);
         command_string.arg("exit");
 
         let output = run_command(
@@ -294,7 +294,7 @@ pub type BuildNameMap = Arc<Mutex<HashMap<u64, Arc<String>>>>;
 
 pub struct Context {
     pub hive_location: Arc<HiveLocation>,
-    pub modifiers: SubCommandModifiers,
+    pub modifiers: Arc<SubCommandModifiers>,
     pub state: StepState,
     pub should_quit: Arc<AtomicBool>,
     pub name: Name,
@@ -362,16 +362,20 @@ mod tests {
         ];
 
         assert_eq!(
-            target.create_ssh_args(subcommand_modifiers, false).unwrap(),
+            target
+                .create_ssh_args(&subcommand_modifiers, false)
+                .unwrap(),
             args
         );
         assert_eq!(
-            target.create_ssh_opts(subcommand_modifiers).unwrap(),
+            target.create_ssh_opts(&subcommand_modifiers).unwrap(),
             args.join(" ")
         );
 
         assert_eq!(
-            target.create_ssh_args(subcommand_modifiers, false).unwrap(),
+            target
+                .create_ssh_args(&subcommand_modifiers, false)
+                .unwrap(),
             [
                 "-l".to_string(),
                 target.user.to_string(),
@@ -385,7 +389,9 @@ mod tests {
         );
 
         assert_eq!(
-            target.create_ssh_args(subcommand_modifiers, false).unwrap(),
+            target
+                .create_ssh_args(&subcommand_modifiers, false)
+                .unwrap(),
             [
                 "-l".to_string(),
                 target.user.to_string(),
@@ -400,10 +406,12 @@ mod tests {
 
         // forced non interactive is the same as --non-interactive
         assert_eq!(
-            target.create_ssh_args(subcommand_modifiers, false).unwrap(),
+            target
+                .create_ssh_args(&subcommand_modifiers, false)
+                .unwrap(),
             target
                 .create_ssh_args(
-                    SubCommandModifiers {
+                    &SubCommandModifiers {
                         non_interactive: true,
                         ..Default::default()
                     },

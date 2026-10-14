@@ -46,7 +46,7 @@ async fn wait_for_ping(target: &SharedTarget, ctx: &Context) -> Result<(), HiveL
         warn!("Trying to ping {host} (attempt {}/{MAX_ATTEMPTS})", num + 1);
 
         let result = target
-            .ping(ctx.modifiers, ctx.should_quit.clone(), &ctx.name)
+            .ping(ctx.modifiers.clone(), ctx.should_quit.clone(), &ctx.name)
             .await;
 
         if result.is_ok() {
@@ -79,12 +79,16 @@ impl SwitchToConfiguration {
         command_string.arg(built_path.to_absolute_path());
 
         let child = run_command(
-            &CommandArguments::new(command_string, ctx.modifiers, Some(ctx.name.clone()))
-                .mode(crate::commands::ChildOutputMode::Nix(Some(
-                    ctx.name.clone(),
-                )))
-                .execute_on_remote(self.target.clone())
-                .privileged(&self.privilege_escalation_command),
+            &CommandArguments::new(
+                command_string,
+                ctx.modifiers.clone(),
+                Some(ctx.name.clone()),
+            )
+            .mode(crate::commands::ChildOutputMode::Nix(Some(
+                ctx.name.clone(),
+            )))
+            .execute_on_remote(self.target.clone())
+            .privileged(&self.privilege_escalation_command),
         )
         .await?;
 
@@ -128,10 +132,14 @@ impl ExecuteStep for SwitchToConfiguration {
         });
 
         let child = run_command(
-            &CommandArguments::new(command_string, ctx.modifiers, Some(ctx.name.clone()))
-                .execute_on_remote(self.target.clone())
-                .privileged(&self.privilege_escalation_command)
-                .log_stdout(),
+            &CommandArguments::new(
+                command_string,
+                ctx.modifiers.clone(),
+                Some(ctx.name.clone()),
+            )
+            .execute_on_remote(self.target.clone())
+            .privileged(&self.privilege_escalation_command)
+            .log_stdout(),
         )
         .await?;
 
@@ -152,10 +160,14 @@ impl ExecuteStep for SwitchToConfiguration {
                 warn!("Rebooting {name}!", name = ctx.name);
 
                 let reboot = run_command(
-                    &CommandArguments::new("reboot now", ctx.modifiers, Some(ctx.name.clone()))
-                        .log_stdout()
-                        .execute_on_remote(Some(target.clone()))
-                        .privileged(&self.privilege_escalation_command),
+                    &CommandArguments::new(
+                        "reboot now",
+                        ctx.modifiers.clone(),
+                        Some(ctx.name.clone()),
+                    )
+                    .log_stdout()
+                    .execute_on_remote(Some(target.clone()))
+                    .privileged(&self.privilege_escalation_command),
                 )
                 .await?;
 

@@ -3061,6 +3061,7 @@ dependencies = [
  "konst",
  "miette",
  "owo-colors",
+ "regex",
  "serde_json",
  "signal-hook",
  "signal-hook-tokio",

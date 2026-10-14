@@ -84,7 +84,7 @@ async fn main() -> Result<()> {
     let should_shutdown = Arc::new(AtomicBool::new(false));
     let signals_task = tokio::spawn(handle_signals(signals, should_shutdown.clone()));
 
-    let location = get_hive_location(args.path, modifiers).await?;
+    let location = get_hive_location(args.path, modifiers.clone().into()).await?;
     let cache = Arc::new(InspectionCache::new().await);
 
     dispatch_command(
@@ -135,7 +135,8 @@ async fn dispatch_command(
 ) -> Result<()> {
     match args {
         cli::Commands::Apply(apply_args) => {
-            let mut hive = Hive::new_from_path(&location, cache.clone(), modifiers).await?;
+            let mut hive =
+                Hive::new_from_path(&location, cache.clone(), modifiers.clone().into()).await?;
             let goal = apply_args.goal.clone().try_into().unwrap();
 
             // Respect user's --always-build-local arg
@@ -162,14 +163,15 @@ async fn dispatch_command(
                     location,
                     args: apply_args.common,
                     partition: Partitions::default(),
-                    modifiers,
+                    modifiers: modifiers.clone(),
                     cache: cache.clone(),
                 },
             )
             .await?;
         }
         cli::Commands::Build(build_args) => {
-            let mut hive = Hive::new_from_path(&location, cache.clone(), modifiers).await?;
+            let mut hive =
+                Hive::new_from_path(&location, cache.clone(), modifiers.clone().into()).await?;
 
             apply::run_goal(
                 &mut hive,
@@ -188,7 +190,8 @@ async fn dispatch_command(
         cli::Commands::Inspect { json, selection } => println!("{}", {
             match selection {
                 cli::Inspection::Full => {
-                    let hive = Hive::new_from_path(&location, cache.clone(), modifiers).await?;
+                    let hive =
+                        Hive::new_from_path(&location, cache.clone(), modifiers.into()).await?;
                     if json {
                         serde_json::to_string(&hive).into_diagnostic()?
                     } else {
@@ -197,7 +200,7 @@ async fn dispatch_command(
                     }
                 }
                 cli::Inspection::Names => {
-                    let names = get_hive_node_names(&location, modifiers).await?;
+                    let names = get_hive_node_names(&location, modifiers.into()).await?;
 
                     if json {
                         serde_json::to_string(&names).into_diagnostic()?
