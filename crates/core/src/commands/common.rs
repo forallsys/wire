@@ -34,7 +34,7 @@ pub async fn push(
     command_string.arg("--to");
     command_string.args(&[
         format!(
-            "ssh://{user}@{host}",
+            "ssh-ng://{user}@{host}",
             user = target.user,
             host = target.get_preferred_host()?,
         ),
