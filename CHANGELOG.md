@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Status bar overflowing the terminal's width.
+- `ssh-ng://` is now always used instead of `ssh://`.
 
 ## [0.4.0] - 2025-07-20
 
