@@ -75,30 +75,35 @@ impl Target {
         modifiers: SubCommandModifiers,
         force_quiet: bool,
     ) -> Result<Vec<String>, HiveLibError> {
-        let mut vector = vec![
-            "-l".to_string(),
-            self.user.to_string(),
-            "-p".to_string(),
-            self.port.to_string(),
-        ];
-        let mut options = vec![format!(
-            "StrictHostKeyChecking={}",
-            match modifiers.ssh_accept_host {
-                StrictHostKeyChecking::AcceptNew => "accept-new",
-                StrictHostKeyChecking::No => "no",
+        let vector: Vec<String> = gen {
+            yield "-l".to_string();
+            yield self.user.to_string();
+            yield "-p".to_string();
+            yield self.port.to_string();
+
+            let options = [
+                format!(
+                    "StrictHostKeyChecking={}",
+                    match modifiers.ssh_accept_host {
+                        StrictHostKeyChecking::AcceptNew => "accept-new",
+                        StrictHostKeyChecking::No => "no",
+                    }
+                ),
+                "BatchMode=yes".to_string(),
+            ];
+
+            for option in options {
+                yield "-o".to_string();
+                yield option;
             }
-        )];
 
-        options.extend(["BatchMode=yes".to_string()]);
-
-        vector.push("-o".to_string());
-        vector.extend(options.into_iter().intersperse("-o".to_string()));
-
-        if force_quiet {
-            vector.push("-q".to_string());
-        } else if modifiers.ssh_verbosity > 0 {
-            vector.push(format!("-{}", "v".repeat(modifiers.ssh_verbosity)));
+            if force_quiet {
+                yield "-q".to_string();
+            } else if modifiers.ssh_verbosity > 0 {
+                yield format!("-{}", "v".repeat(modifiers.ssh_verbosity));
+            }
         }
+        .collect();
 
         Ok(vector)
     }
