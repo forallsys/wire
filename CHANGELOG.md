@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - yyyy-mm-dd
 
+## [v1.4.1] - 2026-10-24
+
 ### Added
 
 - The last associated nix log is now shown next to the node name, including a
@@ -17,9 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `inspect._schema` was upgraded from `1` to `2`. This was done to force users
-  to switch to a newer version of the wire binary that will support switching
-  this value to a semver string.
 - Cli help strings generally tweaked and improved with links to documentation.
 
 ### Fixed
