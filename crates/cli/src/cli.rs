@@ -288,6 +288,7 @@ pub enum Commands {
     /// Further information can be found at
     /// https://wire.forall.systems/guides/apply.html
     ///
+    #[clap(visible_alias = "a")]
     Apply(ApplyArgs),
     /// Build nodes locally, offline.
     ///
@@ -295,6 +296,7 @@ pub enum Commands {
     /// the result, making it useful for CI.
     ///
     /// Additionally, you may partition the build jobs into buckets.
+    #[clap(visible_alias = "b")]
     Build(BuildArgs),
     /// Inspect the hive, optionally as JSON.
     #[clap(visible_alias = "show")]
