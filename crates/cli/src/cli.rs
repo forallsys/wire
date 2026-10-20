@@ -286,7 +286,7 @@ pub enum Commands {
     /// Deploy a hive of nodes, or a subset of them.
     ///
     /// Further information can be found at
-    /// https://wire.forall.systems/guides/apply.html
+    /// <https://wire.forall.systems/guides/apply.html>
     ///
     #[clap(visible_alias = "a")]
     Apply(ApplyArgs),
