@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `inspect._schema` was upgraded from `1` to `2`. This was done to force users
   to switch to a newer version of the wire binary that will support switching
   this value to a semver string.
+- Cli help strings generally tweaked and improved with links to documentation.
 
 ### Fixed
 

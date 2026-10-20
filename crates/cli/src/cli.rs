@@ -34,7 +34,11 @@ const NIX_OPTIONS_HELP_HEADING: &str = "Nix Options";
 #[command(
     name = "wire",
     bin_name = "wire",
-    about = "a tool to deploy nixos systems",
+    about = "A tool to deploy a hive of NixOS systems.",
+    long_about = "\
+A tool to deploy a hive of NixOS systems.
+
+Further information can be found at https://wire.forall.systems.",
     version = format!(
         "{}{}, supports hives within {}",
         crate_version!(),
@@ -49,7 +53,12 @@ pub struct Cli {
     #[command(flatten)]
     pub verbose: clap_verbosity_flag::Verbosity<InfoLevel>,
 
-    /// Path or flake reference
+    /// Path or flakeref.
+    ///
+    /// The hive that all subcommands operate on.
+    /// More on flakerefs can be found in `man nix3-flake`.
+    ///
+    /// Defaults to the current working directory.
     #[arg(long, global = true, default_value = std::env::current_dir().unwrap().into_os_string(), visible_alias("flake"))]
     pub path: String,
 
@@ -213,7 +222,7 @@ pub struct ApplyArgs {
     #[arg(value_enum, default_value_t)]
     pub goal: Goal,
 
-    /// Skip key uploads. noop when [GOAL] = Keys
+    /// Skip key uploads. noop when [GOAL] = Keys.
     #[arg(short, long, default_value_t = false)]
     pub no_keys: bool,
 
@@ -221,7 +230,7 @@ pub struct ApplyArgs {
     #[arg(short, long, value_name = "NODE")]
     pub always_build_local: Vec<String>,
 
-    /// Reboot the nodes after activation
+    /// Reboot the nodes after activation.
     #[arg(short, long, default_value_t = false)]
     pub reboot: bool,
 
@@ -236,7 +245,7 @@ pub struct ApplyArgs {
     #[arg(long, default_value_t = HandleUnreachableArg::FailNode)]
     pub handle_unreachable: HandleUnreachableArg,
 
-    /// Unconditionally accept SSH host keys [!!]
+    /// Unconditionally accept SSH host keys (use with caution!).
     ///
     /// Sets `StrictHostKeyChecking` to `no`.
     /// Vulnerable to man-in-the-middle attacks, use with caution.
@@ -274,22 +283,26 @@ pub struct BuildArgs {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Deploy nodes
+    /// Deploy a hive of nodes, or a subset of them.
+    ///
+    /// Further information can be found at
+    /// https://wire.forall.systems/guides/apply.html
+    ///
     Apply(ApplyArgs),
-    /// Build nodes offline
+    /// Build nodes locally, offline.
     ///
     /// This is distinct from `wire apply build`, as it will not ping or push
     /// the result, making it useful for CI.
     ///
     /// Additionally, you may partition the build jobs into buckets.
     Build(BuildArgs),
-    /// Inspect hive
+    /// Inspect the hive, optionally as JSON.
     #[clap(visible_alias = "show")]
     Inspect {
         #[arg(value_enum, default_value_t)]
         selection: Inspection,
 
-        /// Return in JSON format
+        /// Return in JSON format.
         #[arg(short, long, default_value_t = false)]
         json: bool,
     },
@@ -297,27 +310,27 @@ pub enum Commands {
 
 #[derive(Clone, Debug, Default, ValueEnum, Display)]
 pub enum Inspection {
-    /// Output all data wire has on the entire hive
+    /// Output all data wire has on the entire hive.
     #[default]
     Full,
-    /// Only output a list of node names
+    /// Only output a list of node names.
     Names,
 }
 
 #[derive(Clone, Debug, Default, ValueEnum, Display)]
 pub enum Goal {
-    /// Make the configuration the boot default and activate now
+    /// Make the configuration the boot default and activate now.
     #[default]
     Switch,
-    /// Build the configuration & push the results
+    /// Build the configuration & push the results.
     Build,
-    /// Copy the system derivation to the remote hosts
+    /// Copy the system derivation to the remote hosts.
     Push,
-    /// Push deployment keys to the remote hosts
+    /// Push deployment keys to the remote hosts.
     Keys,
-    /// Activate the system profile on next boot
+    /// Activate the system profile on next boot.
     Boot,
-    /// Activate the configuration, but don't make it the boot default
+    /// Activate the configuration, but don't make it the boot default.
     Test,
     /// Show what would be done if this configuration were activated.
     DryActivate,
