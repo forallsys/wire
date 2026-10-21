@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright 2024-2025 wire Contributors
 
-#![feature(iter_intersperse)]
 #![feature(sync_nonpoison)]
 #![feature(nonpoison_mutex)]
 #![feature(default_field_values)]
+#![feature(gen_blocks)]
 
 use std::{
     collections::{HashMap, HashSet},
