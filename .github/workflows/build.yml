@@ -32,7 +32,12 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-nix
+      - uses: ./.github/actions/check-cache
+        id: cached
+        with:
+          attr: .#packages.aarch64-linux.agent
       - name: Build
+        if: steps.cached.outputs.cached != 'true'
         run: nix build -L --print-out-paths .#packages.aarch64-linux.agent
   build-key-agent-x86_64:
     runs-on: ubuntu-latest
@@ -43,7 +48,12 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-nix
+      - uses: ./.github/actions/check-cache
+        id: cached
+        with:
+          attr: .#packages.x86_64-linux.agent
       - name: Build
+        if: steps.cached.outputs.cached != 'true'
         run: nix build -L --print-out-paths .#packages.x86_64-linux.agent
   build:
     runs-on: ${{ matrix.arch.runner }}
@@ -70,7 +80,12 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup-nix
+      - uses: ./.github/actions/check-cache
+        id: cached
+        with:
+          attr: .#hydraJobs.packages."${{ matrix.arch.id }}"."${{ matrix.package }}"
       - name: Build
+        if: steps.cached.outputs.cached != 'true'
         run: |
           nix build -L --print-out-paths \
             .#hydraJobs.packages."${ARCH}"."${MATRIX_PACKAGE}"

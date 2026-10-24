@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=https://www.schemastore.org/github-action.json
+name: Check binary cache
+description: |
+  checks if `nix path-info` states that the cache already has the
+  flake attribute passed
+inputs:
+  attr:
+    description: flake attribute to check
+    required: true
+outputs:
+  cached:
+    description: "true when the path exists on cache"
+    value: ${{ steps.check.outputs.cached }}
+runs:
+  using: "composite"
+  steps:
+    - id: check
+      shell: bash
+      env:
+        ATTR: ${{ inputs.attr }}
+      run: |
+        out_path="$(nix eval --raw "$ATTR.outPath")"
+        if nix path-info --store https://cache.forall.systems \
+          "$out_path"; then
+          echo "cached=true" >> "$GITHUB_OUTPUT"
+        fi
