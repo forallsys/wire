@@ -3,6 +3,9 @@ name: "Build"
 on:
   pull_request:
   push:
+    branches:
+      - stable
+      - trunk
 jobs:
   find-jobs:
     runs-on: ubuntu-latest
