@@ -25,6 +25,14 @@ runs:
       if: ${{ runner.debug == '1' }}
       shell: bash
       run: cat /etc/nix/nix.conf
+    - name: Cache git repos
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      id: cache-nix-gitv3
+      with:
+        path: ~/.cache/nix/gitv3
+        key: ${{ runner.os }}-nix-${{ hashFiles('**/flake.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-nix-
     - uses: Mic92/niks3-action@12d3e320b2a99b7938f9634bd337cd9fec104609
       with:
         server-url: https://niks3.forall.systems
