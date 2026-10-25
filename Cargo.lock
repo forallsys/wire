@@ -3046,7 +3046,7 @@ dependencies = [
 
 [[package]]
 name = "wire"
-version = "1.4.1"
+version = "1.4.2"
 dependencies = [
  "clap",
  "clap-markdown",
@@ -3074,7 +3074,7 @@ dependencies = [
 
 [[package]]
 name = "wire-core"
-version = "1.4.1"
+version = "1.4.2"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -3114,7 +3114,7 @@ dependencies = [
 
 [[package]]
 name = "wire-key-agent"
-version = "1.4.1"
+version = "1.4.2"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
@@ -3129,7 +3129,7 @@ dependencies = [
 
 [[package]]
 name = "wire-nix-client"
-version = "1.4.1"
+version = "1.4.2"
 dependencies = [
  "itertools 0.15.0",
  "miette",
