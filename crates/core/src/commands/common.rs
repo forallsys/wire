@@ -43,6 +43,7 @@ pub async fn push(
             Push::Path(path) => path.to_absolute_path(),
         },
     ]);
+    command_string.arg("--no-check-sigs");
 
     let child = run_command_with_env(
         &CommandArguments::new(

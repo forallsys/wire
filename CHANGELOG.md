@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - yyyy-mm-dd
 
+### Fixed
+
+- Using `ssh-ng://` without `--no-check-sigs` which would break deployment.
+
 ### Changed
 
 - `inspect._schema` was upgraded from `1` to `2`. This was done to force users
