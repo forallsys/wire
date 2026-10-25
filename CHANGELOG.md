@@ -7,15 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased] - yyyy-mm-dd
 
+## [v1.4.2] - 2026-10-26
+
 ### Fixed
 
 - Using `ssh-ng://` without `--no-check-sigs` which would break deployment.
-
-### Changed
-
-- `inspect._schema` was upgraded from `1` to `2`. This was done to force users
-  to switch to a newer version of the wire binary that will support switching
-  this value to a semver string.
 
 ## [v1.4.1] - 2026-10-24
 
