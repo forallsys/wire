@@ -101,7 +101,7 @@ rec {
 
   topLevels = builtins.mapAttrs (name: _: getTopLevel name) nodes;
   inspect = {
-    _schema = 1;
+    _schema = 2;
 
     nodes = builtins.mapAttrs (_: v: v.config.deployment) nodes;
   };
