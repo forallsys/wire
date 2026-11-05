@@ -63,9 +63,6 @@ jobs:
       - name: pre-commit run
         run: nix develop -L -v -c pre-commit run --all-files
         continue-on-error: true
-      - name: Upgrade Hash
-        if: ${{ needs.check-changes.outputs.docs-pnpm == 'true' }}
-        run: bash ./doc/upgrade.sh
       - name: Minimise uv cache
         run: nix develop -L -v -c uv cache prune --ci
       - uses: autofix-ci/action@7a166d7532b277f34e16238930461bf77f9d7ed8
