@@ -29,7 +29,7 @@ use crate::{
 /// Cloning this value will keep pointing to the same handle.
 #[derive(Debug, Clone)]
 pub struct OutputHandle {
-    inner: Arc<RwLock<Option<SafeStorePath<String>>>>,
+    inner: Arc<RwLock<Option<SafeStorePath>>>,
 }
 
 pub type BuildOutputHandle = OutputHandle;
@@ -63,23 +63,23 @@ impl OutputHandle {
     }
 
     /// Create a handle for a store path which is already known
-    pub(crate) fn new_known(store_path: SafeStorePath<String>) -> Self {
+    pub(crate) fn new_known(store_path: SafeStorePath) -> Self {
         Self {
             inner: Arc::new(RwLock::new(Some(store_path))),
         }
     }
 
-    pub(crate) async fn set(&self, store_path: SafeStorePath<String>) {
+    pub(crate) async fn set(&self, store_path: SafeStorePath) {
         *self.inner.write().await = Some(store_path);
     }
 
-    pub(crate) async fn get(&self) -> Option<SafeStorePath<String>> {
+    pub(crate) async fn get(&self) -> Option<SafeStorePath> {
         self.inner.read().await.clone()
     }
 
     /// Attempt to read the previously written store path. If the store path
     /// producing step was never planned, this will fail.
-    pub(crate) async fn require(&self) -> Result<SafeStorePath<String>, HiveLibError> {
+    pub(crate) async fn require(&self) -> Result<SafeStorePath, HiveLibError> {
         self.get().await.ok_or(HiveLibError::MissingStepOutput)
     }
 }
@@ -99,11 +99,11 @@ fn app_shutdown_guard(context: &Context) -> Result<(), HiveLibError> {
 /// Task that evaluates the node.
 #[instrument(skip_all, name = "eval")]
 async fn evaluate_task(
-    tx: tokio::sync::oneshot::Sender<Result<SafeStorePath<String>, HiveLibError>>,
+    tx: tokio::sync::oneshot::Sender<Result<SafeStorePath, HiveLibError>>,
     hive_location: Arc<HiveLocation>,
     name: Name,
     modifiers: SubCommandModifiers,
-    on_new_evaluation: oneshot::Sender<SafeStorePath<String>>,
+    on_new_evaluation: oneshot::Sender<SafeStorePath>,
 ) {
     let output = evaluate_hive_attribute(&hive_location, &EvalGoal::GetTopLevel(&name), modifiers)
         .await
@@ -117,8 +117,7 @@ async fn evaluate_task(
         .and_then(|output: String| {
             debug!(pre_parsed_output = %output, "evaluated {name}");
 
-            SafeStorePath::<String>::from_absolute_path(output.as_bytes())
-                .map_err(HiveLibError::StorePath)
+            SafeStorePath::from_absolute_path(output.as_bytes()).map_err(HiveLibError::StorePath)
         });
 
     debug!(output = ?output, done = true);
@@ -136,7 +135,7 @@ async fn evaluate_task(
 #[instrument(skip_all, fields(node = %plan.context.name))]
 pub async fn execute(
     mut plan: NodePlan,
-    on_new_evaluation: oneshot::Sender<SafeStorePath<String>>,
+    on_new_evaluation: oneshot::Sender<SafeStorePath>,
 ) -> Result<(), HiveLibError> {
     app_shutdown_guard(&plan.context)?;
 

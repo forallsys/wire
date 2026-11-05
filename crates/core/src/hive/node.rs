@@ -251,8 +251,8 @@ pub fn should_apply_locally(allow_local_deployment: bool, name: &str) -> bool {
 
 #[derive(Debug)]
 pub enum Push<'a> {
-    Derivation(&'a SafeStorePath<String>),
-    Path(&'a SafeStorePath<String>),
+    Derivation(&'a SafeStorePath),
+    Path(&'a SafeStorePath),
 }
 
 #[derive(derive_more::Display, Debug, Clone, Copy, PartialEq, Eq)]
@@ -287,7 +287,7 @@ pub enum HandleUnreachable {
 
 #[derive(Default)]
 pub struct StepState {
-    pub evaluation_rx: Option<oneshot::Receiver<Result<SafeStorePath<String>, HiveLibError>>>,
+    pub evaluation_rx: Option<oneshot::Receiver<Result<SafeStorePath, HiveLibError>>>,
 }
 
 pub type BuildNameMap = Arc<Mutex<HashMap<u64, Arc<String>>>>;

@@ -338,7 +338,7 @@ fn log_print(
 }
 
 fn drv_path_to_build_name(drv_path: &[u8]) -> Arc<String> {
-    let store_path = match SafeStorePath::<&str>::from_absolute_path(drv_path) {
+    let store_path = match SafeStorePath::from_absolute_path(drv_path) {
         Err(err) => {
             error!(err = %err, "failed to parse build job name");
 

@@ -310,7 +310,7 @@ pub enum HiveLibError {
     #[error("failed to copy path {} to node {name}", path.to_absolute_path())]
     NixCopyError {
         name: Name,
-        path: SafeStorePath<String>,
+        path: SafeStorePath,
         #[source]
         error: Box<NixDaemonClientError>,
         #[help]
@@ -322,7 +322,7 @@ pub enum HiveLibError {
     #[error("failed to copy path {} to node {name}", path.to_absolute_path())]
     NixCopyCliError {
         name: Name,
-        path: SafeStorePath<String>,
+        path: SafeStorePath,
         #[source]
         error: Box<CommandError>,
         #[help]

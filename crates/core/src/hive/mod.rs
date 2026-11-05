@@ -263,7 +263,7 @@ impl Display for Hive {
 pub struct FlakePrefetch {
     pub(crate) hash: NixHash,
     #[serde(rename = "storePath")]
-    pub(crate) store_path: SafeStorePath<String>,
+    pub(crate) store_path: SafeStorePath,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

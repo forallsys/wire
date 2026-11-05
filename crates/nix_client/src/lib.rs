@@ -10,6 +10,7 @@ use std::{
 
 use itertools::Itertools;
 use miette::Diagnostic;
+use nix_compat::nix_daemon::types::NarHash;
 use nix_compat::wire::read_string;
 use nix_compat::{
     log::VerbosityLevel,
@@ -94,10 +95,10 @@ pub enum NixDaemonClientError {
 // a CAHash (which cannot be easily deserialized and serialised)
 #[derive(Debug)]
 pub struct WireAddToStoreNarRequest {
-    pub path: SafeStorePath<String>,
-    pub deriver: Option<SafeStorePath<String>>,
-    pub nar_hash: String,
-    pub references: Vec<SafeStorePath<String>>,
+    pub path: SafeStorePath,
+    pub deriver: Option<SafeStorePath>,
+    pub nar_hash: NarHash,
+    pub references: Vec<SafeStorePath>,
     pub registration_time: u64,
     pub nar_size: u64,
     pub ultimate: bool,
@@ -109,9 +110,9 @@ pub struct WireAddToStoreNarRequest {
 
 #[derive(Debug)]
 pub struct QueryMissingResult {
-    will_build: HashSet<SafeStorePath<String>>,
-    will_substitute: HashSet<SafeStorePath<String>>,
-    _unknown: HashSet<SafeStorePath<String>>,
+    will_build: HashSet<SafeStorePath>,
+    will_substitute: HashSet<SafeStorePath>,
+    _unknown: HashSet<SafeStorePath>,
     download_size: u64,
     _nar_size: u64,
 }
@@ -128,7 +129,7 @@ pub enum DerivedPathOutput<'a, S: Borrow<str> + std::fmt::Debug> {
 
 #[derive(Debug)]
 pub struct DerivedPath<'a, S: Borrow<str> + std::fmt::Debug> {
-    pub store_path: &'a SafeStorePath<String>,
+    pub store_path: &'a SafeStorePath,
     pub outputs: DerivedPathOutput<'a, S>,
 }
 
@@ -486,9 +487,9 @@ where
     #[instrument(skip_all)]
     pub async fn query_valid_paths(
         &mut self,
-        paths: Vec<SafeStorePath<String>>,
+        paths: Vec<SafeStorePath>,
         substitute: bool,
-    ) -> Result<Vec<SafeStorePath<String>>, NixDaemonClientError>
+    ) -> Result<Vec<SafeStorePath>, NixDaemonClientError>
     where
         R: AsyncReadExt + std::fmt::Debug + Unpin + Send,
         W: AsyncWriteExt + std::fmt::Debug + Unpin + Send,
@@ -510,7 +511,7 @@ where
         self.drain_stderr().await?;
 
         #[allow(clippy::disallowed_types)]
-        let valid_paths: Vec<nix_compat::store_path::StorePath<String>> = self.read_value().await?;
+        let valid_paths: Vec<nix_compat::store_path::StorePath> = self.read_value().await?;
 
         Ok(valid_paths.into_iter().map(SafeStorePath).collect())
     }
@@ -519,8 +520,8 @@ where
     #[allow(clippy::disallowed_types)]
     pub async fn collect_complete_closure(
         &mut self,
-        root_path: &SafeStorePath<String>,
-    ) -> Result<Vec<SafeStorePath<String>>, NixDaemonClientError>
+        root_path: &SafeStorePath,
+    ) -> Result<Vec<SafeStorePath>, NixDaemonClientError>
     where
         R: AsyncReadExt + std::fmt::Debug + Unpin + Send,
         W: AsyncWriteExt + std::fmt::Debug + Unpin + Send,
@@ -567,10 +568,10 @@ where
 
         // https://en.wikipedia.org/wiki/Topological_sorting#Depth-first_search
         fn visit(
-            path: &SafeStorePath<String>,
-            graph: &HashMap<SafeStorePath<String>, Vec<SafeStorePath<String>>>,
-            visited: &mut HashSet<SafeStorePath<String>>,
-            ordered: &mut Vec<SafeStorePath<String>>,
+            path: &SafeStorePath,
+            graph: &HashMap<SafeStorePath, Vec<SafeStorePath>>,
+            visited: &mut HashSet<SafeStorePath>,
+            ordered: &mut Vec<SafeStorePath>,
         ) {
             if visited.contains(path) {
                 return;
@@ -597,7 +598,7 @@ where
     #[allow(clippy::disallowed_types)]
     pub async fn query(
         &mut self,
-        path: &SafeStorePath<String>,
+        path: &SafeStorePath,
     ) -> Result<Option<UnkeyedValidPathInfo>, NixDaemonClientError>
     where
         R: AsyncReadExt + std::fmt::Debug + Unpin + Send,
@@ -636,12 +637,12 @@ where
         // info!("{deriver:?}");
 
         #[allow(clippy::disallowed_types)]
-        let deriver: Option<nix_compat::store_path::StorePath<String>> = self.read_value().await?;
+        let deriver: Option<nix_compat::store_path::StorePath> = self.read_value().await?;
 
-        let nar_hash: String = self.read_value().await?;
+        let nar_hash: NarHash = self.read_value().await?;
 
         #[allow(clippy::disallowed_types)]
-        let references: Vec<nix_compat::store_path::StorePath<String>> = self.read_value().await?;
+        let references: Vec<nix_compat::store_path::StorePath> = self.read_value().await?;
 
         let registration_time: u64 = self.read_value().await?;
 
@@ -684,7 +685,7 @@ where
     #[allow(clippy::disallowed_types)]
     pub async fn get_nar_stream(
         &mut self,
-        path: &SafeStorePath<String>,
+        path: &SafeStorePath,
         nar_size: u64,
     ) -> Result<Take<&mut NixReader<R>>, NixDaemonClientError>
     where
@@ -755,8 +756,8 @@ where
     #[instrument(skip(self))]
     pub async fn query_derivation_output_map(
         &mut self,
-        store_path: &SafeStorePath<String>,
-    ) -> Result<BTreeMap<String, Option<SafeStorePath<String>>>, NixDaemonClientError>
+        store_path: &SafeStorePath,
+    ) -> Result<BTreeMap<String, Option<SafeStorePath>>, NixDaemonClientError>
     where
         R: AsyncReadExt + std::fmt::Debug + Unpin + Send,
         W: AsyncWriteExt + std::fmt::Debug + Unpin + Send,
@@ -780,7 +781,7 @@ where
         self.drain_stderr().await?;
 
         #[allow(clippy::disallowed_types)]
-        let map: BTreeMap<String, Option<nix_compat::store_path::StorePath<String>>> =
+        let map: BTreeMap<String, Option<nix_compat::store_path::StorePath>> =
             self.read_value().await?;
 
         Ok(map
@@ -961,7 +962,7 @@ impl NixSerialize for WireAddToStoreNarRequest {
                 &self
                     .deriver
                     .clone()
-                    .map(Into::<nix_compat::store_path::StorePath<String>>::into),
+                    .map(Into::<nix_compat::store_path::StorePath>::into),
             )
             .await?;
         writer.write_value(&self.nar_hash).await?;
@@ -981,9 +982,9 @@ impl NixDeserialize for QueryMissingResult {
     where
         R: ?Sized + NixRead + Send,
     {
-        let will_build: Option<Vec<SafeStorePath<String>>> = reader.try_read_value().await?;
-        let will_substitute: Option<Vec<SafeStorePath<String>>> = reader.try_read_value().await?;
-        let unknown: Option<Vec<SafeStorePath<String>>> = reader.try_read_value().await?;
+        let will_build: Option<Vec<SafeStorePath>> = reader.try_read_value().await?;
+        let will_substitute: Option<Vec<SafeStorePath>> = reader.try_read_value().await?;
+        let unknown: Option<Vec<SafeStorePath>> = reader.try_read_value().await?;
         let download_size = reader.try_read_number().await?;
         let nar_size = reader.try_read_number().await?;
 

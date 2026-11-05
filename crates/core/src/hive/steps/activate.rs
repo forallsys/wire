@@ -66,7 +66,7 @@ async fn wait_for_ping(target: &SharedTarget, ctx: &Context) -> Result<(), HiveL
 impl SwitchToConfiguration {
     async fn set_profile(
         &self,
-        built_path: &SafeStorePath<String>,
+        built_path: &SafeStorePath,
         ctx: &Context,
     ) -> Result<(), HiveLibError> {
         info!(

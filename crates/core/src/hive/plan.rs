@@ -145,7 +145,7 @@ fn apply_plan(
     modifiers: SubCommandModifiers,
     hive_location: Arc<HiveLocation>,
     should_quit: Arc<AtomicBool>,
-    cached_evaluation: Option<&SafeStorePath<String>>,
+    cached_evaluation: Option<&SafeStorePath>,
 ) -> NodePlan {
     let ApplyGoalArgs {
         goal,
@@ -295,7 +295,7 @@ pub fn plan_for_node(
     hive_location: Arc<HiveLocation>,
     modifiers: &SubCommandModifiers,
     should_quit: Arc<AtomicBool>,
-    cached_evaluation: Option<&SafeStorePath<String>>,
+    cached_evaluation: Option<&SafeStorePath>,
 ) -> NodePlan {
     match goal {
         Goal::Build => {
@@ -911,10 +911,9 @@ mod tests {
         let node = Node::default();
         let name = &Name(function_name!().into());
         let should_quit = Arc::new(AtomicBool::new(false));
-        let cached = SafeStorePath::<String>::from_absolute_path(
-            b"/nix/store/0cg1bwya4a0r5y9vbi5c79jsvgmicg1p-name",
-        )
-        .unwrap();
+        let cached =
+            SafeStorePath::from_absolute_path(b"/nix/store/0cg1bwya4a0r5y9vbi5c79jsvgmicg1p-name")
+                .unwrap();
         let plan = plan_for_node(
             &node,
             name.clone(),

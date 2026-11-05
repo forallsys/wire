@@ -224,9 +224,7 @@ impl ExecuteStep for Build {
                 drop(clobber_guard);
 
                 self.output
-                    .set(SafeStorePath::<String>::from_absolute_path(
-                        stdout.as_bytes(),
-                    )?)
+                    .set(SafeStorePath::from_absolute_path(stdout.as_bytes())?)
                     .await;
             }
         }

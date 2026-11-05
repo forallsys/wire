@@ -129,7 +129,7 @@ impl InspectionCache {
 
     fn is_cache_invalid(store_path_name: &str, store_path_digest: &[u8]) -> bool {
         let store_path =
-            match SafeStorePath::<&str>::from_name_and_digest(store_path_name, store_path_digest) {
+            match SafeStorePath::from_name_and_digest(store_path_name, store_path_digest) {
                 Err(err) => {
                     error!(err = %err, "failed to parse store digest & name from cache entry");
 
@@ -153,7 +153,7 @@ impl InspectionCache {
         }
 
         let store_path_digest = &prefetch.store_path.digest()[..];
-        let store_path_name = prefetch.store_path.name();
+        let store_path_name = prefetch.store_path.name().as_str();
         let hash = prefetch.hash.to_sri_string();
 
         let cached_blob = sqlx::query_as!(
@@ -241,7 +241,7 @@ impl InspectionCache {
         };
 
         let store_path_digest = &prefetch.store_path.digest()[..];
-        let store_path_name = &prefetch.store_path.name();
+        let store_path_name = prefetch.store_path.name().as_str();
         let hash_sri = prefetch.hash.to_sri_string();
 
         let cached_inspection = sqlx::query!(
@@ -270,7 +270,7 @@ impl InspectionCache {
         prefetch: &FlakePrefetch,
         nodes: &[Name],
         should_quit: Arc<AtomicBool>,
-    ) -> Option<HashMap<Name, SafeStorePath<String>>> {
+    ) -> Option<HashMap<Name, SafeStorePath>> {
         struct Query {
             output_path_digest: Vec<u8>,
             output_path_name: String,
@@ -280,7 +280,7 @@ impl InspectionCache {
         let mut client = NixClient::open_local(|log, map, print| trace_nix_log_message(log, map, print, None), should_quit, false).await.inspect_err(|err| error!(err = ?err, "failed to open local nix client to verify cached evaluations")).ok()?;
 
         let store_path_digest = &prefetch.store_path.digest()[..];
-        let store_path_name = prefetch.store_path.name();
+        let store_path_name = prefetch.store_path.name().as_str();
         let flake_hash_sri = prefetch.hash.to_sri_string();
         let nodes_json = serde_json::to_string(nodes).unwrap_or_else(|_| "[]".to_string());
 
@@ -321,12 +321,9 @@ impl InspectionCache {
             .map(|x| {
                 (
                     x.node_name,
-                    SafeStorePath::<String>::from_name_and_digest(
-                        &x.output_path_name,
-                        &x.output_path_digest,
-                    )
-                    .inspect_err(|err| error!("failed to parse StorePath from cache: {err:?}"))
-                    .ok(),
+                    SafeStorePath::from_name_and_digest(&x.output_path_name, &x.output_path_digest)
+                        .inspect_err(|err| error!("failed to parse StorePath from cache: {err:?}"))
+                        .ok(),
                 )
             })
             .filter_map(|(name, path)| path.map(|path| (name, path)))
@@ -349,7 +346,7 @@ impl InspectionCache {
         let invalid_paths: Vec<_> = evaluation_cache
             .iter()
             .filter(|(_, path)| !valid_paths.contains(path))
-            .map(|(_, path)| (path.digest().to_vec(), path.name().clone()))
+            .map(|(_, path)| (path.digest().to_vec(), path.name().as_str().to_string()))
             .collect();
 
         if !invalid_paths.is_empty() {
@@ -377,14 +374,14 @@ impl InspectionCache {
         &self,
         prefetch: &FlakePrefetch,
         name: &Name,
-        path: SafeStorePath<String>,
+        path: SafeStorePath,
     ) {
         trace!(evaluated_path = ?path, prefetch = ?prefetch, "storing evaluated output");
 
         let store_path_digest = &prefetch.store_path.digest()[..];
-        let store_path_name = prefetch.store_path.name();
+        let store_path_name = prefetch.store_path.name().as_str();
         let output_path_digest = &path.digest()[..];
-        let output_path_name = path.name();
+        let output_path_name = path.name().as_str();
         let flake_hash_sri = prefetch.hash.to_sri_string();
         let node_name = name.to_string();
 
@@ -511,16 +508,16 @@ where
             previous_rowid = evaluation_paths.last().map_or(previous_rowid, |r| r.rowid);
 
             // build list of all store paths to check
-            let mut all_paths: Vec<SafeStorePath<String>> = Vec::new();
+            let mut all_paths: Vec<SafeStorePath> = Vec::new();
 
             for path in &evaluation_paths {
-                if let Ok(p) = SafeStorePath::<String>::from_name_and_digest(
+                if let Ok(p) = SafeStorePath::from_name_and_digest(
                     &path.flake_path_name,
                     &path.flake_path_digest,
                 ) {
                     all_paths.push(p);
                 }
-                if let Ok(p) = SafeStorePath::<String>::from_name_and_digest(
+                if let Ok(p) = SafeStorePath::from_name_and_digest(
                     &path.output_path_name,
                     &path.output_path_digest,
                 ) {
@@ -545,13 +542,13 @@ where
                 .filter(|path| {
                     // is invalid if either the output or the flake path are not in
                     // the valid set
-                    if let Ok(p) = SafeStorePath::<String>::from_name_and_digest(
+                    if let Ok(p) = SafeStorePath::from_name_and_digest(
                         &path.flake_path_name,
                         &path.flake_path_digest,
                     ) && !valid_set.contains(&p)
                     {
                         true
-                    } else if let Ok(p) = SafeStorePath::<String>::from_name_and_digest(
+                    } else if let Ok(p) = SafeStorePath::from_name_and_digest(
                         &path.output_path_name,
                         &path.output_path_digest,
                     ) && !valid_set.contains(&p)

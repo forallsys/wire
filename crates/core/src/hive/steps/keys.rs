@@ -321,9 +321,8 @@ impl ExecuteStep for PushKeyAgent {
             None => return Err(HiveLibError::KeyArchitectureNotFound { arg_name }),
         };
 
-        let agent_store_path =
-            SafeStorePath::<String>::from_absolute_path(agent_directory.as_bytes())
-                .map_err(HiveLibError::StorePath)?;
+        let agent_store_path = SafeStorePath::from_absolute_path(agent_directory.as_bytes())
+            .map_err(HiveLibError::StorePath)?;
 
         if let Some(ref target) = self.target {
             push_with_daemon(
