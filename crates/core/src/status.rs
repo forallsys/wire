@@ -371,7 +371,7 @@ pub async fn status_tick_worker(mut rx: UnboundedReceiver<UiMessage>, show_progr
                         );
                     },
                     UiMessage::SetStatus(name, value) => {
-                        status.statuses.insert(name.clone(), value);
+                        status.statuses.insert(name, value);
                     },
                     UiMessage::Takeover(tx) => {
                         taken_over = true;
