@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from test_driver.machine import Machine
-    from tools import collect_store_objects, assert_store_not_poisoned
+    from tools import assert_store_not_poisoned, collect_store_objects
 
     deployer: Machine = None  # type: ignore[invalid-assignment]
     receiver: Machine = None  # type: ignore[invalid-assignment]

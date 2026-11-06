@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright 2024-2025 wire Contributors
 
-from typing import TYPE_CHECKING
-from typing import Callable, ContextManager
+from collections.abc import Callable
+from typing import TYPE_CHECKING, ContextManager
 
 if TYPE_CHECKING:
     from test_driver.machine import Machine
