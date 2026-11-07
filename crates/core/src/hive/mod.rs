@@ -153,7 +153,7 @@ impl Hive {
             self.nodes
                 .get_mut(&Name(Arc::from(node.as_str())))
                 .ok_or(HiveLibError::HiveInitialisationError(
-                    HiveInitialisationError::NodeDoesNotExist(node.clone()),
+                    HiveInitialisationError::NodeDoesNotExist(node),
                 ))?
                 .build_remotely = false;
         }

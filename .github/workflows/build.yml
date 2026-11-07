@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-nix
+      - uses: $/.github/actions/setup-nix
       - name: Find package jobs
         id: x86_64
         run: |
@@ -31,8 +31,8 @@ jobs:
       - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-nix
-      - uses: ./.github/actions/check-cache
+      - uses: $/.github/actions/setup-nix
+      - uses: $/.github/actions/check-cache
         id: cached
         with:
           attr: .#packages.aarch64-linux.agent
@@ -47,8 +47,8 @@ jobs:
       - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-nix
-      - uses: ./.github/actions/check-cache
+      - uses: $/.github/actions/setup-nix
+      - uses: $/.github/actions/check-cache
         id: cached
         with:
           attr: .#packages.x86_64-linux.agent
@@ -79,8 +79,8 @@ jobs:
       - uses: actions/checkout@0c366fd6a839edf440554fa01a7085ccba70ac98
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-nix
-      - uses: ./.github/actions/check-cache
+      - uses: $/.github/actions/setup-nix
+      - uses: $/.github/actions/check-cache
         id: cached
         with:
           attr: .#hydraJobs.packages."${{ matrix.arch.id }}"."${{ matrix.package }}"

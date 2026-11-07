@@ -67,10 +67,11 @@
                 configPath = "typos.toml";
               };
             };
-            actionlint = {
-              enable = true;
-              files = "^\\.github/workflows/.*\\.(yml|yaml)$";
-            };
+            # disabled due to https://github.com/rhysd/actionlint/issues/711
+            # actionlint = {
+            #   enable = true;
+            #   files = "^\\.github/workflows/.*\\.(yml|yaml)$";
+            # };
             yamllint = {
               enable = true;
               settings.configPath = ".yamllint.yaml";

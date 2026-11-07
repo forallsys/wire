@@ -371,10 +371,7 @@ mod tests {
             let arr: Vec<usize> = (0..i).collect();
             let total = arr.len();
 
-            assert_eq!(
-                arr.clone(),
-                partition_slice(&arr.clone(), &Partitions::default()),
-            );
+            assert_eq!(arr.clone(), partition_slice(&arr, &Partitions::default()),);
 
             let buckets = 2;
             let chunk_size = total.div_ceil(buckets);
@@ -383,7 +380,7 @@ mod tests {
             assert_eq!(
                 &arr.clone()[..split_index],
                 partition_slice(
-                    &arr.clone(),
+                    &arr,
                     &Partitions {
                         current: 1,
                         maximum: 2
@@ -393,7 +390,7 @@ mod tests {
             assert_eq!(
                 &arr.clone()[split_index..],
                 partition_slice(
-                    &arr.clone(),
+                    &arr,
                     &Partitions {
                         current: 2,
                         maximum: 2
